@@ -1,20 +1,18 @@
 # TraxWax — Deploy to Cloudflare Pages
 
-The full site lives in this folder. Getting it live is: push once, connect Cloudflare,
-set the token. (I couldn't push from my side — the connector's token isn't scoped to
-this new repo, and the 780 KB `collection.json` can't stream through the GitHub API
-anyway — so Step 1 is a one-time `git push` from your Mac, which carries everything
-including the data file and screenshots.)
-
-Set `git config --global user.email` to your GitHub **noreply** address first if it
-isn't already (github.com/settings/emails), or the push is rejected with `GH007`.
+The full site is now pushed to **github.com/lanebecker/traxwax** (site + proxy +
+`collection.json` + screenshots + docs). What's left is to connect Cloudflare and set
+the token — **start at Step 2**.
 
 ---
 
-## Step 1 — Push the code (run on your Mac, ~30s)
+## Step 1 — Push the code ✅ done (2026-08-17)
 
-The repo already has a starter `README`/`LICENSE`, so the safe move is clone → copy
-our files in → push (no rebase, keeps the LICENSE, overwrites the starter README):
+Already pushed — the repo has the full site, `collection.json`, screenshots, and docs.
+**Skip to Step 2.** Kept below for reference / future re-pushes.
+
+The repo had a starter `README`/`LICENSE`, so the safe move was clone → copy files in →
+push (no rebase, keeps the LICENSE, overwrites the starter README):
 
 ```bash
 cd "/Users/lanebecker-wmf/Documents/Claude.nosync/Projects/Lane's Record Collection"
@@ -47,6 +45,12 @@ Dashboard: **Settings → Variables and Secrets → Add**, for **Production and 
 
 - `DISCOGS_TOKEN` = your Discogs personal access token  *(mark as Secret / encrypted)*
 - `DISCOGS_USER` = `lanebecker`  *(optional; this is the default)*
+
+Use a **standard user token (PAT)** — Discogs → Settings → Developers → *Generate new
+token* — **not** an app registration. TraxWax is single-user and the proxy reads only
+your own / public data, acting as you. If you later add per-user sign-in (multi-user
+with login), that moves to OAuth + an app registration — swap this secret then; the PAT
+still serves the app's own public calls.
 
 Then **Deployments → Retry deployment** (or push any commit) so the Functions pick up
 the secret.

@@ -140,7 +140,7 @@ function deco(r){
     style1:r.styles[0]||r.genres[0]||'—',
     isNew:(r.added||'').slice(0,7)===THIS_MONTH,
     priceLabel:r.price==null?'—':money(r.price),
-    coverBg:r.thumb?'url("'+r.thumb+'")':'none',
+    coverBg:r.thumb?"url('"+r.thumb+"')":'none',  // single quotes: the div's style="" is double-quoted
     coverAlt:r.artist+' — '+r.title+' cover',
   };
 }

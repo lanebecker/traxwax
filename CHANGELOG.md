@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [0.1.1] — 2026-08-17
+
+### Fixed
+
+- **Covers now load.** Card / timeline / ledger / modal cover art was written as
+  `background-image:url("…")` inside a double-quoted `style="…"` attribute, so the
+  inner double quotes closed the attribute early and every cover URL parsed to
+  `url("")` — no album art loaded anywhere on the deployed site. Switched the `url()`
+  in `deco()` to single quotes. Diagnosed on the live deploy (`traxwax.pages.dev`):
+  computed `background-image` was `url("")` and **0** of 1,850 covers ever fetched;
+  the Discogs CDN serves thumbs to the pages.dev origin fine (no hotlink block), so
+  the empty URL was the whole cause.
+
+---
+
 ## [0.1.0] — 2026-08-17
 
 Initial build: the Claude Design redesign ported into a standalone site on the full
