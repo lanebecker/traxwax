@@ -13,6 +13,30 @@ _Nothing yet._
 
 ---
 
+## [0.2.0] — 2026-08-17
+
+### Added
+
+- **Self-updating pipeline — no Claude, no Cowork, no local machine.**
+  `.github/workflows/refresh-collection.yml` runs weekly (and on demand via *Run
+  workflow*) and rebuilds `public/collection.json` from the Discogs API through
+  `build/refresh_collection.py` — new records, edits, and **baked marketplace low
+  prices** — then commits it; Cloudflare Pages auto-deploys. A price that fails to
+  fetch keeps its previous value, so a rough API day never wipes prices. Replaces the
+  old Cowork `rebuild-record-collection` task. One-time setup: add `DISCOGS_TOKEN` as a
+  GitHub **Actions** secret (separate from the Pages secret).
+- **Designed no-cover placeholder.** Records without album art now render a flat
+  vinyl-disc placeholder — black disc, red label, artist initials, no gradients — in the
+  TraxWax idiom, instead of a blank grey box. Applies to cards, timeline tiles, the
+  ledger, and the detail modal.
+
+### Changed
+
+- DEPLOY step 6 rewritten from "manual weekly Cowork task" to the automated Actions
+  workflow.
+
+---
+
 ## [0.1.1] — 2026-08-17
 
 ### Fixed
