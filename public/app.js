@@ -151,14 +151,15 @@ function sorted(list){
   return list.slice().sort((a,b)=>(key(a)<key(b)?-1:key(a)>key(b)?1:0)*s.dir);
 }
 function deco(r){
+  const coverUrl = r.cover_image || r.thumb || '';   // prefer the 600px cover_image; fall back to the 150px thumb
   return { ...r,
     swatch:swatchFor(r.vinyl), vinylShort:shortVinyl(r.vinyl),
     style1:r.styles[0]||r.genres[0]||'—',
     isNew:(r.added||'').slice(0,7)===THIS_MONTH,
     priceLabel:r.price==null?'—':money(r.price),
-    coverBg:r.thumb?"url('"+r.thumb+"')":'none',  // single quotes: the div's style="" is double-quoted
+    coverBg: coverUrl ? "url('"+coverUrl+"')" : 'none',  // single quotes: the div's style="" is double-quoted
     coverAlt:r.artist+' — '+r.title+' cover',
-    coverPlaceholder:r.thumb?'':vinylPlaceholder(initialsOf(r.artist)),  // designed no-cover state
+    coverPlaceholder: coverUrl ? '' : vinylPlaceholder(initialsOf(r.artist)),  // designed no-cover state
   };
 }
 function toggleGenre(g){

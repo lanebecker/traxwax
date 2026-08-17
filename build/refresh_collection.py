@@ -14,12 +14,15 @@ Env:
   DISCOGS_USER        optional — defaults to 'lanebecker'
   MAX_PRICE_FETCHES   optional — 0/unset = price every record (throttled). Set e.g. 700
                       to cap a run; records missing a price are fetched first.
+  SKIP_PRICES         optional — set (e.g. =1) to skip the price pass entirely: refresh
+                      records + cover_image only, keeping existing prices (~1 min run).
 """
 import json, os, re, sys, time, urllib.request, urllib.error
 
 TOKEN = os.environ.get('DISCOGS_TOKEN')
 USER  = os.environ.get('DISCOGS_USER', 'lanebecker')
 MAXP  = int(os.environ.get('MAX_PRICE_FETCHES', '0') or '0')
+SKIPP = bool(os.environ.get('SKIP_PRICES', ''))   # set to skip the price pass (fast metadata + cover refresh)
 UA    = 'TraxWax/1.0 +https://traxwax.com'
 API   = 'https://api.discogs.com'
 HERE  = os.path.dirname(os.path.abspath(__file__))
@@ -76,6 +79,7 @@ def fetch_collection():
                 'genres': bi.get('genres', []) or [],
                 'vinyl': ((bi.get('formats') or [{}])[0].get('text', '') or ''),
                 'thumb': bi.get('thumb', '') or '',
+                'cover_image': bi.get('cover_image', '') or '',
                 'added': (r.get('date_added', '') or '')[:10],
                 'rating': r.get('rating', 0) or 0,
                 'price': None,
@@ -112,17 +116,21 @@ def main():
     for r in records:
         r['price'] = prev.get(r['id'])   # seed from previous run
 
-    # Price pass: records missing a price first, then the rest; capped if MAX_PRICE_FETCHES>0.
-    order = [r for r in records if r['price'] is None] + [r for r in records if r['price'] is not None]
-    todo = order if MAXP <= 0 else order[:MAXP]
+    # Price pass (skipped when SKIP_PRICES is set): missing prices first, then the rest;
+    # capped if MAX_PRICE_FETCHES>0.
     fetched = preserved = 0
-    for r in todo:
-        v = marketplace_low(r['id'])
-        if v is not None:
-            r['price'] = v; fetched += 1
-        elif r['price'] is not None:
-            preserved += 1                # keep the previous value on a failed fetch
-        time.sleep(PAUSE)
+    if SKIPP:
+        print('SKIP_PRICES set — refreshing records + cover_image only; existing prices kept.')
+    else:
+        order = [r for r in records if r['price'] is None] + [r for r in records if r['price'] is not None]
+        todo = order if MAXP <= 0 else order[:MAXP]
+        for r in todo:
+            v = marketplace_low(r['id'])
+            if v is not None:
+                r['price'] = v; fetched += 1
+            elif r['price'] is not None:
+                preserved += 1            # keep the previous value on a failed fetch
+            time.sleep(PAUSE)
 
     json.dump(records, open(OUT, 'w'), ensure_ascii=False, separators=(',', ':'))
     priced = sum(1 for r in records if r['price'] is not None)

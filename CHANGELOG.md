@@ -13,6 +13,20 @@ _Nothing yet._
 
 ---
 
+## [0.2.1] — 2026-08-17
+
+### Changed
+
+- **Sharper cover art.** Covers now use Discogs' `cover_image` (~600px, quality 90)
+  instead of the 150px `thumb`, which was being upscaled to ~380px on Retina and looked
+  pixelated. `deco()` prefers `cover_image`, falls back to `thumb`, then the no-cover
+  placeholder. `refresh_collection.py` and `build_collection.py` now capture
+  `cover_image`, and `refresh_collection.py` gains a `SKIP_PRICES` mode for a ~1-minute
+  metadata + cover refresh (no price bake). Regenerating `collection.json` also picked up
+  3 newly-added records (1,850 → 1,853).
+
+---
+
 ## [0.2.0] — 2026-08-17
 
 ### Added
