@@ -1,6 +1,6 @@
 # TraxWax
 
-[![version](https://img.shields.io/badge/version-0.1.1-blueviolet)](VERSION)
+[![version](https://img.shields.io/badge/version-0.2.0-blueviolet)](VERSION)
 
 The hosted home of Lane's record collection — the Claude Design redesign, ported off
 the design runtime into a clean static site, running on the full ~1,850-record
