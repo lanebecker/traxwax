@@ -33,6 +33,7 @@ def main():
             "genres": bi.get("genres", []) or [],
             "vinyl": ((bi.get("formats") or [{}])[0].get("text", "") or ""),
             "thumb": bi.get("thumb", "") or "",
+            "cover_image": bi.get("cover_image", "") or "",
             "added": (r.get("date_added", "") or "")[:10],
             "rating": r.get("rating", 0) or 0,
             "price": None,
