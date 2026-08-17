@@ -83,6 +83,22 @@ function isColored(text){
 }
 function money(n){ return '$'+Math.round(n).toLocaleString('en-US'); }
 function valueLabel(total){ return total>0 ? money(total) : '—'; }
+function initialsOf(artist){
+  return String(artist||'').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase() || '♪';
+}
+// Designed no-cover placeholder — a flat vinyl in the TraxWax idiom (black / white / one
+// red, no gradients); the disc is fixed-black in both themes, like the wordmark block.
+function vinylPlaceholder(initials){
+  return `<svg viewBox="0 0 100 100" style="width:100%; display:block" aria-hidden="true">`
+    + `<rect width="100" height="100" fill="var(--skel)"/>`
+    + `<circle cx="50" cy="50" r="40" fill="#16171a"/>`
+    + `<circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="0.7"/>`
+    + `<circle cx="50" cy="50" r="33" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="0.7"/>`
+    + `<circle cx="50" cy="50" r="26" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="0.7"/>`
+    + `<circle cx="50" cy="50" r="17.5" fill="var(--accent)"/>`
+    + `<text x="50" y="49.75" text-anchor="middle" dominant-baseline="central" font-family="'Barlow Condensed',sans-serif" font-weight="700" font-size="16" fill="#fff">${esc(initials)}</text>`
+    + `</svg>`;
+}
 function tracksFor(r){
   const n=8+(r.id%4), out=[];
   for(let i=1;i<=n;i++){
@@ -142,6 +158,7 @@ function deco(r){
     priceLabel:r.price==null?'—':money(r.price),
     coverBg:r.thumb?"url('"+r.thumb+"')":'none',  // single quotes: the div's style="" is double-quoted
     coverAlt:r.artist+' — '+r.title+' cover',
+    coverPlaceholder:r.thumb?'':vinylPlaceholder(initialsOf(r.artist)),  // designed no-cover state
   };
 }
 function toggleGenre(g){
@@ -168,7 +185,7 @@ function card(r){
   return `<div style="min-width:0; background:var(--panel); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow); display:flex; flex-direction:column">
     <div style="position:relative; padding:6px 6px 0">
       <button data-act="open" data-arg="${r.id}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
-        <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center"></div>
+        <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
       </button>
       ${r.isNew?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
     </div>
@@ -269,7 +286,7 @@ function render(){
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:10px">${grp.items.map(r=>`
           <button data-act="open" data-arg="${r.id}" title="${esc(r.coverAlt)}" style="padding:0; border:1.5px solid var(--line); background:transparent; box-shadow:2px 2px 0 var(--shadow)">
-            <div role="img" aria-label="${esc(r.coverAlt)}" style="width:84px; height:84px; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center"></div>
+            <div role="img" aria-label="${esc(r.coverAlt)}" style="width:84px; height:84px; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
           </button>`).join('')}</div>
       </div>`).join('')}</div>`;
   } else if(showStats){
@@ -296,7 +313,7 @@ function render(){
           <div style="display:flex; flex-direction:column; margin-top:14px">${
             v.priciest.length ? v.priciest.map(r=>`
             <button data-act="open" data-arg="${r.id}" style="display:flex; align-items:center; gap:12px; padding:8px 0; border:0; border-bottom:1px solid var(--hair); background:transparent; text-align:left">
-              <div role="img" aria-label="${esc(r.coverAlt)}" style="width:38px; height:38px; flex:none; border:1px solid var(--line); background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center"></div>
+              <div role="img" aria-label="${esc(r.coverAlt)}" style="width:38px; height:38px; flex:none; border:1px solid var(--line); background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
               <span style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">
                 <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</span>
                 <span style="font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:600; line-height:1.05">${esc(r.title)}</span>
@@ -403,7 +420,7 @@ function modalHtml(){
   return `<div data-act="closeDetail" style="position:fixed; inset:0; background:rgba(10,10,12,.62); display:flex; align-items:flex-start; justify-content:center; padding:60px 20px; overflow:auto; z-index:50">
     <div data-act="stop" style="position:relative; width:840px; max-width:100%; background:var(--panel); border:1.5px solid var(--line); box-shadow:8px 8px 0 rgba(0,0,0,.4)">
       <div style="display:flex; gap:22px; padding:22px 24px 20px; border-bottom:2px solid var(--line)">
-        <div role="img" aria-label="${esc(d.coverAlt)}" style="width:190px; height:190px; flex:none; border:1.5px solid var(--line); background:var(--skel); background-image:${d.coverBg}; background-size:cover; background-position:center"></div>
+        <div role="img" aria-label="${esc(d.coverAlt)}" style="width:190px; height:190px; flex:none; border:1.5px solid var(--line); background:var(--skel); background-image:${d.coverBg}; background-size:cover; background-position:center">${d.coverPlaceholder}</div>
         <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:8px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint)">${esc(rec.artist)}</span>
           <span style="font-family:'Barlow Condensed',sans-serif; font-size:38px; font-weight:700; line-height:1; text-wrap:pretty">${esc(rec.title)}</span>

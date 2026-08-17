@@ -69,13 +69,25 @@ imports your existing DNS), **change the nameservers at your registrar** to the 
 Cloudflare gives you, then in the Pages project **Custom domains → Set up → traxwax.com**
 (+ `www`). SSL auto-provisions. This cuts a **v1.0.0** release (see `docs/roadmap.md`).
 
-## Step 6 — Bake grid prices — later (v1.1.0)
+## Step 6 — Automatic updates (GitHub Actions) — one-time setup
 
-To light up per-record prices in the grid/Ledger/sort (not just the modal), a scheduled
-job fetches marketplace lows for every record and writes them into
-`public/collection.json`'s `price` field — fold it into the existing weekly
-`rebuild-record-collection` task. (Fetching 1,850 lows on every page load is the thing
-we're deliberately avoiding.)
+The site keeps itself current with **no Claude, no Cowork task, no local machine**:
+`.github/workflows/refresh-collection.yml` runs weekly (and on demand), rebuilds
+`public/collection.json` from the Discogs API via `build/refresh_collection.py` (new
+records, edits, and baked marketplace low prices), and commits it — Cloudflare
+auto-deploys the commit.
+
+One-time setup — add the Discogs token as an **Actions** secret (a separate store from
+the Pages secret you set in Step 3):
+
+- repo → **Settings → Secrets and variables → Actions → New repository secret**
+- Name: `DISCOGS_TOKEN`   Value: your Discogs personal access token
+
+Then trigger the first run: repo → **Actions → Refresh collection → Run workflow**. It
+takes ~35–40 min (it prices all ~1,850 records, throttled under Discogs' rate limit),
+commits the result, and the grid / Ledger / sort prices light up. After that it runs
+itself every Monday. This **replaces the old Cowork `rebuild-record-collection` task** —
+you can retire it.
 
 ## Local testing (optional)
 

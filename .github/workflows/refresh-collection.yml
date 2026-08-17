@@ -1,0 +1,47 @@
+name: Refresh collection
+
+# Rebuilds public/collection.json from the Discogs API and commits it; Cloudflare Pages
+# auto-deploys the commit. This replaces the old Cowork scheduled task — the site keeps
+# itself up to date with no Claude and no local machine in the loop.
+#
+# Setup (one time): add the Discogs token as an Actions secret —
+#   repo → Settings → Secrets and variables → Actions → New repository secret
+#   Name: DISCOGS_TOKEN   Value: your Discogs personal access token
+# (This is separate from the Cloudflare Pages secret of the same name.)
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'      # Mondays ~09:17 UTC, weekly
+  workflow_dispatch: {}         # manual "Run workflow" button, for on-demand refreshes
+
+concurrency:
+  group: refresh-collection
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90         # a full price bake of ~1,850 records is ~35–40 min
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Refresh collection.json from Discogs
+        env:
+          DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
+          DISCOGS_USER: lanebecker
+          # MAX_PRICE_FETCHES: '700'   # uncomment to cap price fetches per run
+        run: python3 build/refresh_collection.py     # stdlib only — no pip install needed
+
+      - name: Commit if collection.json changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- public/collection.json; then
+            echo "No changes — nothing to commit."
+          else
+            git add public/collection.json
+            git commit -m "chore: weekly collection refresh ($(date -u +%Y-%m-%d))"
+            git push
+          fi
