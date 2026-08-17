@@ -53,3 +53,16 @@ replaced by the vanilla renderer.
 
 `cd public && python3 -m http.server 8000`. To exercise the proxy locally with a
 token: `npx wrangler pages dev public` (see `DEPLOY.md`).
+
+## Working copy & pushing
+
+**One persistent clone is the working copy: `Projects/Lane's Record Collection/traxwax-clone`.**
+Claude edits files here directly — there is no separate staging dir and no rsync (the old
+`traxwax-site` copy is retired). Because the `sync-version-badge` Action commits back to `main`, **commit first, then
+`pull --rebase`, then push** — `git pull --rebase` refuses to run with a dirty tree, so
+the pull comes after the commit, not before. One chain:
+
+```bash
+cd "…/Projects/Lane's Record Collection/traxwax-clone"
+git add -A && git commit -m "…" && git pull --rebase origin main && git push
+```
