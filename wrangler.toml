@@ -1,0 +1,7 @@
+name = "traxwax"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "public"
+
+# Secrets (set in the Cloudflare dashboard or via `wrangler pages secret put`):
+#   DISCOGS_TOKEN   — required, the Discogs personal access token
+#   DISCOGS_USER    — optional, defaults to "lanebecker"
