@@ -21,19 +21,30 @@ const SETTINGS = {
    the Discogs token server-side. Each call degrades gracefully to baked/mock data
    so the site still works locally (no proxy) and if Discogs is unreachable. */
 const api = {
+  // Release detail. Retries transient failures (429 rate-limit / 5xx) — the first
+  // fetch of an uncached release is the one that used to fail and leave the modal on
+  // placeholder tracks. Returns { ok:false } if it truly can't resolve, so the modal
+  // shows a loading→error→Retry path rather than fabricated data.
   async release(rec){
-    try {
-      const r = await fetch('/api/release/' + rec.id);
-      if (!r.ok) throw new Error('http ' + r.status);
-      const d = await r.json();
-      return {
-        tracks: (d.tracks && d.tracks.length) ? d.tracks : tracksFor(rec),
-        haveWant: (d.have != null && d.want != null) ? (d.have.toLocaleString() + ' / ' + d.want.toLocaleString()) : '—',
-        rating: d.ratingAvg != null ? (Number(d.ratingAvg).toFixed(1) + ' (' + (d.ratingCount || 0) + ')') : '—',
-        price: d.price != null ? d.price : null,
-        country: d.country || '', released: d.released || '',
-      };
-    } catch(e) { return mockRel(rec); }   // local dev / proxy down → mock so the modal still works
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await fetch('/api/release/' + rec.id);
+        if (r.status === 429 || r.status >= 500) throw new Error('transient ' + r.status);
+        if (!r.ok) return { ok:false };
+        const d = await r.json();
+        return {
+          ok: true,
+          tracks: d.tracks || [],
+          haveWant: (d.have != null && d.want != null) ? (d.have.toLocaleString() + ' / ' + d.want.toLocaleString()) : '—',
+          rating: d.ratingAvg != null ? (Number(d.ratingAvg).toFixed(1) + ' (' + (d.ratingCount || 0) + ')') : '—',
+          price: d.price != null ? d.price : null,
+          country: d.country || '', released: d.released || '',
+        };
+      } catch(e) {
+        if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));  // backoff, then retry
+      }
+    }
+    return { ok:false };
   },
   async value(){
     try { const r = await fetch('/api/value'); if (!r.ok) throw 0; const d = await r.json(); return d.median || d.minimum || null; }
@@ -44,11 +55,27 @@ const api = {
     catch(e) { return rec.price; }
   },
 };
-function mockRel(rec){
-  return { tracks: tracksFor(rec),
-    haveWant: (400 + (rec.id % 1200)) + ' / ' + Math.round((400 + (rec.id % 1200)) * 1.8),
-    rating: rec.rating ? rec.rating + ' / 5' : '4.3 (139)',
-    price: rec.price != null ? rec.price : null, country: 'US', released: String(rec.year || '') };
+
+/* Release-detail cache. Tracklists are immutable and community stats change slowly, so
+   results persist in localStorage — a record you've opened before shows instantly and
+   never re-fetches within the TTL. Long TTL + a modest LRU cap keeps us under quota. */
+const REL_CACHE_KEY = 'tw_release_cache_v1';
+const REL_TTL_MS = 90 * 24 * 60 * 60 * 1000;   // 90 days
+const REL_CACHE_MAX = 800;
+let _relCache = {};
+try { _relCache = JSON.parse(localStorage.getItem(REL_CACHE_KEY) || '{}'); } catch(e) {}
+function _saveRelCache(){
+  try {
+    const ids = Object.keys(_relCache);
+    if (ids.length > REL_CACHE_MAX) {
+      ids.sort((a,b)=>(_relCache[a].ts||0)-(_relCache[b].ts||0));
+      ids.slice(0, ids.length - REL_CACHE_MAX).forEach(id=>delete _relCache[id]);
+    }
+    localStorage.setItem(REL_CACHE_KEY, JSON.stringify(_relCache));
+  } catch(e) {
+    try { localStorage.removeItem(REL_CACHE_KEY); } catch(e2) {}
+    _relCache = {};
+  }
 }
 
 /* ── Helpers (verbatim from the kit) ───────────────────────────────────────── */
@@ -98,16 +125,6 @@ function vinylPlaceholder(initials){
     + `<circle cx="50" cy="50" r="17.5" fill="var(--accent)"/>`
     + `<text x="50" y="49.75" text-anchor="middle" dominant-baseline="central" font-family="'Barlow Condensed',sans-serif" font-weight="700" font-size="16" fill="#fff">${esc(initials)}</text>`
     + `</svg>`;
-}
-function tracksFor(r){
-  const n=8+(r.id%4), out=[];
-  for(let i=1;i<=n;i++){
-    const side=i<=Math.ceil(n/2)?'A':'B';
-    const idx=i<=Math.ceil(n/2)?i:i-Math.ceil(n/2);
-    const secs=120+((r.id+i*37)%200);
-    out.push({pos:side+idx, title:'Track '+i, dur:Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0')});
-  }
-  return out;
 }
 const THIS_MONTH = new Date().toISOString().slice(0,7);
 
@@ -411,10 +428,20 @@ function modalHtml(){
   const priceNum=(rel && rel.price!=null)?rel.price:(rec.price!=null?rec.price:null);
   const priceLabel=priceNum!=null?money(priceNum):'—';
   const styleChips=(rec.styles||[]).map(g=>`<button data-act="detailGenre" data-arg="${esc(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:10px; padding:4px 8px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink)">${esc(g)}</button>`).join('');
-  const tracks=(rel?rel.tracks:tracksFor(rec)).map(t=>`<div style="display:flex; align-items:baseline; gap:12px; padding:5px 0; border-bottom:1px solid var(--hair)">
+  const err = rec._relErr;
+  const trackRow = t => `<div style="display:flex; align-items:baseline; gap:12px; padding:5px 0; border-bottom:1px solid var(--hair)">
       <span style="width:26px; flex:none; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint)">${esc(t.pos)}</span>
       <span style="flex:1; min-width:0; font-family:'Archivo',sans-serif; font-size:13px">${esc(t.title)}</span>
-      <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${esc(t.dur)}</span></div>`).join('');
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${esc(t.dur)}</span></div>`;
+  const skelRow = w => `<div style="display:flex; align-items:center; gap:12px; padding:6px 0; border-bottom:1px solid var(--hair)">
+      <span style="width:20px; height:9px; flex:none; background:var(--skel); animation:twshimmer 1.4s ease-in-out infinite"></span>
+      <span style="flex:1; height:9px; max-width:${w}; background:var(--skel); animation:twshimmer 1.4s ease-in-out infinite"></span></div>`;
+  const trNote = "font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.7; padding:6px 0";
+  let tracksHtml;
+  if (rel && rel.tracks && rel.tracks.length) tracksHtml = rel.tracks.map(trackRow).join('');
+  else if (rel)  tracksHtml = `<div style="${trNote}">No tracklist on Discogs for this pressing.</div>`;
+  else if (err)  tracksHtml = `<div style="${trNote}">Couldn't reach Discogs. <button data-act="retryDetail" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 9px; margin-left:4px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink)">RETRY</button></div>`;
+  else           tracksHtml = ['86%','72%','90%','64%','80%','58%','88%','70%'].map(skelRow).join('');
   const rating=rel?rel.rating:(rec.rating?rec.rating+' / 5':'—');
   const haveWant=rel?rel.haveWant:'—';
 
@@ -453,7 +480,7 @@ function modalHtml(){
       <div style="display:grid; grid-template-columns:1fr 240px; gap:0">
         <div style="padding:18px 24px 22px; border-right:1px solid var(--hair)">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Tracklist</span>
-          <div style="display:flex; flex-direction:column; margin-top:10px">${tracks}</div>
+          <div style="display:flex; flex-direction:column; margin-top:10px">${tracksHtml}</div>
         </div>
         <div style="padding:18px 22px 22px; display:flex; flex-direction:column; gap:14px">
           <div style="display:flex; flex-direction:column; gap:6px">
@@ -475,9 +502,21 @@ function modalHtml(){
 }
 
 async function openDetail(id){
-  state.detailId=id; render();
+  state.detailId=id;
   const rec=RECORDS.find(r=>r.id===id);
-  if(rec && !rec._rel){ try{ rec._rel=await api.release(rec); if(state.detailId===id) render(); }catch(e){} }
+  if(rec){
+    const c=_relCache[id];
+    if(c && (Date.now()-(c.ts||0))<REL_TTL_MS){ rec._rel=c.d; rec._relErr=false; }   // instant from cache
+    else { rec._rel=null; rec._relErr=false; }                                        // show loading, then fetch
+  }
+  render();
+  if(rec && !rec._rel) await _loadRelease(rec);
+}
+async function _loadRelease(rec){
+  const d=await api.release(rec);
+  if(d.ok){ rec._rel=d; rec._relErr=false; _relCache[rec.id]={ts:Date.now(), d}; _saveRelCache(); }
+  else { rec._relErr=true; }
+  if(state.detailId===rec.id) render();
 }
 
 /* ── Events (delegation) ───────────────────────────────────────────────────── */
@@ -495,6 +534,7 @@ function onClick(e){
     case 'artist': state.artist=arg; state.detailId=null; render(); break;
     case 'color': state.color=arg; state.detailId=null; render(); break;
     case 'open': openDetail(Number(arg)); break;
+    case 'retryDetail': { const r=RECORDS.find(x=>x.id===state.detailId); if(r){ r._relErr=false; render(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
     case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; render(); break;

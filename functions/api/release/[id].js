@@ -17,12 +17,18 @@ export async function onRequestGet({ params, env }) {
   const cached = await cache.match(key);
   if (cached) return cached;
 
-  const upstream = await fetch('https://api.discogs.com/releases/' + id + '?curr_abbr=USD', {
-    headers: {
-      'Authorization': 'Discogs token=' + env.DISCOGS_TOKEN,
-      'User-Agent': 'TraxWax/1.0 +https://traxwax.com',   // Discogs 403s without a UA
-    },
-  });
+  const headers = {
+    'Authorization': 'Discogs token=' + env.DISCOGS_TOKEN,
+    'User-Agent': 'TraxWax/1.0 +https://traxwax.com',   // Discogs 403s without a UA
+  };
+  // Retry once on a 429 — a brief backoff usually clears the rate-limit window, so the
+  // client gets the tracklist on the first open instead of failing to the retry UI.
+  let upstream;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    upstream = await fetch('https://api.discogs.com/releases/' + id + '?curr_abbr=USD', { headers });
+    if (upstream.status !== 429) break;
+    if (attempt === 0) await new Promise(r => setTimeout(r, 900));
+  }
   if (!upstream.ok) return json({ error: 'upstream', status: upstream.status }, upstream.status === 429 ? 429 : 502);
 
   const d = await upstream.json();
