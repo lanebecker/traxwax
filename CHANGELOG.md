@@ -13,6 +13,27 @@ _Nothing yet._
 
 ---
 
+## [0.3.0] — 2026-08-17
+
+### Added / Changed
+
+- **The detail modal now reads baked data — no live Discogs call, immune to rate limits.**
+  A single weekly `get_release` pass per record bakes everything the modal shows:
+  - immutable parts (tracklist, country, release date, videos) → static per-release files
+    at `public/releases/<id>.json`, loaded directly by the modal and cached forever. A
+    pressing's tracklist never changes, so files are written once and existing ones are
+    never rewritten (weekly diffs stay tiny).
+  - changing parts (community rating, have/want, lowest sale) → fields on each record in
+    `collection.json`, refreshed weekly, so the stat cells are instant and ≤1 week fresh.
+
+  The modal falls back to the live `/api/release` proxy only for a brand-new record whose
+  file hasn't been baked yet. This removes the "Track 1, 2…" placeholders and the
+  rate-limit failures entirely. `refresh_collection.py` now runs one `get_release` pass
+  (flags `SKIP_RELEASES` / `RELEASE_NEW_ONLY` / `RELEASE_LIMIT`) that **replaces the
+  separate marketplace price bake** — `get_release` returns the lowest price too.
+
+---
+
 ## [0.2.2] — 2026-08-17
 
 ### Fixed

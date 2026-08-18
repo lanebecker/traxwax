@@ -83,21 +83,26 @@ the Pages secret you set in Step 3):
 - repo → **Settings → Secrets and variables → Actions → New repository secret**
 - Name: `DISCOGS_TOKEN`   Value: your Discogs personal access token
 
-Then trigger the first run: repo → **Actions → Refresh collection → Run workflow**. It
-takes ~35–40 min (it prices all ~1,850 records, throttled under Discogs' rate limit),
-commits the result, and the grid / Ledger / sort prices light up. After that it runs
-itself every Monday. This **replaces the old Cowork `rebuild-record-collection` task** —
-you can retire it.
+Then trigger the first run: repo → **Actions → Refresh collection → Run workflow**. The
+first run takes ~35–40 min — one `get_release` pass over ~1,850 records, throttled under
+Discogs' rate limit — and bakes everything the detail modal needs: tracklists to
+`public/releases/<id>.json`, plus community rating / have-want / **lowest price** into
+`collection.json` (so grid / Ledger / sort prices light up too). It commits the result.
+After that it runs itself every Monday — a full pass keeps stats + prices fresh, while
+tracklist files are written once (only new records add files). This **replaces the old
+Cowork `rebuild-record-collection` task** and the separate price bake — you can retire them.
 
 ## Local testing (optional)
 
 Run the Functions locally with your token:
 
 ```bash
-cd "…/traxwax-site"
+cd "…/traxwax-clone"
 printf 'DISCOGS_TOKEN=YOUR_TOKEN\nDISCOGS_USER=lanebecker\n' > .dev.vars   # git-ignored; never commit
 npx wrangler pages dev public
 ```
 
-(Plain `python3 -m http.server` inside `public/` runs the site too — the `/api` calls
-just 404 and the app falls back to mock data.)
+(Plain `python3 -m http.server` inside `public/` runs the site too. After a bake, the
+modal reads tracklists + stats straight from the baked static files, so most of it works
+with no proxy — only the live header value and the brand-new-record fallback need the
+Functions.)
