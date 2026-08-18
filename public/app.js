@@ -308,14 +308,14 @@ function render(){
       </div>`).join('')}</div>`;
   } else if(showStats){
     content=`<div style="display:flex; flex-direction:column; gap:0">
-      <div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--hair)">
+      <div class="tw-ledger-stats" style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--hair)">
         ${v.bigStats.map(st=>`<div style="padding:20px 22px; border-right:1px solid var(--hair); display:flex; flex-direction:column; gap:6px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">${esc(st.label)}</span>
           <span style="font-family:'Barlow Condensed',sans-serif; font-size:40px; font-weight:700; line-height:1; color:${st.color}">${esc(st.value)}</span>
           <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint); line-height:1.5">${esc(st.note)}</span>
         </div>`).join('')}
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0">
+      <div class="tw-ledger-panels" style="display:grid; grid-template-columns:1fr 1fr; gap:0">
         <div style="padding:22px 24px; border-right:1px solid var(--hair)">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Most-filed styles</span>
           <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">${v.styleBars.map(b=>`
@@ -354,17 +354,17 @@ function render(){
   const html=`
   <div style="position:relative; max-width:1480px; margin:0 auto; background:var(--panel); border:1px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">
 
-    <header style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:22px 24px 18px; background:var(--accent); border-bottom:3px solid var(--line)">
-      <div style="display:flex; align-items:flex-end; gap:14px">
+    <header class="tw-header" style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:22px 24px 18px; background:var(--accent); border-bottom:3px solid var(--line)">
+      <div class="tw-headL" style="display:flex; align-items:flex-end; gap:14px">
         <span style="background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</span>
         <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.92); padding-bottom:6px">${esc(SETTINGS.ownerLine)}</span>
       </div>
-      <div style="display:flex; align-items:center; gap:10px">
+      <div class="tw-headR" style="display:flex; align-items:center; gap:10px">
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
           <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} IN CRATE</span>
-          <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount} COLORED</span>
+          <span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount} COLORED</span>
           <span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>
-          <span style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
+          <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
       </div>
@@ -372,7 +372,7 @@ function render(){
       <span style="position:absolute; top:-8px; right:58px; width:92px; height:20px; background:rgba(255,255,255,.32); border-left:1px dashed rgba(0,0,0,.2); border-right:1px dashed rgba(0,0,0,.2); transform:rotate(2.5deg); pointer-events:none"></span>
     </header>
 
-    <div style="display:flex; align-items:center; gap:8px; padding:12px 24px; background:var(--bar); border-bottom:2px solid var(--line); flex-wrap:wrap">
+    <div class="tw-filterbar" style="display:flex; align-items:center; gap:8px; padding:12px 24px; background:var(--bar); border-bottom:2px solid var(--line); flex-wrap:wrap">
       <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:var(--muted); margin-right:4px">FILED UNDER</span>
       <button data-act="clearGenres" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1.5px solid var(--line); ${noGenres?chipOn.replace('var(--accent)','var(--ink)'):chipOff}">ALL ${v.all.length.toLocaleString('en-US')}</button>
       ${genreChips}
@@ -382,9 +382,9 @@ function render(){
       </span>
     </div>
 
-    <div style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
-      ${tab('crate','THE CRATE')}${tab('timeline','TIMELINE')}${tab('ledger','THE LEDGER')}
-      <div style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
+    <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
+      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}
+      <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
         <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
           ${sortBtn('added','ADDED')}${sortBtn('artist','ARTIST')}${sortBtn('year','YEAR')}${sortBtn('price','PRICE')}
@@ -443,10 +443,10 @@ function modalHtml(){
   const rating = rec.crating!=null ? (Number(rec.crating).toFixed(1)+' ('+(rec.crcount||0)+')') : '—';   // community rating (baked)
   const haveWant = (rec.have!=null && rec.want!=null) ? (rec.have.toLocaleString()+' / '+rec.want.toLocaleString()) : '—';
 
-  return `<div data-act="closeDetail" style="position:fixed; inset:0; background:rgba(10,10,12,.62); display:flex; align-items:flex-start; justify-content:center; padding:60px 20px; overflow:auto; z-index:50">
+  return `<div data-act="closeDetail" class="tw-modal-ov" style="position:fixed; inset:0; background:rgba(10,10,12,.62); display:flex; align-items:flex-start; justify-content:center; padding:60px 20px; overflow:auto; z-index:50">
     <div data-act="stop" style="position:relative; width:840px; max-width:100%; background:var(--panel); border:1.5px solid var(--line); box-shadow:8px 8px 0 rgba(0,0,0,.4)">
-      <div style="display:flex; gap:22px; padding:22px 24px 20px; border-bottom:2px solid var(--line)">
-        <div role="img" aria-label="${esc(d.coverAlt)}" style="width:190px; height:190px; flex:none; border:1.5px solid var(--line); background:var(--skel); background-image:${d.coverBg}; background-size:cover; background-position:center">${d.coverPlaceholder}</div>
+      <div class="tw-modal-head" style="display:flex; gap:22px; padding:22px 24px 20px; border-bottom:2px solid var(--line)">
+        <div role="img" aria-label="${esc(d.coverAlt)}" class="tw-modal-cover" style="width:190px; height:190px; flex:none; border:1.5px solid var(--line); background:var(--skel); background-image:${d.coverBg}; background-size:cover; background-position:center">${d.coverPlaceholder}</div>
         <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:8px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint)">${esc(rec.artist)}</span>
           <span style="font-family:'Barlow Condensed',sans-serif; font-size:38px; font-weight:700; line-height:1; text-wrap:pretty">${esc(rec.title)}</span>
@@ -475,7 +475,7 @@ function modalHtml(){
         </div>
         <button data-act="closeDetail" title="Close" style="position:absolute; top:12px; right:12px; width:28px; height:28px; border:1.5px solid var(--line); background:var(--panel); font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1">✕</button>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 240px; gap:0">
+      <div class="tw-modal-body" style="display:grid; grid-template-columns:1fr 240px; gap:0">
         <div style="padding:18px 24px 22px; border-right:1px solid var(--hair)">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Tracklist</span>
           <div style="display:flex; flex-direction:column; margin-top:10px">${tracksHtml}</div>
