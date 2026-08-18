@@ -34,3 +34,37 @@ input::placeholder { color:var(--faint); }
 @media (max-width:1099px){ :root{ --columns:4; } }
 @media (max-width:819px) { :root{ --columns:3; } }
 @media (max-width:599px) { :root{ --columns:2; } }
+
+/* ── Mobile (≤640px) ──────────────────────────────────────────────────────────
+   The design was inline-styled for desktop; these override the structural rows so
+   nothing scrolls sideways on a phone. !important is needed to beat the inline styles. */
+@media (max-width:640px) {
+  #app { padding:8px 8px 36px !important; }
+
+  /* Header: stack the wordmark row above the stats/toggle row, and drop the two
+     least-vital counters (COLORED, THIS MONTH) so the strip + toggle fit one line. */
+  .tw-header { flex-direction:column !important; align-items:stretch !important; justify-content:flex-start !important; gap:12px !important; padding:16px 14px 14px !important; }
+  .tw-headL { flex-wrap:wrap; }
+  .tw-headR { justify-content:flex-start !important; }
+  .tw-hide-mobile { display:none !important; }
+
+  .tw-filterbar { padding:10px 14px !important; }
+
+  /* Tabs + sort: let the sort control drop to its own full-width line. */
+  .tw-tabsrow { flex-wrap:wrap !important; }
+  .tw-sortwrap { margin-left:0 !important; width:100%; justify-content:space-between; padding:8px 14px !important; }
+
+  .tw-grid { padding:16px 14px 22px !important; gap:12px !important; }
+
+  /* Ledger: 2-up stats, stacked panels. */
+  .tw-ledger-stats { grid-template-columns:repeat(2,1fr) !important; }
+  .tw-ledger-panels { grid-template-columns:1fr !important; }
+  .tw-ledger-panels > div:first-child { border-right:0 !important; border-bottom:1px solid var(--hair); }
+
+  /* Detail modal: near full-bleed, smaller cover, single-column body. */
+  .tw-modal-ov { padding:14px 8px !important; }
+  .tw-modal-head { flex-wrap:wrap !important; gap:14px !important; padding:18px 16px 16px !important; }
+  .tw-modal-cover { width:116px !important; height:116px !important; }
+  .tw-modal-body { grid-template-columns:1fr !important; }
+  .tw-modal-body > div:first-child { border-right:0 !important; border-bottom:1px solid var(--hair); }
+}

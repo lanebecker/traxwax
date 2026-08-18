@@ -13,6 +13,24 @@ _Nothing yet._
 
 ---
 
+## [0.3.1] — 2026-08-17
+
+### Fixed
+
+- **Mobile layout.** The design's inline styles only made the grid responsive; the header,
+  filter bar, tabs + sort row, Ledger stat grid, and detail modal all overflowed on phones
+  (the page scrolled sideways ~270px at 390px wide). Added mobile CSS (≤640px): the header
+  stacks and drops the two least-vital counters (keeping IN CRATE + EST.), the sort control
+  wraps to its own line, the Ledger goes 2-up with stacked panels, and the modal becomes
+  single-column with a smaller cover. No horizontal scroll at any phone width; desktop is
+  unchanged.
+
+### Changed
+
+- Renamed the nav tab **"TIMELINE" → "THE TIMELINE"** to match THE CRATE / THE LEDGER.
+
+---
+
 ## [0.3.0] — 2026-08-17
 
 ### Added / Changed
