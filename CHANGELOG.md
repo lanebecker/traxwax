@@ -13,6 +13,22 @@ _Nothing yet._
 
 ---
 
+## [0.2.2] — 2026-08-17
+
+### Fixed
+
+- **Tracklists always resolve; the generic "Track 1, 2…" placeholders are gone.** The
+  modal used to render fabricated track names instantly, then swap in the real ones —
+  and when the Discogs fetch failed (a transient 429 rate-limit) the fakes stayed. Now
+  it shows a shimmer skeleton while loading, then the real tracks — or an honest "no
+  tracklist" / "couldn't reach Discogs — Retry", never fabricated ones. The
+  `/api/release` fetch retries transient failures on both the client and the proxy, and
+  results are cached in `localStorage` (tracklists are immutable) so a record you've
+  opened before is instant and never re-fetched. Removed the mock track / rating /
+  have-want fallbacks entirely.
+
+---
+
 ## [0.2.1] — 2026-08-17
 
 ### Changed
