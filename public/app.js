@@ -21,31 +21,6 @@ const SETTINGS = {
    the Discogs token server-side. Each call degrades gracefully to baked/mock data
    so the site still works locally (no proxy) and if Discogs is unreachable. */
 const api = {
-  // Release detail. Retries transient failures (429 rate-limit / 5xx) — the first
-  // fetch of an uncached release is the one that used to fail and leave the modal on
-  // placeholder tracks. Returns { ok:false } if it truly can't resolve, so the modal
-  // shows a loading→error→Retry path rather than fabricated data.
-  async release(rec){
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const r = await fetch('/api/release/' + rec.id);
-        if (r.status === 429 || r.status >= 500) throw new Error('transient ' + r.status);
-        if (!r.ok) return { ok:false };
-        const d = await r.json();
-        return {
-          ok: true,
-          tracks: d.tracks || [],
-          haveWant: (d.have != null && d.want != null) ? (d.have.toLocaleString() + ' / ' + d.want.toLocaleString()) : '—',
-          rating: d.ratingAvg != null ? (Number(d.ratingAvg).toFixed(1) + ' (' + (d.ratingCount || 0) + ')') : '—',
-          price: d.price != null ? d.price : null,
-          country: d.country || '', released: d.released || '',
-        };
-      } catch(e) {
-        if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));  // backoff, then retry
-      }
-    }
-    return { ok:false };
-  },
   async value(){
     try { const r = await fetch('/api/value'); if (!r.ok) throw 0; const d = await r.json(); return d.median || d.minimum || null; }
     catch(e) { return null; }
@@ -76,6 +51,30 @@ function _saveRelCache(){
     try { localStorage.removeItem(REL_CACHE_KEY); } catch(e2) {}
     _relCache = {};
   }
+}
+// Tracklist (+ country/released/videos) for the modal. Prefer the immutable baked static
+// file — no live call, no rate limit, CDN-cached forever. Fall back to the live proxy only
+// for a brand-new record whose file hasn't been baked yet. Community stats + price come
+// from collection.json, not from here.
+async function _fetchReleaseFile(id){
+  try {
+    const r = await fetch('/releases/' + id + '.json');
+    if (!r.ok) return null;
+    const d = await r.json();
+    return { tracks: d.tracks || [], country: d.country || '', released: d.released || '', videos: d.videos || [] };
+  } catch(e) { return null; }
+}
+async function _fetchReleaseLive(rec){
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await fetch('/api/release/' + rec.id);
+      if (r.status === 429 || r.status >= 500) throw new Error('transient');
+      if (!r.ok) return null;
+      const d = await r.json();
+      return { tracks: d.tracks || [], country: d.country || '', released: d.released || '', videos: d.videos || [] };
+    } catch(e) { if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1))); }
+  }
+  return null;
 }
 
 /* ── Helpers (verbatim from the kit) ───────────────────────────────────────── */
@@ -422,11 +421,10 @@ function modalHtml(){
   const rec=RECORDS.find(r=>r.id===state.detailId);
   if(!rec) return '';
   const d=deco(rec);
-  const rel=rec._rel;  // hydrated by openDetail via api.release
+  const rel=rec._rel;  // tracklist/country/videos from the baked release file (or live fallback), via _loadRelease
   const country=(rel && rel.country)?rel.country:'US';
   const subLine=(rec.year||'—')+' · '+(rec.label||'Unknown label')+' · '+country;
-  const priceNum=(rel && rel.price!=null)?rel.price:(rec.price!=null?rec.price:null);
-  const priceLabel=priceNum!=null?money(priceNum):'—';
+  const priceLabel = rec.price!=null ? money(rec.price) : '—';   // lowest sale — baked in collection.json
   const styleChips=(rec.styles||[]).map(g=>`<button data-act="detailGenre" data-arg="${esc(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:10px; padding:4px 8px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink)">${esc(g)}</button>`).join('');
   const err = rec._relErr;
   const trackRow = t => `<div style="display:flex; align-items:baseline; gap:12px; padding:5px 0; border-bottom:1px solid var(--hair)">
@@ -442,8 +440,8 @@ function modalHtml(){
   else if (rel)  tracksHtml = `<div style="${trNote}">No tracklist on Discogs for this pressing.</div>`;
   else if (err)  tracksHtml = `<div style="${trNote}">Couldn't reach Discogs. <button data-act="retryDetail" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 9px; margin-left:4px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink)">RETRY</button></div>`;
   else           tracksHtml = ['86%','72%','90%','64%','80%','58%','88%','70%'].map(skelRow).join('');
-  const rating=rel?rel.rating:(rec.rating?rec.rating+' / 5':'—');
-  const haveWant=rel?rel.haveWant:'—';
+  const rating = rec.crating!=null ? (Number(rec.crating).toFixed(1)+' ('+(rec.crcount||0)+')') : '—';   // community rating (baked)
+  const haveWant = (rec.have!=null && rec.want!=null) ? (rec.have.toLocaleString()+' / '+rec.want.toLocaleString()) : '—';
 
   return `<div data-act="closeDetail" style="position:fixed; inset:0; background:rgba(10,10,12,.62); display:flex; align-items:flex-start; justify-content:center; padding:60px 20px; overflow:auto; z-index:50">
     <div data-act="stop" style="position:relative; width:840px; max-width:100%; background:var(--panel); border:1.5px solid var(--line); box-shadow:8px 8px 0 rgba(0,0,0,.4)">
@@ -513,8 +511,9 @@ async function openDetail(id){
   if(rec && !rec._rel) await _loadRelease(rec);
 }
 async function _loadRelease(rec){
-  const d=await api.release(rec);
-  if(d.ok){ rec._rel=d; rec._relErr=false; _relCache[rec.id]={ts:Date.now(), d}; _saveRelCache(); }
+  let d = await _fetchReleaseFile(rec.id);   // baked static file (immutable, instant, no rate limit)
+  if(!d) d = await _fetchReleaseLive(rec);   // fallback: live proxy for a not-yet-baked new record
+  if(d){ rec._rel=d; rec._relErr=false; _relCache[rec.id]={ts:Date.now(), d}; _saveRelCache(); }
   else { rec._relErr=true; }
   if(state.detailId===rec.id) render();
 }

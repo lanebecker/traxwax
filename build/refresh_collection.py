@@ -1,32 +1,48 @@
 #!/usr/bin/env python3
-"""Refresh public/collection.json directly from the Discogs API — no Claude, no Cowork.
+"""Refresh TraxWax's data from the Discogs API — no Claude, no Cowork.
 
 Run by .github/workflows/refresh-collection.yml on a weekly schedule (and on demand).
-Fetches the full collection, maps it to the flat shape the site reads, and bakes
-marketplace low prices. Preserves the previous price for any record whose price fetch
-fails (429 / timeout), so a rough API day never wipes prices. The workflow only commits
-if the file actually changed.
+Two things happen:
+
+1. Collection listing (fast, ~19 calls) → public/collection.json in the flat shape the
+   site reads, plus the mutable community stats + lowest price per record.
+
+2. One `get_release` call per record (the slow pass, ~35 min for the full collection).
+   A single release response carries everything the detail modal shows — tracklist,
+   country, release date, videos, community rating/have-want, and lowest price. From it:
+     • the IMMUTABLE parts (tracks, country, released, videos) are written once to
+       public/releases/<id>.json — a static file the modal loads directly, so tracklists
+       never depend on a live call or the rate limit. Existing files are never rewritten
+       (a pressing's tracklist can't change), so weekly diffs stay tiny.
+     • the CHANGING parts (crating/crcount/have/want/price) are written into
+       collection.json so the modal's stat cells are instant and stay ≤1 week fresh.
+
+This single pass REPLACES the old marketplace price bake (get_release returns the price).
 
 Only the Python standard library is used, so the workflow needs no pip install.
 
 Env:
   DISCOGS_TOKEN       required — the Discogs personal access token (an Actions secret)
   DISCOGS_USER        optional — defaults to 'lanebecker'
-  MAX_PRICE_FETCHES   optional — 0/unset = price every record (throttled). Set e.g. 700
-                      to cap a run; records missing a price are fetched first.
-  SKIP_PRICES         optional — set (e.g. =1) to skip the price pass entirely: refresh
-                      records + cover_image only, keeping existing prices (~1 min run).
+  SKIP_RELEASES       optional — set to skip the get_release pass entirely (metadata +
+                      cover_image only; keeps existing stats/prices). ~30s run.
+  RELEASE_NEW_ONLY    optional — only get_release for records missing their releases/<id>.json
+                      (i.e. newly-added records). Fast incremental run; existing stats kept.
+  RELEASE_LIMIT       optional — cap the number of get_release calls this run (missing-file
+                      records go first). 0/unset = no cap.
 """
 import json, os, re, sys, time, urllib.request, urllib.error
 
 TOKEN = os.environ.get('DISCOGS_TOKEN')
 USER  = os.environ.get('DISCOGS_USER', 'lanebecker')
-MAXP  = int(os.environ.get('MAX_PRICE_FETCHES', '0') or '0')
-SKIPP = bool(os.environ.get('SKIP_PRICES', ''))   # set to skip the price pass (fast metadata + cover refresh)
+SKIP_RELEASES  = bool(os.environ.get('SKIP_RELEASES', ''))
+NEW_ONLY       = bool(os.environ.get('RELEASE_NEW_ONLY', ''))
+REL_LIMIT      = int(os.environ.get('RELEASE_LIMIT', '0') or '0')
 UA    = 'TraxWax/1.0 +https://traxwax.com'
 API   = 'https://api.discogs.com'
 HERE  = os.path.dirname(os.path.abspath(__file__))
 OUT   = os.path.join(HERE, '..', 'public', 'collection.json')
+RELDIR = os.path.join(HERE, '..', 'public', 'releases')
 PAUSE = 1.1   # seconds between calls — stays under Discogs' 60/min authenticated limit
 
 if not TOKEN:
@@ -81,8 +97,10 @@ def fetch_collection():
                 'thumb': bi.get('thumb', '') or '',
                 'cover_image': bi.get('cover_image', '') or '',
                 'added': (r.get('date_added', '') or '')[:10],
-                'rating': r.get('rating', 0) or 0,
-                'price': None,
+                'rating': r.get('rating', 0) or 0,     # Lane's personal 0–5 rating
+                'price': None,                          # lowest sale (from get_release)
+                'crating': None, 'crcount': None,       # community rating avg + count
+                'have': None, 'want': None,             # community have / want
             })
         print(f'  collection page {page}/{pages} — {len(out)} records so far')
         page += 1
@@ -90,22 +108,38 @@ def fetch_collection():
     return out
 
 
-def marketplace_low(rid):
-    d = get_with_retry(f'{API}/marketplace/stats/{rid}?curr_abbr=USD')
+def release_detail(rid):
+    """Full modal payload from one get_release call."""
+    d = get_with_retry(f'{API}/releases/{rid}?curr_abbr=USD')
     if not d:
         return None
-    lp = d.get('lowest_price')
-    return lp.get('value') if isinstance(lp, dict) else None
+    comm = d.get('community', {}) or {}
+    crat = (comm.get('rating') or {})
+    return {
+        # immutable (→ static per-release file)
+        'tracks': [{'pos': t.get('position', ''), 'title': t.get('title', ''), 'dur': t.get('duration', '')}
+                   for t in (d.get('tracklist') or []) if t.get('type_') != 'heading'],
+        'country': d.get('country', '') or '',
+        'released': d.get('released_formatted') or d.get('released') or '',
+        'videos': [{'title': v.get('title', ''), 'uri': v.get('uri', '')} for v in (d.get('videos') or [])[:3]],
+        # mutable (→ collection.json)
+        'crating': crat.get('average'),
+        'crcount': crat.get('count'),
+        'have': comm.get('have'),
+        'want': comm.get('want'),
+        'price': d.get('lowest_price'),
+    }
 
 
 def main():
-    # Load previous prices so a failed fetch preserves the last known value.
+    os.makedirs(RELDIR, exist_ok=True)
+
+    # Load previous mutable stats so a failed fetch preserves the last known values.
     prev = {}
     if os.path.exists(OUT):
         try:
             for r in json.load(open(OUT)):
-                if r.get('price') is not None:
-                    prev[r['id']] = r['price']
+                prev[r['id']] = {k: r.get(k) for k in ('price', 'crating', 'crcount', 'have', 'want')}
         except Exception:
             pass
 
@@ -113,28 +147,43 @@ def main():
     if not records:
         print('No records fetched — leaving collection.json untouched.')
         return
-    for r in records:
-        r['price'] = prev.get(r['id'])   # seed from previous run
+    for r in records:                       # seed mutable fields from the previous run
+        p = prev.get(r['id'], {})
+        for k in ('price', 'crating', 'crcount', 'have', 'want'):
+            r[k] = p.get(k)
 
-    # Price pass (skipped when SKIP_PRICES is set): missing prices first, then the rest;
-    # capped if MAX_PRICE_FETCHES>0.
-    fetched = preserved = 0
-    if SKIPP:
-        print('SKIP_PRICES set — refreshing records + cover_image only; existing prices kept.')
+    if SKIP_RELEASES:
+        print('SKIP_RELEASES set — metadata + cover_image only; release pass skipped.')
     else:
-        order = [r for r in records if r['price'] is None] + [r for r in records if r['price'] is not None]
-        todo = order if MAXP <= 0 else order[:MAXP]
+        # Order the release pass: records missing their static file first (new records).
+        def has_file(r): return os.path.exists(os.path.join(RELDIR, f"{r['id']}.json"))
+        todo = [r for r in records if not has_file(r)]
+        if not NEW_ONLY:
+            todo += [r for r in records if has_file(r)]     # refresh stats for the rest too
+        if REL_LIMIT > 0:
+            todo = todo[:REL_LIMIT]
+
+        wrote_files = refreshed = preserved = 0
         for r in todo:
-            v = marketplace_low(r['id'])
-            if v is not None:
-                r['price'] = v; fetched += 1
-            elif r['price'] is not None:
-                preserved += 1            # keep the previous value on a failed fetch
+            d = release_detail(r['id'])
+            if d:
+                relfile = os.path.join(RELDIR, f"{r['id']}.json")
+                if not os.path.exists(relfile):             # immutable — write once
+                    json.dump({'tracks': d['tracks'], 'country': d['country'],
+                               'released': d['released'], 'videos': d['videos']},
+                              open(relfile, 'w'), ensure_ascii=False, separators=(',', ':'))
+                    wrote_files += 1
+                for k in ('crating', 'crcount', 'have', 'want', 'price'):
+                    r[k] = d[k]
+                refreshed += 1
+            elif any(r.get(k) is not None for k in ('crating', 'have', 'price')):
+                preserved += 1                              # kept previous stats on a failed fetch
             time.sleep(PAUSE)
+        print(f'Release pass — files written {wrote_files}, stats refreshed {refreshed}, preserved {preserved}')
 
     json.dump(records, open(OUT, 'w'), ensure_ascii=False, separators=(',', ':'))
     priced = sum(1 for r in records if r['price'] is not None)
-    print(f'Wrote {len(records)} records | prices fetched {fetched}, preserved {preserved}, total priced {priced}')
+    print(f'Wrote {len(records)} records to collection.json | priced {priced}')
 
 
 if __name__ == '__main__':

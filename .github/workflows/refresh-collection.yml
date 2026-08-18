@@ -1,8 +1,9 @@
 name: Refresh collection
 
-# Rebuilds public/collection.json from the Discogs API and commits it; Cloudflare Pages
-# auto-deploys the commit. This replaces the old Cowork scheduled task — the site keeps
-# itself up to date with no Claude and no local machine in the loop.
+# Rebuilds public/collection.json + public/releases/<id>.json from the Discogs API and
+# commits them; Cloudflare Pages auto-deploys. One get_release pass per record bakes the
+# modal data (tracklists + community stats + lowest price). Replaces the old Cowork task —
+# the site keeps itself up to date with no Claude and no local machine in the loop.
 #
 # Setup (one time): add the Discogs token as an Actions secret —
 #   repo → Settings → Secrets and variables → Actions → New repository secret
@@ -21,7 +22,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 90         # a full price bake of ~1,850 records is ~35–40 min
+    timeout-minutes: 90         # a full get_release pass over ~1,850 records is ~35–40 min
     permissions:
       contents: write
     steps:
@@ -31,17 +32,17 @@ jobs:
         env:
           DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
           DISCOGS_USER: lanebecker
-          # MAX_PRICE_FETCHES: '700'   # uncomment to cap price fetches per run
+          # RELEASE_LIMIT: '700'   # uncomment to cap get_release calls per run
         run: python3 build/refresh_collection.py     # stdlib only — no pip install needed
 
-      - name: Commit if collection.json changed
+      - name: Commit if data changed
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- public/collection.json; then
+          git add public/collection.json public/releases
+          if git diff --cached --quiet; then
             echo "No changes — nothing to commit."
           else
-            git add public/collection.json
-            git commit -m "chore: weekly collection refresh ($(date -u +%Y-%m-%d))"
+            git commit -m "chore: weekly data refresh ($(date -u +%Y-%m-%d))"
             git push
           fi
