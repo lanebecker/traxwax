@@ -8,6 +8,24 @@ the CC0 catalog seeded (~1,851 releases); Clerk is live and trusted by that proj
 third-party auth provider; a TraxWax Discogs app exists with its OAuth consumer key/secret in
 hand. No user-facing code yet — that's Phase 1.
 
+### Execution status (2026-08-18)
+
+**Done (via Supabase MCP):**
+- Project **`traxwax`** created in org `coquelicot.co`, region us-east-1 ($10/mo compute add-on).
+  - ref: `sfipqknrbvamwwahwxnl` · URL: `https://sfipqknrbvamwwahwxnl.supabase.co`
+  - publishable key (client-safe): `sb_publishable_RLxgLYBzZoh5YCkYJ3NJZw_8BLFMIWg`
+- Migration `0001_init` applied: 4 tables, 6 policies, RLS on all four; `discogs_credentials` locked.
+- CC0 catalog seeded to **1,851 rows** — loaded by having Postgres `http_get` the already-deployed
+  `collection.json` (the 2.9 MB seed SQL was too large to pass through the MCP; the `http`
+  extension pulls it straight from the live site instead). **Caveat:** `collection.json` carries
+  metadata but not tracklists, so `tracks`/`country`/`released`/`videos` are null for now —
+  Phase 1's `enrich-release` fills them (or a one-time backfill from a combined `catalog.json`).
+- RLS verified with a simulated Clerk JWT: own-insert allowed, foreign-insert blocked, releases
+  world-readable, credentials return 0 rows to a client. All PASS.
+
+**Left (Lane-side):** activate Clerk's Supabase integration + paste the Clerk domain into
+Supabase (Steps 1, 3); register the Discogs OAuth app (Step 5).
+
 ## Ownership legend
 
 - 🧑 **Lane-side** — needs your account / browser (account signups, dashboards). I can't do these.
@@ -28,21 +46,20 @@ hand. No user-facing code yet — that's Phase 1.
 2. Enable the sign-in methods for v1: **Email + password**, and (optional) **Google**.
 3. From **API keys**, copy the **Publishable key** (`pk_…`) and **Secret key** (`sk_…`) —
    you'll need them in Phase 1 (frontend + server). Keep the secret key secret.
-4. **Add the `role` claim Supabase requires.** In Clerk → **Sessions** → **Customize session
-   token**, set the claims to include:
-   ```json
-   { "role": "authenticated" }
-   ```
-   Supabase's PostgREST only accepts a JWT whose `role` claim is `authenticated`; without this
-   every query is rejected. (Clerk's `sub` claim — the user id — is already present; our RLS
-   reads it as `auth.jwt()->>'sub'`.)
-5. In Clerk → **Integrations**, **activate the Supabase integration**. It reveals your
-   **Clerk domain** (looks like `https://your-app-slug.clerk.accounts.dev`). Copy it — Step 3
-   needs it.
+4. **Activate the native Supabase integration — it adds the `role` claim for you.** Go to
+   Clerk → [Supabase integration setup](https://dashboard.clerk.com/setup/supabase), take the
+   defaults, and select **Activate Supabase integration**. This automatically adds the
+   `"role": "authenticated"` claim that Supabase's PostgREST requires. **Do NOT edit the
+   session token by hand** to add `role` — that's the deprecated JWT-template method, and
+   Clerk manages `role` as a reserved claim, so a manual entry fails with *"Could not save
+   settings."* Activation reveals your **Clerk domain** (like
+   `https://your-app-slug.clerk.accounts.dev`) — copy it; Step 3 needs it. (Clerk's `sub`
+   claim — the user id our RLS reads as `auth.jwt()->>'sub'` — is always present, no config
+   needed.)
 
-> Why native integration (not the old JWT template): as of April 2025 Clerk's JWT-template
-> approach is deprecated. The native integration means no sharing of Supabase's JWT secret and
-> no extra token fetch per request.
+> Why native integration (not the old JWT template): as of April 1 2025 Clerk's JWT-template
+> approach is deprecated. The native integration adds the `role` claim automatically, needs no
+> sharing of Supabase's JWT secret, and fetches no extra token per request.
 
 ---
 
