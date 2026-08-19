@@ -67,4 +67,8 @@ input::placeholder { color:var(--faint); }
   .tw-modal-cover { width:116px !important; height:116px !important; }
   .tw-modal-body { grid-template-columns:1fr !important; }
   .tw-modal-body > div:first-child { border-right:0 !important; border-bottom:1px solid var(--hair); }
+
+  /* Footer: stack the Discogs link above the disclaimer, left-aligned. */
+  .tw-footer { flex-direction:column !important; align-items:flex-start !important; margin-top:16px !important; gap:8px !important; }
+  .tw-footer .tw-footer-note { text-align:left !important; min-width:0 !important; }
 }
