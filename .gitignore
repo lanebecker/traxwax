@@ -4,3 +4,6 @@ node_modules/
 .DS_Store
 __pycache__/
 *.pyc
+
+# generated Phase 0 catalog seed (regenerate with build/seed_catalog.py)
+seed_releases.sql
