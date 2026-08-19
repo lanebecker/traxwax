@@ -13,6 +13,20 @@ _Nothing yet._
 
 ---
 
+## [0.4.0] — 2026-08-18
+
+### Added
+
+- **Discogs API attribution.** A site footer now carries the two notices the Discogs API
+  Terms of Use require even for non-commercial use: a **"Data provided by Discogs"**
+  do-follow link (no `nofollow`) and the affiliation/trademark disclaimer — *"This
+  application uses Discogs' API but is not affiliated with, sponsored or endorsed by Discogs.
+  'Discogs' is a trademark of Zink Media, LLC."* Rendered in the TraxWax idiom (IBM Plex Mono,
+  accent-red link), legible in light and dark, and stacked left-aligned on mobile. The detail
+  modal's per-release "VIEW ON DISCOGS" link already satisfies the per-item attribution.
+
+---
+
 ## [0.3.1] — 2026-08-17
 
 ### Fixed

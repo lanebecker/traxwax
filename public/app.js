@@ -404,6 +404,11 @@ function render(){
     <span style="position:absolute; bottom:-9px; left:44px; width:88px; height:20px; background:var(--tape); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2deg); pointer-events:none"></span>
     <span style="position:absolute; bottom:-9px; right:44px; width:88px; height:20px; background:var(--tape); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(-2.5deg); pointer-events:none"></span>
   </div>
+
+  <footer class="tw-footer" style="max-width:1480px; margin:20px auto 0; padding:14px 24px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 24px; font-family:'IBM Plex Mono',monospace; font-size:10px; line-height:1.7; letter-spacing:.04em; color:var(--faint)">
+    <a href="https://www.discogs.com/" target="_blank" rel="noopener" style="color:var(--accent); text-transform:uppercase; letter-spacing:.09em; white-space:nowrap">Data provided by Discogs ↗</a>
+    <span class="tw-footer-note" style="flex:1; min-width:240px; text-align:right">This application uses Discogs' API but is not affiliated with, sponsored or endorsed by Discogs. "Discogs" is a trademark of Zink Media, LLC.</span>
+  </footer>
   ${modalHtml()}`;
 
   const app=document.getElementById('app');
