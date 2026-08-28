@@ -21,12 +21,21 @@
  *   /_redirects            → not served as an asset       (so Pages DID parse it)
  *   /api/value             → handled by a Function        (so Functions are live here)
  *
- * env.ASSETS.fetch() reads the static asset store directly and does not re-enter Functions,
- * so there is no loop when this handler asks for /app/index.html.
+ * WHY THE TARGET IS '/app/' AND NOT '/app/index.html'
+ * ---------------------------------------------------
+ * The first version of this handler asked ASSETS for '/app/index.html' and every /app route
+ * returned an EMPTY body. From Cloudflare's Pages Functions API reference:
+ *
+ *   "The URL must be to the pretty path, not directly to the asset. For example, if you had
+ *    the path /users/index.html, you will request /users/ instead of /users/index.html."
+ *
+ * So the asset server wants the pretty path. env.ASSETS.fetch() reads the static asset store
+ * and does not re-enter Functions, so asking for '/app/' from a handler mounted at /app/*
+ * does not loop.
  */
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
-  url.pathname = '/app/index.html';
+  url.pathname = '/app/';
   return context.env.ASSETS.fetch(new Request(url.toString(), context.request));
 }
