@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TraxWax</title>
+<meta name="description" content="TraxWax — your shelf, catalogued past the point of reason.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="app" style="min-height:100vh; background:var(--bg); padding:26px 26px 60px"></div>
+
+  <script defer crossorigin="anonymous"
+    src="https://brave-buffalo-7127.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js"
+    type="text/javascript"></script>
+  <script defer crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_YnJhdmUtYnVmZmFsby03MTI3LmNsZXJrLmFjY291bnRzLmRldiQ"
+    src="https://brave-buffalo-7127.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js"
+    type="text/javascript"></script>
+
+  <script type="module" src="/boot.js"></script>
+</body>
+</html>

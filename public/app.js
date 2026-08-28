@@ -558,7 +558,7 @@ function onInput(e){
 }
 
 /* ── Boot ──────────────────────────────────────────────────────────────────── */
-async function boot(){
+async function bootCrate(){
   initTheme();
   document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted)">Loading the crate…</div>`;
   try{
@@ -573,4 +573,6 @@ async function boot(){
   render();
   api.value().then(v=>{ if(v){ state.headerValue=v; render(); } });   // live whole-collection EST. (one proxy call)
 }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+/* The crate no longer self-starts. public/boot.js resolves auth and ownership first, then
+   dynamically imports this file and calls bootCrate(). See docs/phase-1-plan.md Stage A. */
+window.TraxWaxBootCrate = bootCrate;
