@@ -99,13 +99,33 @@ function shortVinyl(text){
   const t=(text||'').replace(/\s*\[[^\]]*\]/g,'').trim();
   return t.length>22 ? t.slice(0,21).trim()+'…' : (t||'Black');
 }
-const COLOR_WORDS = Object.keys(COLORS).filter(k=>k!=='black')
-  .concat(['flamingo','splatter','swirl','starburst','nova','cornetto','tri-color','marble','wave','smoke','coke bottle','beer','milky','opaque']);
+/* A vinyl descriptor names a color variant UNLESS every comma-segment is a known
+   non-color production note. The old approach listed color words and drowned: Discogs
+   variant names are unbounded marketing ("Mango Smoothie", "Speckled Dragon Egg"), and a
+   measured 185 distinct descriptors in this collection slipped through — including plain
+   "Maroon" and "Beige". Color names are infinite; the boring notes are a closed set. */
+const NON_COLOR_SEGMENT = [
+  /^\d+([.,]\d+)?\s*-?\s*(g|gm|gr|gram|grams)\.?$/,          // 180g, 120 gram, 180-Gram
+  /^(double\s+)?gatefold$/,
+  /^(boxset|box set|digipak|slipcase|tri-?fold|bookback)$/,
+  /^autographed(\s+jacket)?$/,
+  /anniversary(\s+edition)?$/,                                // 25th Anniversary (Edition)
+  // Only KNOWN non-color edition qualifiers. A bare "<name> Edition" in the vinyl field
+  // usually names a colored variant (Sub Pop "Loser Edition" is colored by definition;
+  // "Orange Loser Edition" was wrongly excluded by a greedy /edition$/ in testing).
+  /^(deluxe|definitive|listener|expanded|remastered|collector'?s?|standard|limited)\s+edition$/,
+  /pressing$/,                                                // Fifth / GZ / Rainbo … Pressing
+  /^half speed master$/, /^limited to \d+$/, /^po box address$/, /^coordinates$/,
+  /^\d+\s*rpm$/, /^(mono|stereo)$/,
+];
 function isColored(text){
-  const t=(text||'').toLowerCase();
-  if(!t) return false;
-  if(/^black( vinyl)?$/.test(t.trim())) return false;
-  return COLOR_WORDS.some(w=>t.includes(w));
+  const raw=(text||'').trim();
+  if(!raw) return false;
+  const segs = raw.split(',')
+    .map(s=>s.replace(/\s*\[[^\]]*\]/g,'').trim().toLowerCase())
+    .filter(Boolean);
+  return segs.some(s => !/^black( vinyl)?$/.test(s) &&
+    !NON_COLOR_SEGMENT.some(re=>re.test(s)));
 }
 function money(n){ return '$'+Math.round(n).toLocaleString('en-US'); }
 function valueLabel(total){ return total>0 ? money(total) : '—'; }
