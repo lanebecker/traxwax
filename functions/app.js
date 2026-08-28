@@ -5,12 +5,13 @@
  * serve the same shell — boot.js reads window.location.pathname to decide what to render,
  * and treats a missing username as "send the owner to their canonical URL".
  *
- * See functions/app/[[path]].js for why this routing is a Function rather than a
- * _redirects rule.
+ * The target is the PRETTY path '/app/', not '/app/index.html' — env.ASSETS.fetch() returns
+ * an empty body for a direct asset path. See functions/app/[[path]].js for the full
+ * measurement trail and the reason this routing is a Function rather than a _redirects rule.
  */
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
-  url.pathname = '/app/index.html';
+  url.pathname = '/app/';
   return context.env.ASSETS.fetch(new Request(url.toString(), context.request));
 }
