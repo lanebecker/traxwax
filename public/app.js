@@ -562,7 +562,11 @@ async function bootCrate(){
   initTheme();
   document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted)">Loading the crate…</div>`;
   try{
-    const res=await fetch('./collection.json'); RECORDS=await res.json();
+    // ABSOLUTE path, deliberately. A relative './collection.json' resolves against the page
+    // URL, so on /app/<username> it became /app/collection.json -- which the /app/* rewrite
+    // serves as the app-shell HTML, and JSON.parse dies. Latent until Stage B: no user had a
+    // discogs_username, so the crate never rendered at /app/* before 2026-08-28.
+    const res=await fetch('/collection.json'); RECORDS=await res.json();
   }catch(e){
     document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; color:var(--accent)">Couldn't load collection.json</div>`;
     return;
