@@ -1,0 +1,19 @@
+# Both Discogs OAuth functions must run with the platform JWT gate OFF.
+#
+# connect-discogs verifies the Clerk token itself, against Clerk's JWKS, because Supabase's
+# verify_jwt only validates SUPABASE-issued JWTs and rejects Clerk's RS256 tokens outright.
+# connect-discogs-callback is a browser redirect target from Discogs and cannot carry an
+# Authorization header at all.
+#
+# Do not set either of these to true. See docs/phase-1-stage-b-plan.md.
+#
+# project_id is required for the CLI to parse this file at all -- a bare [functions.*] file
+# would make `supabase functions deploy` error out, defeating the guard's purpose.
+
+project_id = "traxwax"
+
+[functions.connect-discogs]
+verify_jwt = false
+
+[functions.connect-discogs-callback]
+verify_jwt = false
