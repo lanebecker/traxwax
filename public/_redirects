@@ -1,0 +1,12 @@
+# Cloudflare Pages rewrite: /app/<username> is a route, not a file on disk.
+# Status 200 is a rewrite (the URL stays put) rather than a redirect, which is what
+# boot.js reads to determine the route.
+#
+# IMPORTANT: no executable assets may live under /app/. Pages follows redirects
+# "regardless of whether or not an asset matches the incoming request" -- unlike Netlify,
+# an existing file does NOT win over a splat. boot.js and app.js therefore sit at the
+# public/ root; if they were under /app/ this rule would serve index.html for them with
+# content-type text/html, the module MIME check would reject the script, and every page
+# would render blank.
+/app      /app/index.html   200
+/app/*    /app/index.html   200

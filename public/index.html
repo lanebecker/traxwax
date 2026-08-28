@@ -1,17 +1,53 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TraxWax — Lane's shelf</title>
-<meta name="description" content="TraxWax — one shelf, catalogued past the point of reason.">
+<title>TraxWax</title>
+<meta name="description" content="TraxWax — your record collection, filed properly.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./styles.css">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<script>
+  /* Theme before first paint — mirrors initTheme() in app.js. Without this the landing
+     page renders light-only regardless of the visitor's preference, then the crate
+     snaps to dark on navigation. */
+  (function(){
+    var t; try { t = localStorage.getItem('tw_theme'); } catch(e){}
+    if(!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    document.addEventListener('DOMContentLoaded', function(){ document.body.dataset.theme = t; });
+  })();
+</script>
 </head>
 <body>
-  <div id="app" style="min-height:100vh; background:var(--bg); padding:26px 26px 60px"></div>
-  <script src="./app.js" defer></script>
+  <div style="min-height:100vh; background:var(--bg); color:var(--ink);
+    display:flex; flex-direction:column; justify-content:center;
+    padding:60px 26px; font-family:'IBM Plex Mono',monospace">
+
+    <div style="max-width:680px; margin:0 auto; width:100%">
+      <div style="font-family:Anton,sans-serif; font-size:clamp(48px,11vw,104px);
+        line-height:.92; letter-spacing:.01em; color:var(--accent)">TRAXWAX</div>
+
+      <p style="font-size:14px; line-height:1.8; color:var(--muted);
+        margin:22px 0 0; max-width:44ch">
+        Your record collection, filed properly. Connect Discogs and get a crate you can
+        actually browse — by style, by colour, by the year you were obsessed.
+      </p>
+
+      <a href="/app" style="display:inline-block; margin-top:34px; padding:13px 22px;
+        background:var(--accent); color:var(--on-accent); text-decoration:none;
+        font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase">
+        Open your crate
+      </a>
+
+      <div style="margin-top:64px; font-size:10px; line-height:1.9; color:var(--muted)">
+        <a href="https://www.discogs.com" rel="noopener"
+           style="color:var(--muted)">Data provided by Discogs</a><br>
+        This application uses Discogs' API but is not affiliated with, sponsored or endorsed
+        by Discogs. "Discogs" is a trademark of Zink Media, LLC.
+      </div>
+    </div>
+  </div>
 </body>
 </html>
