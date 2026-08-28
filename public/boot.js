@@ -1,10 +1,28 @@
 /* TraxWax — Phase 1 Stage A boot.
    Resolves theme, then auth, then routes:
-     /app                → signed out: sign-in card · signed in, no Discogs: connect prompt
+     /app                → signed out: sign-IN card  · signed in, no Discogs: connect prompt
+     /app?mode=signup    → signed out: sign-UP card
      /app/<username>     → signed in AND username matches the owner: the crate
                            otherwise: not-found card (crates are private in Phase 1)
    app.js is imported ONLY after ownership is established, so an unauthenticated visitor
-   never downloads or runs the crate renderer. */
+   never downloads or runs the crate renderer.
+
+   WHY SIGN-UP IS ITS OWN MODE
+   ---------------------------
+   The first version mounted only SignIn with `withSignUp: true`. That prop is NOT part of
+   the documented SignInProps for clerk-js — it was silently ignored, so the card offered
+   sign-in only and there was no way to create an account at all. Google SSO then failed with
+   "The External Account was not found", which is exactly what a sign-IN attempt produces for
+   an account that does not exist yet.
+
+   The mode lives in a QUERY PARAM, not a path segment: /app/sign-up would be parsed as a
+   username by the routing below and collide with the /app/<username> grammar.
+
+   WHY THERE IS AN AUTH-STATE LISTENER
+   -----------------------------------
+   Clerk's components default to HASH routing in vanilla JS, so completing a sign-up can
+   finish in place without a page load. Routing ran once at module load, saw a signed-out
+   user, and never re-evaluated — leaving a signed-in user staring at a sign-in form. */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
@@ -29,6 +47,9 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 });
 
 const app = () => document.getElementById('app');
+let mountedAuthNode = null;   // so we can unmount Clerk cleanly before re-rendering
+let routing = false;
+let lastSignedIn = null;
 
 /* Mirrors initTheme() in app.js. Duplicated deliberately: app.js is not loaded on the
    landing/auth screens, and without this they render light-only and then snap to dark
@@ -53,7 +74,15 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function clearAuthMount() {
+  if (!mountedAuthNode) return;
+  try { window.Clerk.unmountSignIn(mountedAuthNode); } catch (e) {}
+  try { window.Clerk.unmountSignUp(mountedAuthNode); } catch (e) {}
+  mountedAuthNode = null;
+}
+
 function notice(title, bodyHtml, withSignOut = false) {
+  clearAuthMount();
   const signOut = withSignOut
     ? `<div style="margin-top:28px"><a href="#" id="tw-signout"
          style="color:var(--muted); font-size:11px">Sign out</a></div>`
@@ -66,6 +95,18 @@ function notice(title, bodyHtml, withSignOut = false) {
   `);
   const so = document.getElementById('tw-signout');
   if (so) so.addEventListener('click', (e) => { e.preventDefault(); window.Clerk.signOut(); });
+}
+
+function showError(err) {
+  const el = app();
+  if (!el) return;
+  el.innerHTML = shell(`
+    <div style="font-family:Anton,sans-serif; font-size:34px; color:var(--accent);
+      margin-bottom:14px">Something went sideways</div>
+    <div style="font-size:13px; line-height:1.7; color:var(--muted)">${
+      esc(String((err && err.message) || err))
+    }</div>`);
+  console.error(err);
 }
 
 /* Clerk's script tags are `defer`, so the global exists only after window load.
@@ -83,7 +124,7 @@ function clerkReady() {
 }
 
 /* Ensure a profiles row exists for this Clerk user. This is also Stage A's RLS proof: the
-   insert can only succeed if Supabase accepted a real Clerk token AND profiles_insert_own
+   write can only succeed if Supabase accepted a real Clerk token AND profiles_insert_own
    matched auth.jwt()->>'sub' against the row's user_id.
    upsert (not insert) because two tabs racing would otherwise hit a 23505 PK violation. */
 async function ensureProfile(userId) {
@@ -96,37 +137,48 @@ async function ensureProfile(userId) {
   return data;
 }
 
-async function main() {
-  initThemeEarly();
+function mountAuth() {
+  clearAuthMount();
+  const wantSignUp = new URLSearchParams(window.location.search).get('mode') === 'signup';
 
-  await clerkReady();
-  await window.Clerk.load({
-    ui: { ClerkUI: window.__internal_ClerkUICtor },
-    // Without these the DEVELOPMENT instance sends users to its Account Portal on a
-    // different origin after sign-in, and (cookieless_dev + url_based_session_syncing)
-    // they never come back signed in. See the Audit record in docs/phase-1-plan.md, C2.
-    signInUrl: '/app',
-    signUpUrl: '/app',
-    signInFallbackRedirectUrl: '/app',
-    signUpFallbackRedirectUrl: '/app',
-    afterSignOutUrl: '/',
-  });
+  app().innerHTML = shell(`
+    <div id="tw-auth"></div>
+    <div style="margin-top:20px; text-align:center; font-size:11px; color:var(--muted)">${
+      wantSignUp
+        ? 'Already have an account? <a href="/app" style="color:var(--accent)">Sign in</a>'
+        : 'New here? <a href="/app?mode=signup" style="color:var(--accent)">Create an account</a>'
+    }</div>
+  `);
 
+  const node = document.getElementById('tw-auth');
+  mountedAuthNode = node;
+
+  if (wantSignUp) {
+    window.Clerk.mountSignUp(node, {
+      fallbackRedirectUrl: '/app',
+      signInUrl: '/app',
+      signInFallbackRedirectUrl: '/app',
+    });
+  } else {
+    window.Clerk.mountSignIn(node, {
+      fallbackRedirectUrl: '/app',
+      signUpUrl: '/app?mode=signup',
+      signUpFallbackRedirectUrl: '/app',
+    });
+  }
+}
+
+async function render() {
   const segments = window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
   const routeUsername = segments[1] ? decodeURIComponent(segments[1]) : null;
 
   if (!window.Clerk.isSignedIn) {
-    app().innerHTML = shell('<div id="tw-signin"></div>');
-    window.Clerk.mountSignIn(document.getElementById('tw-signin'), {
-      fallbackRedirectUrl: '/app',
-      signUpUrl: '/app',
-      withSignUp: true,
-    });
+    mountAuth();
     return;
   }
 
-  const userId = window.Clerk.user.id;
-  const profile = await ensureProfile(userId);
+  clearAuthMount();
+  const profile = await ensureProfile(window.Clerk.user.id);
 
   if (!profile.discogs_username) {
     notice('Connect your collection',
@@ -159,16 +211,41 @@ async function main() {
   window.TraxWaxBootCrate();
 }
 
-main().catch((err) => {
-  const el = document.getElementById('app');
-  if (el) {
-    el.innerHTML = `<div style="max-width:640px; margin:0 auto; padding:96px 0;
-      font-family:'IBM Plex Mono',monospace">
-      <div style="font-family:Anton,sans-serif; font-size:34px; color:var(--accent);
-        margin-bottom:14px">Something went sideways</div>
-      <div style="font-size:13px; line-height:1.7; color:var(--muted)">${
-        String(err && err.message || err).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      }</div></div>`;
-  }
-  console.error(err);
-});
+async function route() {
+  if (routing) return;
+  routing = true;
+  try { await render(); } catch (err) { showError(err); } finally { routing = false; }
+}
+
+async function boot() {
+  initThemeEarly();
+
+  await clerkReady();
+  await window.Clerk.load({
+    ui: { ClerkUI: window.__internal_ClerkUICtor },
+    // Without these the DEVELOPMENT instance sends users to its Account Portal on a
+    // different origin after sign-in, and (cookieless_dev + url_based_session_syncing)
+    // they never come back signed in. See the Audit record in docs/phase-1-plan.md, C2.
+    signInUrl: '/app',
+    signUpUrl: '/app?mode=signup',
+    signInFallbackRedirectUrl: '/app',
+    signUpFallbackRedirectUrl: '/app',
+    afterSignOutUrl: '/',
+  });
+
+  lastSignedIn = !!window.Clerk.user;
+
+  // Re-route when the signed-in state actually changes. Clerk emits on many updates, so
+  // compare rather than routing on every event.
+  window.Clerk.addListener(() => {
+    const now = !!window.Clerk.user;
+    if (now !== lastSignedIn) {
+      lastSignedIn = now;
+      route();
+    }
+  });
+
+  await route();
+}
+
+boot().catch(showError);

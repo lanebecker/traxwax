@@ -439,9 +439,20 @@ main().catch((err) => {
 });
 ```
 
-## Task A8 — Add the Pages routing rule
+## Task A8 — Add the Pages routing rules (TWO files, both required)
 
-`/app/lanebecker` is not a file on disk; Pages must rewrite it to the app shell.
+`/app/lanebecker` is not a file on disk; Pages must rewrite it to the app shell. This takes
+**two** files. `_redirects` alone does nothing in this project — see the boxed note.
+
+Create **`public/_routes.json`**:
+
+```json
+{
+  "version": 1,
+  "include": ["/api/*"],
+  "exclude": []
+}
+```
 
 Create **`public/_redirects`**:
 
@@ -452,12 +463,22 @@ Create **`public/_redirects`**:
 
 Status `200` is a rewrite, so the URL stays `/app/lanebecker` — which is what `boot.js` reads.
 
-> **Why no executable assets live under `/app/`.** Cloudflare Pages redirects are *always*
-> followed, "regardless of whether or not an asset matches the incoming request" — unlike
-> Netlify, an existing file does **not** win over a splat. If `boot.js` or `app.js` sat under
-> `/app/`, this rule would return `index.html` for them with `content-type: text/html`, the
-> module MIME check would reject the script, and every page would render blank. This is why
-> Task A4 moves only the HTML.
+> **Why `_redirects` needs `_routes.json` to work at all.** Cloudflare Pages: *"Redirects
+> defined in the `_redirects` file are **not applied to requests served by Pages Functions**,
+> even if the Function route matches the URL pattern... you must migrate any behaviors from
+> the `_redirects` file to the code in the appropriate `/functions` route, **or exclude the
+> route from Functions**."* TraxWax has `functions/` (the Discogs proxy), so by default the
+> whole `_redirects` file is inert — it parses, `/_redirects` is consumed rather than served,
+> and `/app/lanebecker` still falls through to the SPA fallback. `_routes.json` pins Functions
+> to `/api/*` only, putting everything else back under the static asset store where redirects
+> apply. **Keep the two in sync:** if a Function is ever added outside `/api/`, add its prefix
+> to `include` and move any affected routing into that Function.
+
+> **Why no executable assets live under `/app/`.** Pages redirects are *always* followed,
+> "regardless of whether or not an asset matches the incoming request" — unlike Netlify, an
+> existing file does **not** win over a splat. If `boot.js` or `app.js` sat under `/app/`,
+> this rule would return `index.html` for them as `text/html`, the module MIME check would
+> reject the script, and every page would render blank. This is why Task A4 moves only HTML.
 
 ## Task A9 — Create the landing page
 
@@ -708,6 +729,28 @@ here rather than silently deleted, so a later round does not re-derive them.
   landing page.
 - **M6 / M11 — accepted, not fixed.** Unpinned CDN majors (now Open item 3) and ~450 KB of
   third-party JS on the sign-in screen (now stated plainly in A12 step 2).
+
+**Found during execution, 2026-08-28 — not by the audit**
+
+- **E1 — `_redirects` was inert, and the audit's own note predicted it.** The rev-2 plan
+  shipped `_redirects` alone. On the preview, `/app/lanebecker` served the **landing page**.
+  Measured before theorising: `/boot.js` → 200 `application/javascript` (so C1's fix was
+  genuinely working); `/app` → app shell but only via *native directory indexing*, not the
+  rule; `/zzz-nonexistent-probe` → landing page, proving it was SPA fallback and the rule had
+  never fired; `/_redirects` → not served as an asset, so Pages *had* parsed it; `/api/value`
+  → Function-handled, so Functions were live. Cause: the Functions exclusion quoted in Task A8.
+  **The audit flagged exactly this** at the end of its C1 finding — "harmless today... but it
+  will bite if a Function is ever added at `/app`" — and that was under-read: the exclusion is
+  project-wide, not per-route. It bit immediately. **Fixed** by adding `_routes.json`.
+- **E2 — two failed fixes before getting the right instrument.** Two attempts at a Pages
+  *Function* to do the routing (`functions/app/[[path]].js`) both returned an empty body, and
+  both were debugged against `web_fetch`, which renders content but **reports no HTTP status**
+  — so "empty" could not distinguish a 500 from an empty 200. A single `curl -sI` (200,
+  `text/html`) plus "real-time logs show nothing" reframed it as *the handler is never
+  invoked*, most likely auto-excluded from the generated routes because `public/app/` exists
+  as a static asset. **Resolved by deleting the Functions entirely** and making routing
+  declarative in two readable files rather than depending on a generated one that cannot be
+  inspected. Lesson: get an instrument that can discriminate the hypotheses *before* fix #1.
 
 **MINOR — fixed:** `grep -c` exit-code trap (`! grep -q`); `const` redeclaration in the
 console (`var`); missing `cd` in verify commands; README/CLAUDE drift (new Task A10);
