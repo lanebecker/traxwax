@@ -7,8 +7,12 @@ execution. It found 2 CRITICAL defects that would have made Stage A fail complet
 MAJOR issues. All are fixed below; the **Audit record** at the end documents what was wrong so
 a future round does not re-litigate a dead finding.
 
-**Status:** **Stage A is planned to executable detail.** Stages B, C and D are scoped but
-**NOT yet planned** — do not execute them from this document.
+**Status (updated 2026-08-28):** **Stage A is COMPLETE and verified end-to-end** — the
+Clerk→Supabase trust link proven with a real browser token, RLS impersonation blocked, all
+Stage A checks green. **Stage B is planned to executable detail in its own document,
+`docs/phase-1-stage-b-plan.md` (rev 3, twice audited) — execute Stage B from there, not from
+here.** Stages C and D remain scoped but **NOT yet planned** — do not execute them from this
+document.
 
 ---
 
@@ -626,16 +630,19 @@ consoles.)
 
 ---
 
-# STAGE B — Connect Discogs *(scope only — not yet planned)*
+# STAGE B — Connect Discogs *(planned: see `docs/phase-1-stage-b-plan.md`)*
 
 `connect-discogs` Edge Function running the OAuth 1.0a handshake: request token → Discogs
 authorize redirect → access token → encrypted write to `discogs_credentials` → populate
 `profiles.discogs_username` and `discogs_connected_at`.
 
-Hazards to plan against: OAuth 1.0a needs HMAC-SHA1 request signing (not OAuth 2.0 bearer
-tokens); the registered callback URL must match exactly; the consumer secret must never reach
-the browser; `discogs_credentials` is readable only by `service_role`, so the function needs
-the service key.
+~~Hazards to plan against: OAuth 1.0a needs HMAC-SHA1 request signing~~ **Corrected
+2026-08-28:** Discogs' documentation *recommends PLAINTEXT over HMAC-SHA1*, and PLAINTEXT was
+measured working against the live API with the real TraxWax credentials — there is no signing
+algorithm to implement. Remaining true hazards: the consumer secret must never reach the
+browser; `discogs_credentials` is readable only by `service_role`, so the flow runs in Edge
+Functions with the service key. (The callback URL need not match exactly — Discogs honors a
+runtime `oauth_callback`, measured via `oauth_callback_confirmed=true`.)
 
 **Carry forward:** the moment this stage populates `discogs_username`, the `BAKED_CRATE_OWNER`
 guard in `boot.js` becomes the only thing preventing other users from being served Lane's

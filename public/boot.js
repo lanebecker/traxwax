@@ -181,9 +181,67 @@ async function render() {
   const profile = await ensureProfile(window.Clerk.user.id);
 
   if (!profile.discogs_username) {
+    const CONNECT_ERRORS = {
+      missing_params: 'Discogs sent us back without the expected details. Try again.',
+      not_configured: 'TraxWax is not fully configured yet. This one is on us.',
+      state_error: 'We lost track of that connection attempt. Try again.',
+      unknown_or_used: 'That connection link was already used or has expired. Try again.',
+      expired: 'That took longer than 15 minutes, so Discogs expired the request. Try again.',
+      access_denied: 'Discogs did not grant access. Try again, and approve on their screen.',
+      identity_failed: 'Discogs would not tell us who you are. Try again.',
+      handle_taken: 'That Discogs account is already linked to another TraxWax account.',
+      no_profile: 'We could not find your TraxWax profile. Sign out and back in.',
+      store_failed: 'We could not save the connection. Try again.',
+      unexpected: 'Something went wrong on our side. Try again.',
+    };
+    const status = new URLSearchParams(window.location.search).get('connect');
+    const problem = (status && status !== 'ok')
+      ? `<div id="tw-connect-err" style="margin-bottom:18px; color:var(--accent)">${
+          esc(CONNECT_ERRORS[status] || 'Connection failed. Try again.')}</div>`
+      : '<div id="tw-connect-err"></div>';
+
     notice('Connect your collection',
-      'You are signed in, but TraxWax does not know your Discogs account yet.<br><br>' +
-      'Connecting Discogs arrives in Stage B. Until then there is nothing to file.', true);
+      problem +
+      'TraxWax needs permission to read your Discogs collection. You will be sent to ' +
+      'Discogs to approve, then brought straight back.<br><br>' +
+      '<button id="tw-connect" style="margin-top:6px; padding:12px 20px; border:0; ' +
+      'cursor:pointer; background:var(--accent); color:var(--on-accent); ' +
+      "font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; " +
+      'letter-spacing:.12em; text-transform:uppercase">Connect Discogs</button>', true);
+
+    const btn = document.getElementById('tw-connect');
+    if (btn) btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Contacting Discogs…';
+      try {
+        const token = await window.Clerk.session.getToken();
+        const r = await fetch(SUPABASE_URL + '/functions/v1/connect-discogs', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer ' + token,
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.authorize_url) throw new Error(d.error || ('HTTP ' + r.status));
+        window.location.href = d.authorize_url;
+      } catch (e) {
+        // Render inline, NOT via showError() -- that replaces the whole page and would
+        // destroy the button we just re-enabled, leaving no way to retry.
+        btn.disabled = false;
+        btn.textContent = 'Connect Discogs';
+        const slot = document.getElementById('tw-connect-err');
+        if (slot) {
+          // The empty placeholder ships unstyled; style it at insertion time so this
+          // message doesn't render in muted body color with no spacing.
+          slot.style.cssText = 'margin-bottom:18px; color:var(--accent)';
+          slot.innerHTML = esc('Could not start the connection: ' +
+            ((e && e.message) || e));
+        }
+        console.error(e);
+      }
+    });
     return;
   }
 
