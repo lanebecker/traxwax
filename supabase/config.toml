@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.connect-discogs-callback]
 verify_jwt = false
+
+[functions.import-collection]
+verify_jwt = false
+
+[functions.enrich-release]
+verify_jwt = false

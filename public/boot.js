@@ -131,10 +131,108 @@ async function ensureProfile(userId) {
   const { data, error } = await supabase
     .from('profiles')
     .upsert({ user_id: userId }, { onConflict: 'user_id', ignoreDuplicates: false })
-    .select('user_id, discogs_username, import_status')
+    .select('user_id, discogs_username, import_status, last_import_at')
     .single();
   if (error) throw new Error('profile upsert failed: ' + error.message);
   return data;
+}
+
+/* Stage C import driver. Renders its own progress UI via notice(), drives the chunked
+   import-collection loop then the enrich-release loop, and returns true when the caller
+   may continue rendering. On give-up it renders an error notice and returns false —
+   and because last_import_at is only set server-side when enrichment finishes, any
+   give-up or tab-close resumes automatically on the next load. */
+async function runImport() {
+  const setLine = (msg) => {
+    const el = document.getElementById('tw-import-line');
+    if (el) el.textContent = msg;
+  };
+  notice('Filing your records',
+    'Pulling your collection from Discogs. This runs once and takes under a minute for ' +
+    'most crates.<br><br><div id="tw-import-line" style="color:var(--accent); ' +
+    "font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.08em\">" +
+    'Contacting Discogs…</div>', true);
+
+  const call = async (path, payload) => {
+    const token = await window.Clerk.session.getToken();
+    const r = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const err = new Error(d.error || ('HTTP ' + r.status));
+      err.status = r.status;
+      throw err;
+    }
+    return d;
+  };
+
+  // Retries with backoff — but NOT on non-retryable 4xx (bad request, auth, not
+  // connected): those fail identically every time and retrying just delays the truth.
+  const attempt = async (fn) => {
+    const delays = [2000, 5000, 10000];
+    for (let i = 0; ; i++) {
+      try { return await fn(); }
+      catch (e) {
+        if ([400, 401, 403, 409].includes(e && e.status)) throw e;
+        if (i >= delays.length) throw e;
+        setLine('Hiccup (' + ((e && e.message) || e) + ') — retrying…');
+        await new Promise((r) => setTimeout(r, delays[i]));
+      }
+    }
+  };
+
+  try {
+    let page = 1, pages = 1, startedAt = null;
+    do {
+      const d = await attempt(() => call('import-collection',
+        startedAt ? { page, started_at: startedAt } : { page }));
+      pages = d.pages; startedAt = d.started_at;
+      setLine('Importing — page ' + d.page + ' of ' + d.pages +
+        ' (' + d.items + ' records)');
+      if (d.done) break;
+      page++;
+      // Modest inter-page pace: ~48 pages/min worst case keeps a very large collection
+      // under the 60/min token budget without slowing a normal import noticeably.
+      await new Promise((r) => setTimeout(r, 250));
+    } while (page <= pages && page <= 500);
+
+    // Enrichment: loop until the server reports zero remaining. A rate-limit report
+    // waits 30s; repeated calls with no progress (the guard trips on the fourth
+    // consecutive zero-progress call) mean something upstream is stuck — stop WITHOUT
+    // failing the whole flow (tracklists fill in on a later visit, because
+    // last_import_at is only set when remaining hits 0).
+    let prevRemaining = Infinity, noProgress = 0;
+    for (let i = 0; i < 500; i++) {
+      const d = await attempt(() => call('enrich-release', {}));
+      if (d.remaining === 0) break;
+      setLine('Filling in tracklists — ' + d.remaining + ' to go');
+      noProgress = d.remaining >= prevRemaining ? noProgress + 1 : 0;
+      prevRemaining = d.remaining;
+      if (noProgress >= 3) {
+        console.warn('enrichment stalled at', d.remaining, '— continuing; will resume next visit');
+        break;
+      }
+      if (d.rate_limited) {
+        setLine('Discogs asked us to slow down — waiting 30s (' + d.remaining + ' to go)');
+        await new Promise((r) => setTimeout(r, 30000));
+      }
+    }
+    return true;
+  } catch (e) {
+    console.error(e);
+    notice('Import hit a wall',
+      'We could not finish pulling your collection from Discogs. Nothing is lost — ' +
+      'reloading this page picks up where it left off.<br><br>' +
+      '<a href="" style="color:var(--accent)">Reload and resume</a>', true);
+    return false;
+  }
 }
 
 function mountAuth() {
@@ -255,6 +353,20 @@ async function render() {
       'This crate is private, or it does not exist.<br><br>' +
       '<a href="/app" style="color:var(--accent)">Go to your own crate</a>', true);
     return;
+  }
+
+  // ── Stage C: the import pipeline runs before anything renders, and re-runs until
+  //    enrichment closes the gate by setting last_import_at (both phases are idempotent,
+  //    so a resume from any interruption point just re-covers cheap ground). ──
+  if (profile.import_status === 'error') {
+    notice('Import needs attention',
+      'Your stored Discogs connection could not be read, so importing is paused.<br><br>' +
+      'This is on us — a reconnect flow is coming. Nothing of yours is lost.', true);
+    return;
+  }
+  if (!profile.last_import_at) {
+    const ok = await runImport();
+    if (!ok) return;            // runImport rendered the error state itself
   }
 
   // Pre-Stage-D guard — see BAKED_CRATE_OWNER above.
