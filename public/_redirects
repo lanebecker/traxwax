@@ -1,0 +1,24 @@
+# /app/<username> is a route, not a file. Status 200 is a rewrite, so the URL stays put --
+# which is what boot.js reads to decide what to render.
+#
+# WHY THIS FILE NEEDS _routes.json TO WORK
+# ----------------------------------------
+# Cloudflare Pages: "Redirects defined in the _redirects file are not applied to requests
+# served by Pages Functions, even if the Function route matches the URL pattern. If your
+# Pages application uses Functions, you must migrate any behaviors from the _redirects file
+# to the code in the appropriate /functions route, or exclude the route from Functions."
+#
+# TraxWax has functions/ (the Discogs proxy), so by default this whole file was inert --
+# measured: the rules parsed, /_redirects was consumed as a config file rather than served,
+# and /app/lanebecker still fell through to the SPA fallback (the landing page).
+#
+# public/_routes.json now pins Functions to /api/* ONLY. Everything else is served by the
+# static asset store, where these rules DO apply. Keep the two files in sync: if a Function
+# is ever added outside /api/, add its prefix to _routes.json "include" and move any
+# affected routing here into that Function.
+#
+# No executable asset may live under /app/ -- Pages follows redirects "regardless of whether
+# or not an asset matches the incoming request", so a script parked there would be served as
+# HTML and rejected by the module MIME check. boot.js and app.js sit at the public/ root.
+/app      /app/index.html   200
+/app/*    /app/index.html   200
