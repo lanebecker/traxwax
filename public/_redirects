@@ -20,5 +20,15 @@
 # No executable asset may live under /app/ -- Pages follows redirects "regardless of whether
 # or not an asset matches the incoming request", so a script parked there would be served as
 # HTML and rejected by the module MIME check. boot.js and app.js sit at the public/ root.
-/app      /app/index.html   200
-/app/*    /app/index.html   200
+# DESTINATION IS /app/ (trailing slash), NOT /app/index.html. Pages pretty-URL
+# normalization 308s /app/index.html away, and a rewrite targeting that hidden path was
+# measured inert (2026-08-28: /app/lanebecker fell through to the SPA fallback while this
+# file was provably deployed and syntactically valid). /app/ is the URL that actually 200s.
+/app      /app/  200
+/app/*    /app/  200
+
+# Diagnostic probes (temporary, Stage B): if /app/* ever falls through again, these tell us
+# WHICH layer died. /rt-probe-redirect firing but not /rt-probe-rewrite = rewrites broken,
+# file parsed. Neither firing = the whole file is being ignored. Remove after Stage D.
+/rt-probe-rewrite   /app/  200
+/rt-probe-redirect  /      302
