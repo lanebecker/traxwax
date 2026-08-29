@@ -441,7 +441,13 @@ async function render() {
           },
         });
         const d = await r.json().catch(() => ({}));
-        if (!r.ok || !d.authorize_url) throw new Error(d.error || ('HTTP ' + r.status));
+        // Remediation-audit F6: 'cooldown' is the leg-1 throttle (issue #2) — surface
+        // it as guidance, not the raw error token.
+        if (!r.ok || !d.authorize_url) {
+          throw new Error(d.error === 'cooldown'
+            ? 'One connect attempt at a time — try again in a few seconds.'
+            : (d.error || ('HTTP ' + r.status)));
+        }
         window.location.href = d.authorize_url;
       } catch (e) {
         // Render inline, NOT via showError() -- that replaces the whole page and would

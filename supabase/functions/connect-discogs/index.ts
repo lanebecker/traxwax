@@ -69,6 +69,54 @@ async function handle(req: Request): Promise<Response> {
   const consumerSecret = Deno.env.get('DISCOGS_CONSUMER_SECRET');
   if (!consumerKey || !consumerSecret) return json({ error: 'not_configured' }, 500);
 
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  // ── Cooldown (issue #2, cold audit #7). Every request past this point burns a
+  //    request_token round-trip under the SHARED consumer key (60/min for the whole
+  //    site), so a signed-in user in a loop could exhaust the budget and break connect
+  //    for everyone. The user's newest state row — real handshake state or the armed
+  //    placeholder below — is the cooldown record: created <10s ago → refuse BEFORE
+  //    touching Discogs. Both timestamps are DB-clocked (db_now(), created_at default
+  //    now()) — one clock, per the Stage C watermark lesson; the Edge instance's own
+  //    clock never enters the comparison. A human clicking Connect never sees this. ──
+  const { data: recentRows, error: recentErr } = await admin.from('discogs_oauth_state')
+    .select('created_at').eq('user_id', userId)
+    .order('created_at', { ascending: false }).limit(1);
+  // Fail OPEN, but never silently (remediation-audit F5): a broken probe must not lock
+  // legitimate users out of connect, but it must leave a trail in the logs.
+  if (recentErr) console.error('cooldown probe failed (failing open):', recentErr.message);
+  const recent = recentRows?.[0];
+  if (recent) {
+    const { data: dbNow, error: nowErr } = await admin.rpc('db_now');
+    if (nowErr) console.error('db_now failed (cooldown failing open):', nowErr.message);
+    if (!nowErr && dbNow &&
+        new Date(dbNow as string).getTime() - new Date(recent.created_at as string).getTime() < 10_000) {
+      return json({ error: 'cooldown', retry_after: 10 }, 429);
+    }
+  }
+
+  // ── Arm the cooldown BEFORE touching Discogs (remediation-audit F4): the throttle
+  //    must survive a FAILED leg 1, or a hostile loop runs unthrottled exactly when
+  //    Discogs starts returning errors — the moment the shared budget most needs the
+  //    protection. The placeholder row is the cooldown record: its random token can
+  //    never match a callback lookup, the success path below replaces it with the real
+  //    state row, and the expiry sweep clears abandoned ones within 15 minutes. ──────
+  await admin.from('discogs_oauth_state').delete().lt('expires_at', new Date().toISOString());
+  // Clear only stale PLACEHOLDERS here (pass-2 audit): deleting the user's real row
+  // before a leg 1 that then FAILS would destroy a valid in-flight handshake from
+  // another tab. Real rows are replaced only on the success path below.
+  await admin.from('discogs_oauth_state').delete().eq('user_id', userId)
+    .like('oauth_token', 'cooldown-%');
+  const { error: armErr } = await admin.from('discogs_oauth_state').insert({
+    oauth_token: 'cooldown-' + crypto.randomUUID(),
+    oauth_token_secret: '',
+    user_id: userId,
+  });
+  if (armErr) console.error('cooldown arm failed (failing open):', armErr.message);
+
   // ── Leg 1: ask Discogs for a request token. NOTE: GET, not POST. ───────────
   const res = await fetch('https://api.discogs.com/oauth/request_token', {
     method: 'GET',
@@ -101,12 +149,8 @@ async function handle(req: Request): Promise<Response> {
     return json({ error: 'discogs_unexpected_response' }, 502);
   }
 
-  const admin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  );
-
-  await admin.from('discogs_oauth_state').delete().lt('expires_at', new Date().toISOString());
+  // Replace the cooldown placeholder with the real handshake state (one row per user;
+  // the expiry sweep already ran above, before leg 1).
   await admin.from('discogs_oauth_state').delete().eq('user_id', userId);
 
   const { error } = await admin.from('discogs_oauth_state').insert({
