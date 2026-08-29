@@ -1,103 +1,138 @@
 # TraxWax — deployment & operations
 
-The site is **live at [traxwax.com](https://traxwax.com)**. This is the operations reference,
-not a setup checklist — the original one-time Cloudflare setup was completed 2026-08-17/18 and
-lives in git history.
+The site is **live at [traxwax.com](https://traxwax.com)**, multi-user since v1.0.0
+(2026-08-29). This is the operations reference, not a setup checklist — one-time setup
+(Cloudflare 2026-08-17/18, Supabase/Clerk Phase 0–1 2026-08-28/29) lives in git history and
+the `docs/` phase plans.
+
+The system has **three deployment surfaces** that move independently:
+
+1. **Static front-end + legacy proxy** — Cloudflare Pages, auto-deploys on push to `main`.
+2. **Supabase Edge Functions** — deployed directly (MCP/CLI), NOT tied to git pushes.
+3. **Database migrations** — applied directly to the Supabase project; the files in
+   `supabase/migrations/` are the record of what is live, committed after application.
+
+Keeping git in sync with 2 and 3 is a discipline, not an automatism: deploy/apply, verify,
+then commit the matching files.
 
 ---
 
-## How deployment works
+## Surface 1 — Cloudflare Pages
 
 | | |
 |---|---|
 | **Host** | Cloudflare Pages, project `traxwax` |
 | **Source** | `github.com/lanebecker/traxwax`, branch `main` |
-| **Build command** | *(none)* |
-| **Build output directory** | `public` |
-| **Framework preset** | None |
-| **Deploy trigger** | Every push to `main` auto-deploys. Non-production branches get preview URLs at `https://<branch>.traxwax.pages.dev`. |
+| **Build command / preset** | *(none)* — output directory `public` |
+| **Deploy trigger** | Every push to `main`. Branches get previews at `https://<branch>.traxwax.pages.dev`. |
 
-Pages auto-detects `functions/` and deploys the proxy alongside the static site. There is no
-build step to break.
+Pages auto-detects `functions/` (the legacy proxy — now only `/api/release/:id`).
+`public/_routes.json` pins Functions to `/api/*` so `_redirects` and `_headers` govern
+everything else.
 
-## Environment variables
+**Cache policy** (`public/_headers`, v1.0.1): `no-cache` on HTML, `/app.js`, `/boot.js`,
+`/styles.css`, `/collection.json` — browsers revalidate every load (cheap 304s) and pick up
+each deploy immediately; `public, max-age=604800` on the immutable `/releases/*.json`.
 
-Set in **Workers & Pages → traxwax → Settings → Variables and Secrets**, for **Production and
-Preview** both:
+> ⚠️ **Zone setting that can silently defeat this:** the traxwax.com zone's **Caching →
+> Configuration → Browser Cache TTL** must stay **"Respect Existing Headers"**. It was set
+> to the 4-hour default until 2026-08-29, which stamped `max-age=14400` over the `_headers`
+> rules on every edge-cached asset (`cf-cache-status: HIT/REVALIDATED`) while DYNAMIC
+> responses kept the right headers — a maddening half-broken state. If stale-asset symptoms
+> ever return, probe `curl -sI https://traxwax.com/boot.js | grep -i cache` and check this
+> setting first.
 
-| Name | Value | Notes |
-|---|---|---|
-| `DISCOGS_TOKEN` | Discogs personal access token | Mark as **Secret / encrypted**. Read by every `functions/api/*` handler. |
-| `DISCOGS_USER` | `lanebecker` | Optional — `functions/api/value.js` defaults to this. |
+**Environment variables** (Workers & Pages → traxwax → Settings, Production + Preview):
 
-Separately, GitHub **Settings → Secrets and variables → Actions** holds its own
-`DISCOGS_TOKEN` for `refresh-collection.yml`. **These are two independent stores of the same
-secret.** Discogs issues only one personal access token per account, so rotating it means
-updating both, plus two more consumers — see `../DISCOGS-CREDENTIALS.md` for the full map and
-rotation checklist.
+| Name | Notes |
+|---|---|
+| `DISCOGS_TOKEN` | Lane's personal access token (Secret). Read only by `functions/api/release/[id].js`, the CC0 modal-fallback proxy. |
 
-> **Token type.** This is a **personal access token**, not an app registration — TraxWax is
-> currently single-user and the proxy reads Lane's own data, acting as him. Multi-user (v1.0.0)
-> moves per-user reads to OAuth under the `TraxWax` Discogs app; this PAT still serves the
-> app's own public calls.
+GitHub Actions holds an independent copy of `DISCOGS_TOKEN` for the retired-from-cron
+`refresh-collection.yml` (manual `workflow_dispatch` only; regenerates the dev fixture).
+Rotation touches both plus the other consumers — see `../DISCOGS-CREDENTIALS.md`.
 
-After changing any variable, **Deployments → Retry deployment** (or push a commit) so the
-Functions pick it up.
+## Surface 2 — Supabase Edge Functions
 
-## The weekly refresh
+Project `sfipqknrbvamwwahwxnl` (`https://sfipqknrbvamwwahwxnl.supabase.co`). **Eight
+functions**, all `verify_jwt: false` with in-handler `jose.jwtVerify` against Clerk's JWKS
+(the platform gate cannot validate Clerk RS256 — Stage B finding C1):
 
-`.github/workflows/refresh-collection.yml` runs weekly and on `workflow_dispatch`:
+| Function | Role |
+|---|---|
+| `connect-discogs` | OAuth 1.0a leg 1 + 10s per-user cooldown (v1.0.1) |
+| `connect-discogs-callback` | OAuth leg 2 — parks the completed link as *pending* + one-time fragment code (v1.1.0) |
+| `finalize-connect` | Completes a pending link: code hash + verified Clerk sub (closes the link-CSRF) |
+| `disconnect-discogs` | Unlink: credential + imported items deleted, profile reset |
+| `delete-account` | Purge all TraxWax data (never the Clerk identity); server re-checks the typed `DELETE` |
+| `import-collection` | One collection page per invocation; seeds the catalog via the `seed_releases` merge RPC (v1.2.0) |
+| `enrich-release` | Budgeted CC0 enrichment + refresh drain (7d tombstone retry, 180d TTL) |
+| `live-stats` | Restricted data, live under the caller's token, ≤6h in-instance cache |
 
-1. Runs `build/refresh_collection.py` with the Actions `DISCOGS_TOKEN`.
-2. Pulls the collection, does one `get_release` pass per record.
-3. Writes `public/collection.json` and any new `public/releases/<id>.json`.
-4. Commits to `main` — Cloudflare deploys it.
+**Secrets** (Supabase → Edge Functions → Secrets): `DISCOGS_CONSUMER_KEY`,
+`DISCOGS_CONSUMER_SECRET` (the `TraxWax` Discogs app), `DISCOGS_TOKEN_ENC_KEY` (32-byte
+base64; AES-256-GCM at rest — rotating it orphans stored tokens, forcing reconnects),
+`APP_ORIGIN` (`https://traxwax.com`), `CLERK_ISSUER` (the **production** Clerk instance).
+The in-code fallbacks for the last two point at the dev/preview values — env always wins.
 
-A full pass takes ~35–40 minutes, throttled under the Discogs rate limit. Tracklist files are
-write-once, so weekly diffs stay small; only new records add files.
+**Deploying:** via the Supabase MCP connector (`deploy_edge_function`, file layout
+`{<fn>/index.ts, _shared/discogs.ts}`, entrypoint `<fn>/index.ts`, `verify_jwt: false`) or
+`supabase functions deploy <fn>` with the CLI. Supabase keeps every version — rollback is
+redeploying the previous one. **After any deploy, verify the 401 gate:** POST with a forged
+Bearer token must return `{"error":"invalid_token"}` (proves the bundle booted AND JWKS
+verification runs).
 
-**To force a refresh now:** repo → **Actions → Refresh collection → Run workflow**.
+## Surface 3 — Database
 
-**Because this commits to `main`,** any long-lived branch will drift and needs a
-`git pull --rebase origin main` before merging.
+Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids). Migrations `0001`–`0010`
+applied; the migration map lives in `CLAUDE.md`. Apply via the MCP `apply_migration` (or
+`supabase db push`), verify with the checks each migration's plan documents, then commit the
+file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
+`unlink_discogs_account`, `delete_account`, `pending_enrichment`, `seed_releases`, `db_now`)
+are SECURITY DEFINER and granted to `service_role` only.
+
+## Auth (Clerk)
+
+Production Clerk instance, registered under Supabase Third-Party Auth (native integration —
+never the deprecated JWT-template method). The session token **must** carry
+`"role": "authenticated"` — its absence files every request as `anon` and breaks profile
+writes (launch-day incident 2, 2026-08-29). The dev instance
+(`brave-buffalo-7127.clerk.accounts.dev`) still backs the pages.dev preview.
 
 ## Local testing
 
-Static only:
-
 ```bash
-cd public && python3 -m http.server 8000     # http://localhost:8000
+cd public && python3 -m http.server 8000     # baked fixture mode, no auth/import
 ```
 
-With the proxy Functions live:
-
-```bash
-cd "…/traxwax-clone"
-printf 'DISCOGS_TOKEN=YOUR_TOKEN\nDISCOGS_USER=lanebecker\n' > .dev.vars   # git-ignored, never commit
-npx wrangler pages dev public
-```
-
-Most of the site works with no proxy at all — the modal reads baked static files. Only the
-live header value and the fallback for a brand-new un-baked record need the Functions.
+The full authenticated app needs the deployed Edge Functions; test on the
+`multi-user.traxwax.pages.dev` preview (dev Clerk) rather than running functions locally.
 
 ## Verifying a deploy
 
-- `https://traxwax.com/api/value` → JSON `{minimum, median, maximum}`
-- Open any record → tracklist, have/want, and lowest sale populate; header **EST.** fills in
-- Grid and Ledger prices show real figures (they come from the weekly bake, not live calls)
-- The footer shows both required Discogs notices
+- `https://traxwax.com/` → landing; `/app` → sign-in card (signed out)
+- `curl -sI https://traxwax.com/boot.js` → `cache-control: no-cache` + security headers
+- Signed in: crate renders from Supabase; header **EST.** fills (live-stats); modal shows
+  tracklist + live stats; RE-SYNC and ACCOUNT buttons present
+- Forged-token probe against any Edge Function → 401 `invalid_token`
+- Footer shows both required Discogs notices
 
 ## Rollback
 
-Cloudflare Pages keeps every deployment. **Workers & Pages → traxwax → Deployments →** find
-the last good one **→ Rollback**. This is instant and does not touch git; fix forward in the
-repo afterwards so the next push does not re-deploy the bad state.
+- **Static/front-end:** Pages keeps every deployment — Deployments → Rollback (instant, no
+  git); then fix forward in the repo.
+- **Edge Functions:** redeploy the previous version (Supabase retains them).
+- **Migrations:** no automatic down-migrations; each plan documents its rollback SQL as an
+  operator tool. Prefer fixing forward.
 
 ---
 
 ## Retired
 
-- **The Cowork `rebuild-record-collection` task** — superseded by the GitHub Action above.
-  Disabled 2026-08-28 (kept disabled for history, not deleted).
-- **The `traxwax-site/` staging directory and its rsync workflow** — replaced 2026-08-17 by
-  editing `traxwax-clone` directly as the single persistent working copy.
+- **The weekly refresh cron** (`refresh-collection.yml`) — retired from schedule at v1.0.0;
+  `workflow_dispatch` only, regenerating the dev fixture. The production data path is
+  per-user import + the v1.2.0 self-healing catalog.
+- **`/api/value` and `/api/price`** — deleted in the 1.0.0 cold audit; Restricted data flows
+  only through `live-stats`.
+- **The Cowork `rebuild-record-collection` task** — disabled 2026-08-28.
+- **The `traxwax-site/` staging directory** — replaced 2026-08-17 by `traxwax-clone`.

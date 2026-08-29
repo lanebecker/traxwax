@@ -1,5 +1,27 @@
 # TraxWax — Multi‑User Plan
 
+> **AS-BUILT NOTE (2026-08-29).** This is the DESIGN document, preserved as written
+> (2026-08-18). The system SHIPPED — v1.0.0 through v1.2.0, all 2026-08-29 — and diverges
+> from this text in ways the phase plans record. Where they conflict, **the plans and the
+> code are authoritative**, not this spec. The load-bearing divergences:
+>
+> - **§4 OAuth flow:** the callback does NOT complete the link or store tokens "on the
+>   profile." It parks the result in `discogs_pending_links` with a one-time fragment code;
+>   `finalize-connect` (code hash + verified Clerk sub) completes it — the link-CSRF fix
+>   (v1.1.0, `docs/phase-2-account-plan.md`). Tokens live encrypted in
+>   `discogs_credentials`.
+> - **§6 "skips releases already enriched (CC0 is immutable)":** falsified by v1.2.0 —
+>   basic metadata merges last-import-wins on every import, 404 tombstones (`gone_at`)
+>   retry after 7 days, deep fields re-fetch after 180 days
+>   (`docs/phase-2-catalog-refresh-plan.md`).
+> - **§6 function roster:** the shipped set is 8 — connect-discogs, connect-discogs-callback,
+>   finalize-connect, disconnect-discogs, delete-account, import-collection, enrich-release,
+>   live-stats. (`refresh-collection` never existed as a function.)
+> - **§5 schema:** `profiles.display_name` was dropped (0008); `releases` gained `gone_at`
+>   (0010); `discogs_oauth_state` and `discogs_pending_links` exist (0003, 0009).
+> - **§11 "profile/settings, Phase 2 later":** disconnect + account data deletion shipped
+>   in v1.1.0 (the ACCOUNT modal); deletion never touches the shared Clerk identity.
+
 Turning TraxWax from "Lane's baked collection, static" into "anyone's collection, behind a
 login." Review before building — open decisions are flagged in **§11**.
 
