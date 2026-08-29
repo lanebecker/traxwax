@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.enrich-release]
 verify_jwt = false
+
+[functions.live-stats]
+verify_jwt = false

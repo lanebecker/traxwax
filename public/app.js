@@ -285,7 +285,7 @@ function computeVals(){
     active, timeline, styleBars, priciest,
     bigStats:[
       {label:'Records', value:all.length.toLocaleString('en-US'), note:'Counted honestly. Twice.', color:'var(--ink)'},
-      {label:'Estimated value', value:valueLabel(total), note:priced.length?'Median of Discogs lows.':'Wired to the Discogs proxy next.', color:'var(--accent)'},
+      {label:'Estimated value', value:state.headerValue||valueLabel(total), note:priced.length?'Median of Discogs lows.':'Live Discogs estimate.', color:'var(--accent)'},
       {label:'On colored wax', value:coloredCount+'', note:Math.round((coloredCount/all.length)*100)+'% of the shelf.', color:'var(--ink)'},
       {label:'Added this month', value:newCount+'', note:'A restrained month, relatively.', color:'var(--ink)'},
     ],
@@ -357,7 +357,7 @@ function render(){
               </span>
               <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700">${r.priceLabel}</span>
             </button>`).join('')
-            : `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">Prices arrive once the Discogs proxy is wired.</span>`
+            : `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">Per-record prices return in a future update. Open any record for its live lowest sale.</span>`
           }</div>
         </div>
       </div>
@@ -386,6 +386,7 @@ function render(){
           <span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
+        ${DB_MODE()?`<button data-act="resync" title="${esc(_lastSyncedLabel())}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${state._resyncing?'SYNCING…':'RE-SYNC'}</button>`:''}
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
       </div>
       <span style="position:absolute; top:-8px; left:52px; width:92px; height:20px; background:rgba(255,255,255,.32); border-left:1px dashed rgba(0,0,0,.2); border-right:1px dashed rgba(0,0,0,.2); transform:rotate(-3deg); pointer-events:none"></span>
@@ -407,7 +408,7 @@ function render(){
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
         <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
-          ${sortBtn('added','ADDED')}${sortBtn('artist','ARTIST')}${sortBtn('year','YEAR')}${sortBtn('price','PRICE')}
+          ${sortBtn('added','ADDED')}${sortBtn('artist','ARTIST')}${sortBtn('year','YEAR')}${DB_MODE()?'':sortBtn('price','PRICE')}
           <button data-act="dir" title="Reverse order" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 9px; border:0; background:var(--panel); color:var(--ink)">${s.dir===-1?'↓':'↑'}</button>
         </div>
       </div>
@@ -449,7 +450,10 @@ function modalHtml(){
   const rel=rec._rel;  // tracklist/country/videos from the baked release file (or live fallback), via _loadRelease
   const country=(rel && rel.country)?rel.country:'US';
   const subLine=(rec.year||'—')+' · '+(rec.label||'Unknown label')+' · '+country;
-  const priceLabel = rec.price!=null ? money(rec.price) : '—';   // lowest sale — baked in collection.json
+  // DB mode: live stats live under rec._stats (see _loadStats -- MAJOR-2); baked mode
+  // keeps reading the collection.json fields. One selector, both worlds.
+  const st = DB_MODE() ? (rec._stats || {}) : rec;
+  const priceLabel = st.price!=null ? money(st.price) : '—';   // lowest sale
   const styleChips=(rec.styles||[]).map(g=>`<button data-act="detailGenre" data-arg="${esc(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:10px; padding:4px 8px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink)">${esc(g)}</button>`).join('');
   const err = rec._relErr;
   const trackRow = t => `<div style="display:flex; align-items:baseline; gap:12px; padding:5px 0; border-bottom:1px solid var(--hair)">
@@ -465,8 +469,8 @@ function modalHtml(){
   else if (rel)  tracksHtml = `<div style="${trNote}">No tracklist on Discogs for this pressing.</div>`;
   else if (err)  tracksHtml = `<div style="${trNote}">Couldn't reach Discogs. <button data-act="retryDetail" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 9px; margin-left:4px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink)">RETRY</button></div>`;
   else           tracksHtml = ['86%','72%','90%','64%','80%','58%','88%','70%'].map(skelRow).join('');
-  const rating = rec.crating!=null ? (Number(rec.crating).toFixed(1)+' ('+(rec.crcount||0)+')') : '—';   // community rating (baked)
-  const haveWant = (rec.have!=null && rec.want!=null) ? (rec.have.toLocaleString()+' / '+rec.want.toLocaleString()) : '—';
+  const rating = st.crating!=null ? (Number(st.crating).toFixed(1)+' ('+(st.crcount||0)+')') : '—';   // community rating
+  const haveWant = (st.have!=null && st.want!=null) ? (st.have.toLocaleString()+' / '+st.want.toLocaleString()) : '—';
 
   return `<div data-act="closeDetail" class="tw-modal-ov" style="position:fixed; inset:0; background:rgba(10,10,12,.62); display:flex; align-items:flex-start; justify-content:center; padding:60px 20px; overflow:auto; z-index:50">
     <div data-act="stop" style="position:relative; width:840px; max-width:100%; background:var(--panel); border:1.5px solid var(--line); box-shadow:8px 8px 0 rgba(0,0,0,.4)">
@@ -533,14 +537,35 @@ async function openDetail(id){
     else { rec._rel=null; rec._relErr=false; }                                        // show loading, then fetch
   }
   render();
+  if(rec) _loadStats(rec);
   if(rec && !rec._rel) await _loadRelease(rec);
 }
 async function _loadRelease(rec){
-  let d = await _fetchReleaseFile(rec.id);   // baked static file (immutable, instant, no rate limit)
-  if(!d) d = await _fetchReleaseLive(rec);   // fallback: live proxy for a not-yet-baked new record
+  let d = null;
+  if (DB_MODE() && window.TraxWaxReleaseData) {
+    try { d = await window.TraxWaxReleaseData(rec.id); } catch(e) { d = null; }
+  }
+  if(!d) d = await _fetchReleaseFile(rec.id);   // baked static file (immutable, CDN-cached)
+  if(!d) d = await _fetchReleaseLive(rec);      // last resort: the live proxy
   if(d){ rec._rel=d; rec._relErr=false; _relCache[rec.id]={ts:Date.now(), d}; _saveRelCache(); }
   else { rec._relErr=true; }
   if(state.detailId===rec.id) render();
+}
+async function _loadStats(rec){
+  if(!DB_MODE() || rec._stats) return;
+  try {
+    const s = await window.TraxWaxStats(rec.id);
+    if(s && !s.error){
+      // Stored under _stats, NEVER onto rec.price/crating/etc. Round-1 audit MAJOR-2:
+      // mutating rec.price leaks live prices back into computeVals() -- after a few modal
+      // opens the Ledger's "expensive end" would present whichever records the user
+      // happened to open as the collection's priciest, and timeline months would show
+      // partial sums. The degraded surfaces must stay degraded, not half-alive.
+      rec._stats = { price: s.price, crating: s.crating, crcount: s.crcount,
+                     have: s.have, want: s.want };
+      if(state.detailId===rec.id) render();
+    }
+  } catch(e) { /* stats are decoration; the modal stands without them */ }
 }
 
 /* ── Events (delegation) ───────────────────────────────────────────────────── */
@@ -549,6 +574,7 @@ function onClick(e){
   const act=t.dataset.act, arg=t.dataset.arg;
   switch(act){
     case 'theme': setTheme(state.theme==='dark'?'light':'dark'); render(); break;
+    case 'resync': _resync(); break;
     case 'view': state.view=arg; render(); break;
     case 'sort': state.sort=arg; render(); break;
     case 'dir': state.dir*=-1; render(); break;
@@ -577,25 +603,73 @@ function onInput(e){
   if(e.target.id==='tw-search'){ state.query=e.target.value; _refocusSearch=true; render(); }
 }
 
+/* ── Re-sync (DB mode) ─────────────────────────────────────────────────────── */
+function _lastSyncedLabel(){
+  const at = window.TraxWaxOwner && window.TraxWaxOwner.lastSyncedAt;
+  return at ? ('Last synced ' + new Date(at).toLocaleString()) : 'Refresh from Discogs';
+}
+async function _resync(){
+  if(state._resyncing || !DB_MODE() || !window.TraxWaxRefresh) return;
+  state._resyncing = true; render();
+  try {
+    const ok = await window.TraxWaxRefresh();   // runs the import pipeline with its own UI
+    if(!ok){
+      // runImport rendered "Import hit a wall" with a resume link -- leave it on screen.
+      // An unconditional render() here would paint the crate over the failure silently
+      // (round-1 audit minor 4).
+      state._resyncing = false;
+      return;
+    }
+    RECORDS = await window.TraxWaxData();
+  } catch(e) {
+    // Rare seam: runImport succeeded but the row refetch threw -- the crate below renders
+    // pre-sync data with a stale tooltip. Self-heals on reload or a second RE-SYNC
+    // (round-2 audit m-2); not worth more machinery.
+    console.error(e);
+  }
+  state._resyncing = false;
+  render();
+}
+
 /* ── Boot ──────────────────────────────────────────────────────────────────── */
+/* DB mode = boot.js installed the providers before importing this file. Without them
+   (main until the merge; local dev) everything below falls back to the baked paths. */
+const DB_MODE = () => !!window.TraxWaxData;
+
 async function bootCrate(){
   initTheme();
+  if (window.TraxWaxOwner && window.TraxWaxOwner.ownerLine) {
+    SETTINGS.ownerLine = window.TraxWaxOwner.ownerLine;
+  }
+  if (DB_MODE()) SETTINGS.showPrices = false;   // per-record prices are Restricted; header+modal only
   document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted)">Loading the crate…</div>`;
   try{
-    // ABSOLUTE path, deliberately. A relative './collection.json' resolves against the page
-    // URL, so on /app/<username> it became /app/collection.json -- which the /app/* rewrite
-    // serves as the app-shell HTML, and JSON.parse dies. Latent until Stage B: no user had a
-    // discogs_username, so the crate never rendered at /app/* before 2026-08-28.
-    const res=await fetch('/collection.json'); RECORDS=await res.json();
+    if (DB_MODE()) {
+      RECORDS = await window.TraxWaxData();
+    } else {
+      // ABSOLUTE path, deliberately. A relative './collection.json' resolves against the
+      // page URL, so on /app/<username> it became /app/collection.json -- served as the
+      // app-shell HTML by the /app/* rewrite, and JSON.parse dies.
+      const res=await fetch('/collection.json'); RECORDS=await res.json();
+    }
   }catch(e){
-    document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; color:var(--accent)">Couldn't load collection.json</div>`;
+    console.error(e);
+    document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; color:var(--accent)">Couldn't load the collection. <button id="tw-reload" style="font-family:inherit; font-size:inherit; padding:4px 10px; margin-left:6px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer">RETRY</button></div>`;
+    // Attached DIRECTLY to the button. Round-1 audit MAJOR-3: a document-level listener
+    // with {once:true} is consumed by the first click ANYWHERE, leaving RETRY dead.
+    const rb = document.getElementById('tw-reload');
+    if (rb) rb.addEventListener('click', () => location.reload());
     return;
   }
   document.addEventListener('click', onClick);
   document.addEventListener('input', onInput);
   window.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.detailId){ state.detailId=null; render(); } });
   render();
-  api.value().then(v=>{ if(v){ state.headerValue=v; render(); } });   // live whole-collection EST. (one proxy call)
+  if (DB_MODE()) {
+    window.TraxWaxStats().then(v=>{ if(v && v.value){ state.headerValue=v.value; render(); } });
+  } else {
+    api.value().then(v=>{ if(v){ state.headerValue=v; render(); } });   // live whole-collection EST. (one proxy call)
+  }
 }
 /* The crate no longer self-starts. public/boot.js resolves auth and ownership first, then
    dynamically imports this file and calls bootCrate(). See docs/phase-1-plan.md Stage A. */
