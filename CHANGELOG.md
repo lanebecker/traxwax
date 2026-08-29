@@ -13,6 +13,40 @@ _Nothing yet._
 
 ---
 
+## [1.0.0] — 2026-08-29
+
+TraxWax goes multi-user: anyone can sign in, connect their Discogs account, and browse
+their own crate at `traxwax.com`.
+
+### Added — Multi-user (Phase 1)
+
+- **Accounts & sign-in** via Clerk; each visitor gets their own crate at `/app/<username>`,
+  private to them.
+- **Connect Discogs** through the OAuth 1.0a handshake; the per-user access token is stored
+  encrypted (AES-256-GCM), server-side only.
+- **Per-user collection import** into Supabase under each user's own token, with a shared
+  CC0 catalog (`releases`) and live tracklist enrichment that drains in the background.
+- **RE-SYNC** control with a last-synced indicator.
+- **Live stats** — header estimate and per-record price/community stats fetched live under
+  the user's token, cached ≤6h, never stored (Discogs Restricted-data compliance).
+- Backend: five Supabase Edge Functions (connect-discogs, connect-discogs-callback,
+  import-collection, enrich-release, live-stats); migrations 0001–0006; RLS throughout.
+- Baseline security headers; end-of-phase cold audit with the fix batch folded in
+  (see `docs/phase-1-cold-audit.md`; deferred items are GitHub issues #2–#8).
+
+### Fixed
+
+- **Colored Wax filter** rewritten to an exclusion model — it no longer drops records with
+  unusual color names (e.g. "Maroon", "Beige", "Speckled Dragon Egg").
+
+### Changed
+
+- The crate reads from Supabase (per-user) instead of the baked `collection.json`; the
+  baked file is now a dev fixture with Restricted fields removed. The weekly refresh
+  workflow is retired (manual dispatch only).
+
+---
+
 ## [0.4.0] — 2026-08-18
 
 ### Added

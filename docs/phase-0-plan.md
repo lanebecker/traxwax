@@ -23,8 +23,36 @@ hand. No user-facing code yet — that's Phase 1.
 - RLS verified with a simulated Clerk JWT: own-insert allowed, foreign-insert blocked, releases
   world-readable, credentials return 0 rows to a client. All PASS.
 
-**Left (Lane-side):** activate Clerk's Supabase integration + paste the Clerk domain into
-Supabase (Steps 1, 3); register the Discogs OAuth app (Step 5).
+### Completion (2026-08-28) — Phase 0 is DONE
+
+The three Lane-side steps that were outstanding above are complete:
+
+- **Step 1 + 3 — Clerk.** Application created; the **native Supabase integration** was
+  activated (never the deprecated JWT-template method) and the revealed Clerk domain
+  `https://brave-buffalo-7127.clerk.accounts.dev` was registered under Supabase →
+  Authentication → Sign In / Providers. Verified externally: the instance's OIDC discovery
+  document and JWKS are reachable and it signs **RS256** — asymmetric signing being the hard
+  requirement for Supabase third-party auth.
+  ⚠️ It is a **development** instance (`instance_environment_type: development`,
+  `cookieless_dev: true`). Production is a *different issuer* and will require repointing
+  Supabase before launch.
+- **Step 5 — Discogs OAuth app.** Registered as **`TraxWax`**, repurposed from a vestigial
+  registration that had been named "Discogs MCP" and was never actually used by anything (the
+  MCP server authenticates with a personal access token and has no OAuth support at all).
+  Consumer key/secret in hand. See `../DISCOGS-CREDENTIALS.md`.
+
+**Also completed beyond the original Step 6:** the catalog's null-tracklist caveat noted above
+was resolved. All **1,851** `releases` rows now carry `tracks`, `country`, `released` and
+`videos`, backfilled from the deployed `releases/*.json` via the `http` extension. Verified:
+0 empty tracklists, min 1 / max 69 / avg 12.3 tracks.
+
+> **Still unverifiable from outside the dashboard:** whether the Supabase third-party auth
+> entry is present is *project configuration*, not database state, with no API surface. It is
+> asserted here on Lane's confirmation. `docs/phase-1-plan.md` **Task A0** re-checks it by eye
+> as a hard precondition — cheap insurance against building four Edge Functions on an
+> assumption.
+
+Next: `docs/phase-1-plan.md`.
 
 ## Ownership legend
 
