@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.2.0`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.3.0`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -87,6 +87,12 @@ GitHub #8; plan: `docs/phase-2-account-plan.md`.
 Dated 404 tombstones (7-day retry), 180-day deep-field TTL, and empty-guarded
 last-import-wins metadata merge on every import. GitHub #3;
 plan: `docs/phase-2-catalog-refresh-plan.md`.
+
+### v1.3.0 — Profiles
+
+Circle avatar button, profile fields (photo/name/bio/location/collecting-since/links)
+with Clerk-owned identity synced to the DB, skippable onboarding card. The groundwork
+for social. Plan: `docs/phase-2-profiles-plan.md`.
 
 ---
 
