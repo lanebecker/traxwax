@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.1.0`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.2.0`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -82,6 +82,12 @@ Disconnect Discogs, TraxWax-data deletion (Clerk identity untouched), and the
 authenticated finalize step that closes the accepted Stage B link-CSRF.
 GitHub #8; plan: `docs/phase-2-account-plan.md`.
 
+### v1.2.0 — Catalog refresh
+
+Dated 404 tombstones (7-day retry), 180-day deep-field TTL, and empty-guarded
+last-import-wins metadata merge on every import. GitHub #3;
+plan: `docs/phase-2-catalog-refresh-plan.md`.
+
 ---
 
 ## Next
@@ -91,11 +97,6 @@ GitHub #8; plan: `docs/phase-2-account-plan.md`.
 - Modal focus-trap + restore focus to the invoking card on close
 - Roving arrow-key focus across the grid; `aria-live` on the result count
 - Modal cover uses `cover_image` (not the 150px `thumb`)
-
-### Catalog refresh path (GitHub #3)
-
-Permanent 404 tombstones and never-re-fetched catalog metadata need a refresh
-design before the shared catalog gets big.
 
 ---
 

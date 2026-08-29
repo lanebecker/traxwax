@@ -13,6 +13,32 @@ _Nothing yet._
 
 ---
 
+## [1.2.0] — 2026-08-29
+
+Catalog refresh (GitHub #3, cold audit #15): the shared CC0 catalog is no longer frozen
+at first sight. Plan: `docs/phase-2-catalog-refresh-plan.md` (rev 2, twice audited).
+Migration 0010 and both function redeploys are live.
+
+### Fixed
+- **404 tombstones are no longer permanent.** A 404 now writes a DATED tombstone
+  (`releases.gone_at`); it retries after 7 days under an owner's token, and any
+  successful fetch clears it. Transient 404s heal instead of wedging a release
+  tracklist-less forever.
+
+### Changed
+- **Basic catalog metadata refreshes on every import** (last-import-wins): artist,
+  title, year, label, styles, genres, thumb, cover_image now merge through the new
+  `seed_releases` RPC — Discogs community corrections propagate whenever anyone
+  imports or re-syncs. The merge is empty-guarded (`''`/`0`/`[]` never stomp a real
+  value), and seeds carry no deep fields, so enrichment cannot regress.
+- **Deep fields re-fetch after 180 days**: rows whose `enriched_at` has aged out are
+  re-enriched by leftover background budget (new work always first — the import gate
+  still closes on new work exactly as before).
+- `pending_enrichment` extended (superset response, backward-compatible); the
+  background drain in `boot.js` now also drains refresh work.
+
+---
+
 ## [1.1.0] — 2026-08-29
 
 Account controls (GitHub #8): disconnect, deletion, and the authenticated-finalize step

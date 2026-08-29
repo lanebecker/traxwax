@@ -3,6 +3,10 @@
  * paced 1.1s before EVERY request after the first (success or failure) -- the caller's own
  * token pays, and must stay under 60/min even on all-failure batches.
  *
+ * Phase 2 (#3): leftover budget drains REFRESH work — dated 404 tombstones retried after
+ * 7 days, and rows whose enriched_at is older than 180 days — supplied by the same
+ * pending_enrichment RPC (0010). New work alone drives `remaining` and the boot gate.
+ *
  * Sets profiles.last_import_at when remaining reaches 0: that is what closes the boot
  * gate, so an interrupted enrichment re-runs on next load (see the Stage C plan).
  *
@@ -98,26 +102,42 @@ async function handle(req: Request): Promise<Response> {
   if (wErr) { console.error('pending_enrichment failed:', wErr.message); return json({ error: 'store_failed' }, 500); }
   const ownedCount = Number(work?.owned ?? 0);
   const totalPending = Number(work?.total ?? 0);
-  const batch: number[] = Array.isArray(work?.pending) ? work.pending.map(Number) : [];
+  const newIds: number[] = Array.isArray(work?.pending) ? work.pending.map(Number) : [];
+  const refreshTotal = Number(work?.refresh_total ?? 0);
+  const refreshIds: number[] = Array.isArray(work?.refresh) ? work.refresh.map(Number) : [];
 
   if (ownedCount === 0) {
     // A legitimately empty collection is a completed import. Close the gate.
     const { error: emptyErr } = await admin.from('profiles')
       .update({ last_import_at: new Date().toISOString() }).eq('user_id', userId);
     if (emptyErr) console.error('last_import_at (empty) failed:', emptyErr.message);
-    return json({ enriched: 0, remaining: 0 });
+    return json({ enriched: 0, remaining: 0, refreshed: 0, refresh_pending: 0 });
   }
+
+  // Phase 2 (#3): NEW work first (it alone drives `remaining` and the boot gate),
+  // leftover budget goes to refresh work — tombstone retries (7d), then stale rows
+  // (180d), as ordered by the RPC. The gate closes on new work exactly as before;
+  // refresh can never hold a first render hostage.
+  const batch: Array<{ rid: number; isNew: boolean }> = [
+    ...newIds.map((rid) => ({ rid, isNew: true })),
+    ...refreshIds.map((rid) => ({ rid, isNew: false })),
+  ].slice(0, BUDGET);
+
   if (totalPending === 0) {
     const { error: noneErr } = await admin.from('profiles')
       .update({ last_import_at: new Date().toISOString() }).eq('user_id', userId);
     if (noneErr) console.error('last_import_at (none-pending) failed:', noneErr.message);
-    return json({ enriched: 0, remaining: 0 });
+    if (batch.length === 0) {
+      return json({ enriched: 0, remaining: 0, refreshed: 0, refresh_pending: refreshTotal });
+    }
+    // No new work, but refresh work exists: fall through and process it.
   }
 
-  let enriched = 0;
+  let enriched = 0;    // NEW-work completions only: drives `remaining` and the gate
+  let refreshed = 0;   // refresh completions (tombstone retries + stale re-fetches)
   let rateLimited = false;
   for (let i = 0; i < batch.length; i++) {
-    const rid = batch[i];
+    const { rid, isNew } = batch[i];
     // Pace EVERY request after the first -- including after failures. Pacing only
     // successes (rev 1's M-2) let an all-404 batch fire 5 requests back-to-back.
     if (i > 0) await sleep(GAP_MS);
@@ -145,9 +165,13 @@ async function handle(req: Request): Promise<Response> {
       const { error: goneErr } = await admin.from('releases').update({
         tracks: [], country: '', released: '', videos: [],
         enriched_at: new Date().toISOString(),
+        // Phase 2 (#3): the tombstone is now DATED, so it retries after 7 days instead
+        // of being permanent. A re-tombstone (still 404 on retry) re-dates it.
+        gone_at: new Date().toISOString(),
       }).eq('release_id', rid);
       if (goneErr) console.error('404 tombstone failed:', rid, goneErr.message);
-      else enriched++;
+      else if (isNew) enriched++;
+      else refreshed++;
       continue;
     }
     if (!res.ok) {
@@ -179,9 +203,11 @@ async function handle(req: Request): Promise<Response> {
       released: (rel.released_formatted as string) || (rel.released as string) || '',
       videos,
       enriched_at: new Date().toISOString(),
+      gone_at: null,   // Phase 2 (#3): a success clears any tombstone.
     }).eq('release_id', rid);
     if (upErr) { console.error('enrich update failed:', rid, upErr.message); continue; }
-    enriched++;
+    if (isNew) enriched++;
+    else refreshed++;
   }
 
   const remaining = totalPending - enriched;
@@ -190,5 +216,6 @@ async function handle(req: Request): Promise<Response> {
       .update({ last_import_at: new Date().toISOString() }).eq('user_id', userId);
     if (doneErr) console.error('last_import_at update failed:', doneErr.message);
   }
-  return json({ enriched, remaining, rate_limited: rateLimited });
+  return json({ enriched, remaining, refreshed,
+    refresh_pending: Math.max(0, refreshTotal - refreshed), rate_limited: rateLimited });
 }
