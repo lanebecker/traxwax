@@ -248,6 +248,84 @@ function card(r){
   </div>`;
 }
 
+/* ── Surfaces design pass (from the Design Kit v2 app.additions.js) ───────────
+   Three pieces. #1 is a live bug fix; #2 and #3 are RESERVED geometry that nothing
+   calls until the social waves — kept here so adding them later is a data change,
+   not a card redesign. See docs/design-surfaces-spec.md §9.3 (badges) and §9.4 (price). */
+
+/* #1 · THE EMPTY CRATE (S17). records.length === 0 → the crate is empty (this state);
+   records.length > 0 && shown === 0 → the filters excluded everything (the existing
+   zero-results state). Wired in render() below, before the zero-results branch. */
+function emptyCrateHtml(){
+  const MONO = "font-family:'IBM Plex Mono',monospace";
+  const COND = "font-family:'Barlow Condensed',sans-serif";
+  const BODY = 'font-family:Archivo,Helvetica,sans-serif';
+  return '' +
+  '<div style="padding:70px 40px 76px; display:flex; flex-direction:column; align-items:center; ' +
+    'gap:18px; text-align:center">' +
+    '<div aria-hidden="true" style="width:112px; height:112px; border:1.5px solid var(--hair); ' +
+      'background:var(--bg); display:flex; align-items:center; justify-content:center">' +
+      '<div style="width:74px; height:74px; border-radius:50%; background:var(--bar); ' +
+        'display:flex; align-items:center; justify-content:center">' +
+        '<div style="width:22px; height:22px; border-radius:50%; background:var(--accent)"></div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex; flex-direction:column; gap:8px; align-items:center">' +
+      '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
+        'color:var(--accent)">AN EMPTY CRATE</span>' +
+      '<span class="tw-empty-h" style="' + COND + '; font-size:38px; font-weight:700; ' +
+        'line-height:1; color:var(--ink)">Nothing on the shelf yet</span>' +
+      '<span style="' + BODY + '; font-size:13.5px; line-height:1.7; color:var(--muted); ' +
+        'max-width:48ch">Your Discogs collection came back empty. Add a few records over ' +
+        'there and re-sync — they’ll be filed here within the minute.</span>' +
+    '</div>' +
+    '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
+      '<a href="https://www.discogs.com" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
+        'ADD RECORDS ON DISCOGS</a>' +
+      '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
+    '</div>' +
+  '</div>';
+}
+
+/* #2 · THE BADGE SLOT (S19) — ▸ RESERVED FOR WAVE 2. Nothing calls these yet.
+   Grammar: 'you' accent (true about YOU) · 'both' ink (true about BOTH) · 'else' panel
+   (action lives ELSEWHERE). Two badges max; wantlist/you-own are mutually exclusive so the
+   cap is safe. Classes ship in styles.css (.tw-badge*). */
+const BADGE_CLASS = { you: 'tw-badge-you', both: 'tw-badge-both', else: 'tw-badge-else' };
+function badgesHtml(badges){
+  if (!badges || !badges.length) return '';
+  return badges.slice(0, 2).map((b, i) =>
+    '<span class="tw-badge ' + (BADGE_CLASS[b.kind] || BADGE_CLASS.you) + ' tw-badge-' + (i + 1) + '">' +
+      esc(b.label) + '</span>').join('');
+}
+function badgesFor(rec, ctx){
+  if (!ctx) return [];
+  const out = [];
+  if (ctx.viewerWants && ctx.viewerWants.has(rec.id)) out.push({ kind: 'you',  label: 'ON YOUR WANTLIST' });
+  else if (ctx.viewerHas && ctx.viewerHas.has(rec.id)) out.push({ kind: 'both', label: 'YOU OWN THIS' });
+  if (ctx.forSale && ctx.forSale.has(rec.id))          out.push({ kind: 'else', label: 'FOR SALE' });
+  return out;
+}
+
+/* #3 · THE PRICE CELL — ▸ RESERVED FOR WAVE 1 (friend crates). live-stats suppresses price
+   server-side for records that aren't the viewer's own, so on a friend's crate every price
+   is null and the cell would collapse. THE RULE: the cell always renders — own+known → $34,
+   own+unknown → em-dash, friend's → SEE ON DISCOGS →. Never a number on a friend's record. */
+function priceCellHtml(rec, isOwn){
+  const MONO = "font-family:'IBM Plex Mono',monospace";
+  if (!isOwn) {
+    return '<a href="https://www.discogs.com/release/' + encodeURIComponent(rec.id) + '" ' +
+      'rel="noopener" style="' + MONO + '; font-size:9.5px; font-weight:700; ' +
+      'letter-spacing:.06em; color:var(--accent); white-space:nowrap">SEE ON DISCOGS →</a>';
+  }
+  if (rec.price == null) {
+    return '<span style="' + MONO + '; font-size:9.5px; letter-spacing:.06em; ' +
+      'color:var(--faint)">—</span>';
+  }
+  return '<span style="' + MONO + '; font-size:11px; font-weight:700; color:var(--accent)">$' +
+    Math.round(rec.price) + '</span>';
+}
+
 /* ── computeVals: the single source that render() draws from ─────────────────── */
 function computeVals(){
   const s=state;
@@ -370,12 +448,19 @@ function render(){
       </div>
     </div>`;
   } else if(showEmpty){
-    content=`<div style="display:flex; flex-direction:column; align-items:center; gap:12px; padding:90px 24px 96px; text-align:center">
+    // S17: an EMPTY collection (records.length === 0) is a different state from filters
+    // that excluded everything. The old code showed "0 RESULTS · CLEAR THE FILTERS" to a
+    // brand-new user with no filters set — advice that couldn't help.
+    if(v.all.length===0){
+      content=emptyCrateHtml();
+    } else {
+      content=`<div style="display:flex; flex-direction:column; align-items:center; gap:12px; padding:90px 24px 96px; text-align:center">
       <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.18em; color:var(--muted)">0 RESULTS</span>
       <span style="font-family:'Barlow Condensed',sans-serif; font-size:34px; font-weight:700; line-height:1.05">Nothing filed under that.</span>
       <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--muted); max-width:440px; line-height:1.6">Either the taste is very specific, or that record simply isn't owned. Both are fixable.</span>
       <button data-act="clearAll" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:8px 14px; margin-top:6px; background:var(--accent); color:var(--on-accent); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow)">CLEAR THE FILTERS</button>
     </div>`;
+    }
   }
 
   const html=`
@@ -419,7 +504,7 @@ function render(){
     <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
       ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
+        <span role="status" aria-live="polite" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
           ${sortBtn('added','ADDED')}${sortBtn('artist','ARTIST')}${sortBtn('year','YEAR')}${DB_MODE()?'':sortBtn('price','PRICE')}
           <button data-act="dir" title="Reverse order" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 9px; border:0; background:var(--panel); color:var(--ink)">${s.dir===-1?'↓':'↑'}</button>

@@ -27,3 +27,12 @@
 /app      /app/  200
 /app/*    /app/  200
 
+# The account surface (S13–S16) is routed at /account and /account/discogs, OUTSIDE the
+# /app/<username> grammar so it can never collide with a Discogs username (surfaces spec §6,
+# Lane's decision 2026-08-29). Same rewrite mechanics as /app: serve the SPA shell (/app/)
+# with the URL preserved so boot.js reads /account and renders the account page.
+# VERIFY WITH A HARD RELOAD, not client-side nav — a cold load of /account/discogs is the
+# case that would break if this rule were inert.
+/account   /app/  200
+/account/* /app/  200
+

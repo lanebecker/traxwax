@@ -24,7 +24,15 @@
   Cache-Control: no-cache
 /boot.js
   Cache-Control: no-cache
+/boot.ui.js
+  Cache-Control: no-cache
+/boot.clerk.js
+  Cache-Control: no-cache
 /styles.css
+  Cache-Control: no-cache
+/account
+  Cache-Control: no-cache
+/account/*
   Cache-Control: no-cache
 
 # The baked per-release files are write-once immutable (Stage C enriches the DB, not
