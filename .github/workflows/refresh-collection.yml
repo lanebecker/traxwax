@@ -10,10 +10,14 @@ name: Refresh collection
 #   Name: DISCOGS_TOKEN   Value: your Discogs personal access token
 # (This is separate from the Cloudflare Pages secret of the same name.)
 
+# Phase 1 cold audit #25: the weekly schedule is RETIRED. The multi-user site reads
+# Supabase (per-user import under each user's own OAuth token); the baked collection.json
+# is a dev fixture with Restricted fields (price/community stats) stripped, and this
+# workflow must not re-bake them into a public repo. Manual dispatch is kept for
+# deliberate dev-fixture refreshes only — if run, strip price/have/want/crating/crcount
+# before committing.
 on:
-  schedule:
-    - cron: '17 9 * * 1'      # Mondays ~09:17 UTC, weekly
-  workflow_dispatch: {}         # manual "Run workflow" button, for on-demand refreshes
+  workflow_dispatch: {}         # manual "Run workflow" button ONLY — no schedule
 
 concurrency:
   group: refresh-collection

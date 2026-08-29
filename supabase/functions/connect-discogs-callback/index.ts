@@ -10,7 +10,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest }
   from '../_shared/discogs.ts';
 
-const APP_ORIGIN = 'https://multi-user.traxwax.pages.dev';
+// Audit #31: env-first so the production flip is a secret change, not five redeploys.
+const APP_ORIGIN = Deno.env.get('APP_ORIGIN') ?? 'https://multi-user.traxwax.pages.dev';
 
 function back(status: string) {
   return new Response(null, {

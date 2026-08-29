@@ -16,8 +16,9 @@ import { createRemoteJWKSet, jwtVerify } from 'https://deno.land/x/jose@v5.9.6/i
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, decrypt }
   from '../_shared/discogs.ts';
 
-const CLERK_ISSUER = 'https://brave-buffalo-7127.clerk.accounts.dev';
-const APP_ORIGIN   = 'https://multi-user.traxwax.pages.dev';
+// Audit #31: env-first so the production flip is a secret change, not five redeploys.
+const CLERK_ISSUER = Deno.env.get('CLERK_ISSUER') ?? 'https://brave-buffalo-7127.clerk.accounts.dev';
+const APP_ORIGIN   = Deno.env.get('APP_ORIGIN') ?? 'https://multi-user.traxwax.pages.dev';
 const TTL_MS = 6 * 3600 * 1000;
 
 const JWKS = createRemoteJWKSet(new URL(`${CLERK_ISSUER}/.well-known/jwks.json`));
@@ -94,11 +95,9 @@ async function handle(req: Request): Promise<Response> {
     return json({ error: 'bad_request' }, 400);
   }
 
-  // Cache check BEFORE decrypting or touching Discogs.
-  const cacheKey = kind === 'value' ? `value:${userId}` : `release:${releaseId}`;
-  const cached = cacheGet(cacheKey);
-  if (cached) return json(cached);
-
+  // Audit #4: the caller must be Discogs-CONNECTED before being served even cached
+  // Restricted data -- a Clerk-only user has not accepted the Discogs data relationship.
+  // The connected check therefore precedes the cache; decryption still waits for a miss.
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -106,6 +105,11 @@ async function handle(req: Request): Promise<Response> {
   const { data: cred } = await admin.from('discogs_credentials')
     .select('oauth_token, oauth_token_secret').eq('user_id', userId).maybeSingle();
   if (!cred) return json({ error: 'not_connected' }, 409);
+
+  const cacheKey = kind === 'value' ? `value:${userId}` : `release:${releaseId}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) return json(cached);
+
   let userToken: string, userSecret: string;
   try {
     userToken = await decrypt(cred.oauth_token, encKey);

@@ -26,7 +26,7 @@ a dependency-free vanilla renderer, served from Cloudflare Pages with a Discogs 
 | `build/refresh_collection.py` | **The** data builder: Discogs API → `collection.json` + `releases/*.json`. Run weekly by GitHub Actions. |
 | `build/build_collection.py` | Legacy: `discogs_records.json` → `collection.json`. Superseded; kept for reference. |
 | `build/seed_catalog.py` | One-shot Phase 0 helper: emits the CC0 catalog seed for Supabase. |
-| `supabase/migrations/` | Multi-user schema + RLS (`0001_init.sql`) |
+| `supabase/migrations/` | Multi-user schema + RLS: `0001_init` … `0006_audit_hardening` (0002 username unique, 0003 OAuth state + link RPC, 0004 import watermark, 0005 collection→releases FK, 0006 cold-audit hardening) |
 | `docs/roadmap.md` | Shipped versions and what's next |
 | `docs/multi-user-spec.md` | The multi-user design (v1.0.0) |
 | `docs/phase-0-plan.md` | Multi-user foundations — complete |

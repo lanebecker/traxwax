@@ -9,6 +9,13 @@
 -- NOTE: import-collection MUST seed releases before upserting items once this exists;
 -- Task D2 ships that reorder in the same stage.
 
-alter table public.collection_items
-  add constraint collection_items_release_fk
-  foreign key (release_id) references public.releases(release_id);
+-- Idempotence guard (audit #28): a bare ADD CONSTRAINT fails on replay; every other
+-- migration in this set survives a re-run.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'collection_items_release_fk') then
+    alter table public.collection_items
+      add constraint collection_items_release_fk
+      foreign key (release_id) references public.releases(release_id);
+  end if;
+end $$;

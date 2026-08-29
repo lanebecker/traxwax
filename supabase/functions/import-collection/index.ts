@@ -14,8 +14,9 @@ import { createRemoteJWKSet, jwtVerify } from 'https://deno.land/x/jose@v5.9.6/i
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, decrypt }
   from '../_shared/discogs.ts';
 
-const CLERK_ISSUER = 'https://brave-buffalo-7127.clerk.accounts.dev';
-const APP_ORIGIN   = 'https://multi-user.traxwax.pages.dev';
+// Audit #31: env-first so the production flip is a secret change, not five redeploys.
+const CLERK_ISSUER = Deno.env.get('CLERK_ISSUER') ?? 'https://brave-buffalo-7127.clerk.accounts.dev';
+const APP_ORIGIN   = Deno.env.get('APP_ORIGIN') ?? 'https://multi-user.traxwax.pages.dev';
 
 const JWKS = createRemoteJWKSet(new URL(`${CLERK_ISSUER}/.well-known/jwks.json`));
 
