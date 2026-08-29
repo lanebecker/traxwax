@@ -13,6 +13,16 @@ _Nothing yet._
 
 ---
 
+## [1.3.1] — 2026-08-29
+
+### Changed
+- The avatar button now **floats in the true upper-right corner** of the header, above
+  the white controls bar, instead of sitting inline at the end of it (Lane's visual
+  review of the live v1.3.0). Positioned absolutely like the tape decorations; slightly
+  larger (36px); mobile gets a tighter corner offset.
+
+---
+
 ## [1.3.0] — 2026-08-29
 
 Profiles: the social groundwork. Plan: `docs/phase-2-profiles-plan.md` (rev 2, twice
