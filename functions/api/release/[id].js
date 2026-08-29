@@ -1,6 +1,12 @@
-/* GET /api/release/:id — live Discogs release detail for the modal.
-   Holds the token server-side (no CORS, token never reaches the browser),
-   slims the payload, and edge-caches it for 7 days. */
+/* GET /api/release/:id — CC0 release detail (tracklist/country/released/videos) for the
+   modal's LAST-RESORT fallback tier. Holds the token server-side.
+
+   Phase 1 cold audit #24: this endpoint previously also served have/want/community rating,
+   lowest_price and num_for_sale — Restricted Data under the Discogs API terms — to
+   anonymous callers with a 7-day cache. Restricted data now flows ONLY through the
+   authenticated live-stats Edge Function (per-user token, ≤6h ephemeral cache). What
+   remains here is CC0 catalog data, which the long edge cache is appropriate for.
+   /api/value and /api/price were deleted outright in the same audit. */
 
 function json(o, status = 200, extra = {}) {
   return new Response(JSON.stringify(o), {
@@ -13,7 +19,7 @@ export async function onRequestGet({ params, env }) {
   if (!/^\d+$/.test(id)) return json({ error: 'bad id' }, 400);   // no SSRF / path abuse
 
   const cache = caches.default;
-  const key = new Request('https://traxwax.internal/api/release/' + id);
+  const key = new Request('https://traxwax.internal/api/release-cc0/' + id);
   const cached = await cache.match(key);
   if (cached) return cached;
 
@@ -25,7 +31,7 @@ export async function onRequestGet({ params, env }) {
   // client gets the tracklist on the first open instead of failing to the retry UI.
   let upstream;
   for (let attempt = 0; attempt < 2; attempt++) {
-    upstream = await fetch('https://api.discogs.com/releases/' + id + '?curr_abbr=USD', { headers });
+    upstream = await fetch('https://api.discogs.com/releases/' + id, { headers });
     if (upstream.status !== 429) break;
     if (attempt === 0) await new Promise(r => setTimeout(r, 900));
   }
@@ -35,17 +41,11 @@ export async function onRequestGet({ params, env }) {
   const slim = {
     tracks: (d.tracklist || []).filter(t => t.type_ !== 'heading')
       .map(t => ({ pos: t.position || '', title: t.title || '', dur: t.duration || '' })),
-    have: d.community?.have ?? null,
-    want: d.community?.want ?? null,
-    ratingAvg: d.community?.rating?.average ?? null,
-    ratingCount: d.community?.rating?.count ?? null,
-    price: d.lowest_price ?? null,
-    numForSale: d.num_for_sale ?? null,
     country: d.country || '',
     released: d.released_formatted || d.released || '',
     videos: (d.videos || []).slice(0, 3).map(v => ({ title: v.title, uri: v.uri })),
   };
-  const resp = json(slim, 200, { 'Cache-Control': 'public, max-age=604800' }); // 7d
+  const resp = json(slim, 200, { 'Cache-Control': 'public, max-age=604800' }); // 7d, CC0
   await cache.put(key, resp.clone());
   return resp;
 }

@@ -1,0 +1,6 @@
+# Phase 1 cold audit #35: baseline security headers. Full CSP deferred (the app is
+# built on inline styles); these three cost nothing and matter for authed sessions.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

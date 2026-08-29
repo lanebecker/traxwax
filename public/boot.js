@@ -117,6 +117,9 @@ function clerkReady() {
       reject(new Error('Clerk did not load — check for an ad blocker or network failure.'));
     };
     if (window.Clerk) return resolve();
+    // Audit #21: if load already fired (bfcache restore, deferred boot), the listener
+    // below never runs and this promise hangs forever on a blank page. Check now.
+    if (document.readyState === 'complete') return check();
     window.addEventListener('load', check, { once: true });
   });
 }
@@ -224,11 +227,109 @@ function ownerInfo(profile) {
   };
 }
 
-/* Stage C import driver. Renders its own progress UI via notice(), drives the chunked
-   import-collection loop then the enrich-release loop, and returns true when the caller
-   may continue rendering. On give-up it renders an error notice and returns false —
-   and because last_import_at is only set server-side when enrichment finishes, any
-   give-up or tab-close resumes automatically on the next load. */
+/* Import pipeline, restructured by the Phase 1 cold audit (findings #9-#14): the import
+   phase (seconds to a minute) runs blocking with progress UI; ENRICHMENT ALWAYS DRAINS IN
+   THE BACKGROUND -- the crate renders without tracklists and they fill in as the drain
+   proceeds. last_import_at is set server-side only when enrichment reaches zero remaining,
+   so the boot gate keeps healing interrupted runs on later loads. */
+
+const _pipeCall = async (path, payload) => {
+  const token = await window.Clerk.session.getToken();
+  const r = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + token,
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const err = new Error(d.error || ('HTTP ' + r.status));
+    err.status = r.status;
+    // Audit #13: an upstream Discogs 429 arrives as {error:'discogs_failed', status:429}
+    // on an HTTP 502 -- surface it so retry logic can wait out the 60s rate window.
+    err.upstream = d.status;
+    throw err;
+  }
+  return d;
+};
+
+// Retries with backoff -- but NOT on non-retryable 4xx (bad request, auth, not
+// connected), and with a 30s wait when the upstream reported a rate limit (audit #13).
+const _pipeAttempt = async (fn, onLine) => {
+  const delays = [2000, 5000, 10000];
+  for (let i = 0; ; i++) {
+    try { return await fn(); }
+    catch (e) {
+      if ([400, 401, 403, 409].includes(e && e.status)) throw e;
+      if (i >= delays.length) throw e;
+      const wait = (e && e.upstream === 429) ? 30000 : delays[i];
+      if (onLine) onLine('Hiccup (' + ((e && e.message) || e) + ') — retrying…');
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+};
+
+/* The import phase only: pages 1..N with elapsed-aware pacing (audit #14: a fixed 250ms
+   pace only held 60/min while round-trips stayed >=750ms). Throws on give-up. */
+async function importLoop(onLine) {
+  let page = 1, pages = 1, startedAt = null;
+  do {
+    const t0 = Date.now();
+    const d = await _pipeAttempt(() => _pipeCall('import-collection',
+      startedAt ? { page, started_at: startedAt } : { page }), onLine);
+    pages = d.pages; startedAt = d.started_at;
+    onLine('Importing — page ' + d.page + ' of ' + d.pages + ' (' + d.items + ' records)');
+    if (d.done) break;
+    page++;
+    const elapsed = Date.now() - t0;
+    await new Promise((r) => setTimeout(r, Math.max(0, 1100 - elapsed)));
+  } while (page <= pages && page <= 500);
+}
+
+/* Background enrichment drain: silent (console only), at most one loop at a time.
+   Rate-limited rounds wait 30s and do NOT count toward the stall guard (audit #10). */
+let _enrichRunning = false;
+function backgroundEnrich() {
+  if (_enrichRunning) return;
+  _enrichRunning = true;
+  (async () => {
+    try {
+      let prevRemaining = Infinity, noProgress = 0;
+      for (let i = 0; i < 500; i++) {
+        let d;
+        try { d = await _pipeAttempt(() => _pipeCall('enrich-release', {})); }
+        catch (e) { console.warn('background enrich stopped:', e); break; }
+        if (d.remaining === 0) break;
+        if (d.rate_limited) {
+          await new Promise((r) => setTimeout(r, 30000));
+          continue;
+        }
+        noProgress = d.remaining >= prevRemaining ? noProgress + 1 : 0;
+        prevRemaining = d.remaining;
+        if (noProgress >= 3) {
+          console.warn('enrichment stalled at', d.remaining, '— resumes next visit');
+          break;
+        }
+      }
+    } finally { _enrichRunning = false; }
+  })();
+}
+
+/* Silent full-pipeline heal for an interrupted re-sync (audit #9/#11): the import phase
+   with no UI, then the background drain. */
+function backgroundHeal() {
+  (async () => {
+    try { await importLoop(() => {}); }
+    catch (e) { console.warn('background import heal stopped:', e); return; }
+    backgroundEnrich();
+  })();
+}
+
+/* Blocking import with progress UI; returns true when the caller may continue rendering.
+   Enrichment is NOT awaited -- the crate renders and tracklists fill in behind it. */
 async function runImport() {
   const setLine = (msg) => {
     const el = document.getElementById('tw-import-line');
@@ -239,79 +340,8 @@ async function runImport() {
     'most crates.<br><br><div id="tw-import-line" style="color:var(--accent); ' +
     "font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.08em\">" +
     'Contacting Discogs…</div>', true);
-
-  const call = async (path, payload) => {
-    const token = await window.Clerk.session.getToken();
-    const r = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + token,
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      const err = new Error(d.error || ('HTTP ' + r.status));
-      err.status = r.status;
-      throw err;
-    }
-    return d;
-  };
-
-  // Retries with backoff — but NOT on non-retryable 4xx (bad request, auth, not
-  // connected): those fail identically every time and retrying just delays the truth.
-  const attempt = async (fn) => {
-    const delays = [2000, 5000, 10000];
-    for (let i = 0; ; i++) {
-      try { return await fn(); }
-      catch (e) {
-        if ([400, 401, 403, 409].includes(e && e.status)) throw e;
-        if (i >= delays.length) throw e;
-        setLine('Hiccup (' + ((e && e.message) || e) + ') — retrying…');
-        await new Promise((r) => setTimeout(r, delays[i]));
-      }
-    }
-  };
-
   try {
-    let page = 1, pages = 1, startedAt = null;
-    do {
-      const d = await attempt(() => call('import-collection',
-        startedAt ? { page, started_at: startedAt } : { page }));
-      pages = d.pages; startedAt = d.started_at;
-      setLine('Importing — page ' + d.page + ' of ' + d.pages +
-        ' (' + d.items + ' records)');
-      if (d.done) break;
-      page++;
-      // Modest inter-page pace: ~48 pages/min worst case keeps a very large collection
-      // under the 60/min token budget without slowing a normal import noticeably.
-      await new Promise((r) => setTimeout(r, 250));
-    } while (page <= pages && page <= 500);
-
-    // Enrichment: loop until the server reports zero remaining. A rate-limit report
-    // waits 30s; repeated calls with no progress (the guard trips on the fourth
-    // consecutive zero-progress call) mean something upstream is stuck — stop WITHOUT
-    // failing the whole flow (tracklists fill in on a later visit, because
-    // last_import_at is only set when remaining hits 0).
-    let prevRemaining = Infinity, noProgress = 0;
-    for (let i = 0; i < 500; i++) {
-      const d = await attempt(() => call('enrich-release', {}));
-      if (d.remaining === 0) break;
-      setLine('Filling in tracklists — ' + d.remaining + ' to go');
-      noProgress = d.remaining >= prevRemaining ? noProgress + 1 : 0;
-      prevRemaining = d.remaining;
-      if (noProgress >= 3) {
-        console.warn('enrichment stalled at', d.remaining, '— continuing; will resume next visit');
-        break;
-      }
-      if (d.rate_limited) {
-        setLine('Discogs asked us to slow down — waiting 30s (' + d.remaining + ' to go)');
-        await new Promise((r) => setTimeout(r, 30000));
-      }
-    }
-    return true;
+    await importLoop(setLine);
   } catch (e) {
     console.error(e);
     notice('Import hit a wall',
@@ -320,6 +350,8 @@ async function runImport() {
       '<a href="" style="color:var(--accent)">Reload and resume</a>', true);
     return false;
   }
+  backgroundEnrich();
+  return true;
 }
 
 function mountAuth() {
@@ -442,18 +474,36 @@ async function render() {
     return;
   }
 
-  // ── Stage C: the import pipeline runs before anything renders, and re-runs until
-  //    enrichment closes the gate by setting last_import_at (both phases are idempotent,
-  //    so a resume from any interruption point just re-covers cheap ground). ──
   if (profile.import_status === 'error') {
     notice('Import needs attention',
       'Your stored Discogs connection could not be read, so importing is paused.<br><br>' +
       'This is on us — a reconnect flow is coming. Nothing of yours is lost.', true);
     return;
   }
+  // ── Audit #9/#11 (gate amended by the report-verification round): render as soon as
+  //    the ITEMS are complete; enrichment always drains in the background. 'idle' is
+  //    written only by the import's final page, so idle+items = items phase done — and
+  //    the re-link RPC deletes items on a username change (migration 0006), which is
+  //    what makes "items exist" mean "the CURRENT account's items". ──
   if (!profile.last_import_at) {
-    const ok = await runImport();
-    if (!ok) return;            // runImport rendered the error state itself
+    if (profile.import_status === 'running') {
+      const ok = await runImport();        // resume an interrupted first import
+      if (!ok) return;                     // runImport rendered the error state itself
+    } else {
+      const { count, error: cntErr } = await supabase
+        .from('collection_items').select('*', { count: 'exact', head: true });
+      if (cntErr) { showError(new Error('collection count failed: ' + cntErr.message)); return; }
+      if ((count ?? 0) > 0) {
+        backgroundEnrich();                // items landed earlier; drain quietly
+      } else {
+        const ok = await runImport();      // first import
+        if (!ok) return;
+      }
+    }
+  } else if (profile.import_status === 'running') {
+    backgroundHeal();                      // interrupted re-sync: heal silently
+  } else {
+    backgroundEnrich();                    // audit #11: sweep up any pending leftovers
   }
 
   // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
@@ -462,10 +512,18 @@ async function render() {
   window.TraxWaxBootCrate();
 }
 
+let _routeAgain = false;
 async function route() {
-  if (routing) return;
+  // Audit #22: a route request arriving mid-render (the Clerk listener has already
+  // flipped lastSignedIn) must not be dropped, or a sign-out during a long render
+  // leaves the crate on screen. Queue exactly one re-route.
+  if (routing) { _routeAgain = true; return; }
   routing = true;
-  try { await render(); } catch (err) { showError(err); } finally { routing = false; }
+  try { await render(); } catch (err) { showError(err); }
+  finally {
+    routing = false;
+    if (_routeAgain) { _routeAgain = false; route(); }
+  }
 }
 
 async function boot() {

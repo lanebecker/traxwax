@@ -183,11 +183,24 @@ function matches(r){
 function sorted(list){
   const s=state;
   const key={ added:r=>r.added, artist:r=>r.artist.toLowerCase(), year:r=>String(r.year),
-    price:r=>String(r.price==null?0:r.price).padStart(9,'0') }[s.sort];
+    // Audit #19: numeric, not padded-string -- the string form sorted $12.50 below $9.99.
+    price:r=>r.price==null?-1:r.price }[s.sort];
   return list.slice().sort((a,b)=>(key(a)<key(b)?-1:key(a)>key(b)?1:0)*s.dir);
 }
 function deco(r){
-  const coverUrl = r.cover_image || r.thumb || '';   // prefer the 600px cover_image; fall back to the 150px thumb
+  // Audit #17: this URL is the ONE string interpolated into style attributes without
+  // esc() (a quote in a shared-catalog image URL would close the attribute -- cross-user
+  // via the releases table). https-only, and encode every char that could break out of
+  // url('...') inside a double-quoted attribute.
+  const rawCover = r.cover_image || r.thumb || '';   // prefer the 600px cover_image; fall back to the 150px thumb
+  // Fixed map, NOT encodeURIComponent: remediation audit caught that encodeURIComponent
+  // never encodes ' ( ) -- and the single quote is the exact char that breaks out of
+  // url('...'). A real Discogs CDN URL contains none of these seven, so covers are
+  // unchanged; a hostile URL is inert.
+  const COVER_ENC = {'"':'%22',"'":'%27','(':'%28',')':'%29','\\':'%5C','<':'%3C','>':'%3E'};
+  const coverUrl = /^https:\/\//.test(rawCover)
+    ? rawCover.replace(/["'()\\<>]/g, (c) => COVER_ENC[c])
+    : '';
   return { ...r,
     swatch:swatchFor(r.vinyl), vinylShort:shortVinyl(r.vinyl),
     style1:r.styles[0]||r.genres[0]||'—',

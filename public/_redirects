@@ -27,8 +27,3 @@
 /app      /app/  200
 /app/*    /app/  200
 
-# Diagnostic probes (temporary, Stage B): if /app/* ever falls through again, these tell us
-# WHICH layer died. /rt-probe-redirect firing but not /rt-probe-rewrite = rewrites broken,
-# file parsed. Neither firing = the whole file is being ignored. Remove after Stage D.
-/rt-probe-rewrite   /app/  200
-/rt-probe-redirect  /      302
