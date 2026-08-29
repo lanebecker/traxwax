@@ -1,108 +1,103 @@
-# TraxWax — Deploy to Cloudflare Pages
+# TraxWax — deployment & operations
 
-The full site is now pushed to **github.com/lanebecker/traxwax** (site + proxy +
-`collection.json` + screenshots + docs). What's left is to connect Cloudflare and set
-the token — **start at Step 2**.
+The site is **live at [traxwax.com](https://traxwax.com)**. This is the operations reference,
+not a setup checklist — the original one-time Cloudflare setup was completed 2026-08-17/18 and
+lives in git history.
 
 ---
 
-## Step 1 — Push the code ✅ done (2026-08-17)
+## How deployment works
 
-Already pushed — the repo has the full site, `collection.json`, screenshots, and docs.
-**Skip to Step 2.** Kept below for reference / future re-pushes.
+| | |
+|---|---|
+| **Host** | Cloudflare Pages, project `traxwax` |
+| **Source** | `github.com/lanebecker/traxwax`, branch `main` |
+| **Build command** | *(none)* |
+| **Build output directory** | `public` |
+| **Framework preset** | None |
+| **Deploy trigger** | Every push to `main` auto-deploys. Non-production branches get preview URLs at `https://<branch>.traxwax.pages.dev`. |
 
-The repo had a starter `README`/`LICENSE`, so the safe move was clone → copy files in →
-push (no rebase, keeps the LICENSE, overwrites the starter README):
+Pages auto-detects `functions/` and deploys the proxy alongside the static site. There is no
+build step to break.
+
+## Environment variables
+
+Set in **Workers & Pages → traxwax → Settings → Variables and Secrets**, for **Production and
+Preview** both:
+
+| Name | Value | Notes |
+|---|---|---|
+| `DISCOGS_TOKEN` | Discogs personal access token | Mark as **Secret / encrypted**. Read by every `functions/api/*` handler. |
+| `DISCOGS_USER` | `lanebecker` | Optional — `functions/api/value.js` defaults to this. |
+
+Separately, GitHub **Settings → Secrets and variables → Actions** holds its own
+`DISCOGS_TOKEN` for `refresh-collection.yml`. **These are two independent stores of the same
+secret.** Discogs issues only one personal access token per account, so rotating it means
+updating both, plus two more consumers — see `../DISCOGS-CREDENTIALS.md` for the full map and
+rotation checklist.
+
+> **Token type.** This is a **personal access token**, not an app registration — TraxWax is
+> currently single-user and the proxy reads Lane's own data, acting as him. Multi-user (v1.0.0)
+> moves per-user reads to OAuth under the `TraxWax` Discogs app; this PAT still serves the
+> app's own public calls.
+
+After changing any variable, **Deployments → Retry deployment** (or push a commit) so the
+Functions pick it up.
+
+## The weekly refresh
+
+`.github/workflows/refresh-collection.yml` runs weekly and on `workflow_dispatch`:
+
+1. Runs `build/refresh_collection.py` with the Actions `DISCOGS_TOKEN`.
+2. Pulls the collection, does one `get_release` pass per record.
+3. Writes `public/collection.json` and any new `public/releases/<id>.json`.
+4. Commits to `main` — Cloudflare deploys it.
+
+A full pass takes ~35–40 minutes, throttled under the Discogs rate limit. Tracklist files are
+write-once, so weekly diffs stay small; only new records add files.
+
+**To force a refresh now:** repo → **Actions → Refresh collection → Run workflow**.
+
+**Because this commits to `main`,** any long-lived branch will drift and needs a
+`git pull --rebase origin main` before merging.
+
+## Local testing
+
+Static only:
 
 ```bash
-cd "/Users/lanebecker-wmf/Documents/Claude.nosync/Projects/Lane's Record Collection"
-git clone https://github.com/lanebecker/traxwax.git traxwax-clone
-rsync -a --exclude='.git' "traxwax-site/" traxwax-clone/
-cd traxwax-clone
-git add -A
-git commit -m "TraxWax v0.1.0 — production site + Discogs proxy + docs"
-git push
+cd public && python3 -m http.server 8000     # http://localhost:8000
 ```
 
-That ships the site, the proxy Functions, `collection.json`, the screenshots, and all
-the docs in one commit. (Prefer I push instead? Grant your fine-grained PAT
-`Contents: write` on `lanebecker/traxwax` and say the word — though the git push above
-is simpler and also carries the data file.)
-
-## Step 2 — Create the Pages project (Cloudflare dashboard)
-
-1. **Workers & Pages → Create → Pages → Connect to Git**, pick the `traxwax` repo.
-2. Build settings: **Framework preset = None**, **Build command = (empty)**,
-   **Build output directory = `public`**. Save & Deploy.
-3. Pages auto-detects `functions/` and deploys the proxy alongside the static site.
-
-You'll get a `https://traxwax.pages.dev` URL. Until Step 3, the header value and modal
-lowest-sale show "—".
-
-## Step 3 — Add the Discogs token (secret)
-
-Dashboard: **Settings → Variables and Secrets → Add**, for **Production and Preview**:
-
-- `DISCOGS_TOKEN` = your Discogs personal access token  *(mark as Secret / encrypted)*
-- `DISCOGS_USER` = `lanebecker`  *(optional; this is the default)*
-
-Use a **standard user token (PAT)** — Discogs → Settings → Developers → *Generate new
-token* — **not** an app registration. TraxWax is single-user and the proxy reads only
-your own / public data, acting as you. If you later add per-user sign-in (multi-user
-with login), that moves to OAuth + an app registration — swap this secret then; the PAT
-still serves the app's own public calls.
-
-Then **Deployments → Retry deployment** (or push any commit) so the Functions pick up
-the secret.
-
-## Step 4 — Verify
-
-- `https://traxwax.pages.dev/api/value` → JSON `{minimum, median, maximum}`.
-- Open any record → tracklist + have/want + **lowest sale** populate from Discogs; the
-  header **EST.** fills in.
-- Grid/Ledger per-record prices stay "—" until the weekly bake (Step 6).
-
-## Step 5 — Custom domain (traxwax.com) — later
-
-Its DNS isn't on Cloudflare yet. Cleanest path: **add the domain to Cloudflare** (it
-imports your existing DNS), **change the nameservers at your registrar** to the two
-Cloudflare gives you, then in the Pages project **Custom domains → Set up → traxwax.com**
-(+ `www`). SSL auto-provisions. This cuts a **v1.0.0** release (see `docs/roadmap.md`).
-
-## Step 6 — Automatic updates (GitHub Actions) — one-time setup
-
-The site keeps itself current with **no Claude, no Cowork task, no local machine**:
-`.github/workflows/refresh-collection.yml` runs weekly (and on demand), rebuilds
-`public/collection.json` from the Discogs API via `build/refresh_collection.py` (new
-records, edits, and baked marketplace low prices), and commits it — Cloudflare
-auto-deploys the commit.
-
-One-time setup — add the Discogs token as an **Actions** secret (a separate store from
-the Pages secret you set in Step 3):
-
-- repo → **Settings → Secrets and variables → Actions → New repository secret**
-- Name: `DISCOGS_TOKEN`   Value: your Discogs personal access token
-
-Then trigger the first run: repo → **Actions → Refresh collection → Run workflow**. The
-first run takes ~35–40 min — one `get_release` pass over ~1,850 records, throttled under
-Discogs' rate limit — and bakes everything the detail modal needs: tracklists to
-`public/releases/<id>.json`, plus community rating / have-want / **lowest price** into
-`collection.json` (so grid / Ledger / sort prices light up too). It commits the result.
-After that it runs itself every Monday — a full pass keeps stats + prices fresh, while
-tracklist files are written once (only new records add files). This **replaces the old
-Cowork `rebuild-record-collection` task** and the separate price bake — you can retire them.
-
-## Local testing (optional)
-
-Run the Functions locally with your token:
+With the proxy Functions live:
 
 ```bash
 cd "…/traxwax-clone"
-printf 'DISCOGS_TOKEN=YOUR_TOKEN\nDISCOGS_USER=lanebecker\n' > .dev.vars   # git-ignored; never commit
+printf 'DISCOGS_TOKEN=YOUR_TOKEN\nDISCOGS_USER=lanebecker\n' > .dev.vars   # git-ignored, never commit
 npx wrangler pages dev public
 ```
 
-(Plain `python3 -m http.server` inside `public/` runs the site too. After a bake, the
-modal reads tracklists + stats straight from the baked static files, so most of it works
-with no proxy — only the live header value and the brand-new-record fallback need the
-Functions.)
+Most of the site works with no proxy at all — the modal reads baked static files. Only the
+live header value and the fallback for a brand-new un-baked record need the Functions.
+
+## Verifying a deploy
+
+- `https://traxwax.com/api/value` → JSON `{minimum, median, maximum}`
+- Open any record → tracklist, have/want, and lowest sale populate; header **EST.** fills in
+- Grid and Ledger prices show real figures (they come from the weekly bake, not live calls)
+- The footer shows both required Discogs notices
+
+## Rollback
+
+Cloudflare Pages keeps every deployment. **Workers & Pages → traxwax → Deployments →** find
+the last good one **→ Rollback**. This is instant and does not touch git; fix forward in the
+repo afterwards so the next push does not re-deploy the bad state.
+
+---
+
+## Retired
+
+- **The Cowork `rebuild-record-collection` task** — superseded by the GitHub Action above.
+  Disabled 2026-08-28 (kept disabled for history, not deleted).
+- **The `traxwax-site/` staging directory and its rsync workflow** — replaced 2026-08-17 by
+  editing `traxwax-clone` directly as the single persistent working copy.

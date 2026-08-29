@@ -2,87 +2,115 @@
 
 [![version](https://img.shields.io/badge/version-0.4.0-blueviolet)](VERSION)
 
-The hosted home of Lane's record collection — the Claude Design redesign, ported off
-the design runtime into a clean static site, running on the full ~1,850-record
-collection. Destined for **traxwax.com** on Cloudflare Pages.
+**Live at [traxwax.com](https://traxwax.com)** — Lane's Discogs vinyl collection as a
+browsable, filterable crate. ~1,861 records. Static site on Cloudflare Pages, no framework,
+no build step, and it refreshes itself weekly with no human in the loop.
 
 ## Layout
 
 ```
-traxwax-site/
-├── public/                 # Cloudflare Pages "build output directory"
-│   ├── index.html          # shell: fonts + mount point
-│   ├── styles.css          # tokens (light/dark) + base + responsive columns
-│   ├── app.js              # the app — ported from the Claude Design kit (no runtime dep)
-│   ├── collection.json     # ~1,850 records: metadata + covers + baked stats/price
-│   └── releases/<id>.json  # per-release baked tracklist/country/videos (immutable, one per record)
+traxwax/
+├── public/                   # Cloudflare Pages build output directory
+│   ├── index.html            # landing page, served at /
+│   ├── app/index.html        # app shell, served at /app and /app/<username>
+│   ├── boot.js               # auth + routing entry point; decides whether app.js loads
+│   ├── app.js                # the crate renderer, ported from the Claude Design kit
+│   ├── styles.css            # tokens (light/dark) + base + ≤640px responsive
+│   ├── collection.json       # every record: metadata, covers, baked stats + price
+│   ├── releases/<id>.json    # per-release immutable tracklist/country/released/videos
+│   └── _redirects            # rewrites /app/* to the app shell (see note below)
+├── functions/api/            # Pages Functions — the Discogs proxy; token stays server-side
+│   ├── release/[id].js       #   fallback release detail for un-baked new records
+│   ├── price/[id].js         #   marketplace stats for one release
+│   └── value.js              #   whole-collection estimated value (header EST.)
 ├── build/
-│   ├── refresh_collection.py # THE data builder: Discogs API -> collection.json + releases/
-│   └── build_collection.py   # legacy: discogs_records.json -> collection.json
-├── functions/api/          # Cloudflare Pages Functions: the Discogs proxy (release, value, price)
-├── .github/workflows/      # sync-version-badge.yml — keeps the README badge in sync with VERSION
-├── docs/roadmap.md         # planned features and versioning
-├── screenshots/            # rendered reference states (light/dark/ledger/timeline/modal/mobile)
-├── VERSION                 # single source of truth for the version (semver)
-├── CHANGELOG.md            # what changed in each version (Keep a Changelog)
-├── CLAUDE.md               # project context + versioning rule (shared-facts block synced in)
-└── DEPLOY.md               # deploy steps
+│   ├── refresh_collection.py #   THE data builder: Discogs API → collection.json + releases/
+│   ├── build_collection.py   #   legacy: discogs_records.json → collection.json
+│   └── seed_catalog.py       #   one-shot: emits the CC0 catalog seed for Supabase (Phase 0)
+├── supabase/migrations/      # multi-user schema + RLS
+├── .github/workflows/
+│   ├── refresh-collection.yml  # weekly data refresh → commit → auto-deploy
+│   └── sync-version-badge.yml  # keeps the README badge in sync with VERSION
+├── docs/                     # roadmap, multi-user spec, phase plans
+├── screenshots/              # rendered reference states
+├── VERSION · CHANGELOG.md · CLAUDE.md · DEPLOY.md
 ```
 
-## Versioning
+## How it stays current
 
-`VERSION` (semver) is the single source of truth. To cut a release: edit `VERSION`
-and add a `[x.y.z]` section to `CHANGELOG.md`, commit, push — the
-`sync-version-badge` workflow rewrites the badge above to match and warns if the
-changelog wasn't updated. See `docs/roadmap.md`.
+`.github/workflows/refresh-collection.yml` runs weekly and on `workflow_dispatch`. It
+executes `build/refresh_collection.py`, which pulls the collection from the Discogs API, does
+one `get_release` pass per record, writes `collection.json` plus any new `releases/*.json`,
+and commits. Cloudflare deploys the commit automatically.
+
+**No scheduled task, no local machine, no human.** The Cowork artifact that used to require
+all three was retired 2026-08-28.
+
+## Architecture notes
+
+**The detail modal makes zero live calls.** Immutable data (tracklist, country, release date,
+videos) is baked once into write-once `public/releases/<id>.json`; mutable stats (community
+rating, have/want, lowest sale) live on each `collection.json` record and refresh weekly. The
+modal is therefore immune to rate limits and can never show a fabricated tracklist.
+
+**Covers come from the Discogs CDN** — `cover_image`, roughly 600px at q90. There is no
+base64 embedding; that only ever existed to work around Cowork iframes blocking CDN URLs, and
+that constraint died with the artifact.
+
+**Attribution is mandatory.** The footer carries the two notices the Discogs API Terms
+require: the do-follow "Data provided by Discogs" link and the affiliation disclaimer. Do not
+remove them. See `../Discogs-API-Terms-Summary.md`.
+
+## Routing
+
+`/` is the landing page. `/app` and `/app/<username>` both serve `public/app/index.html` via
+a `_redirects` rewrite, and `boot.js` reads the path to decide what to render: the Clerk
+sign-in card when signed out, a connect prompt when Discogs is not linked, or the crate when
+the signed-in user owns that username. **Crates are private** — `/app/<username>` resolves
+only for its owner.
+
+`boot.js` and `app.js` deliberately live at the `public/` root rather than under `/app/`.
+Cloudflare Pages follows redirects "regardless of whether or not an asset matches the incoming
+request", so a `/app/*` splat would serve HTML for any script parked beneath it, the module
+MIME check would reject it, and every page would render blank.
 
 ## Run locally
 
-Because `app.js` does `fetch('./collection.json')`, open it over HTTP, not `file://`:
+`app.js` fetches `./collection.json`, so serve it over HTTP rather than `file://`:
 
 ```
-cd public && python3 -m http.server 8000    # then visit http://localhost:8000
+cd public && python3 -m http.server 8000    # http://localhost:8000
 ```
+
+To exercise the proxy Functions too, see **DEPLOY.md → Local testing**.
 
 ## Regenerate the data
 
 ```
-DISCOGS_TOKEN=… python3 build/refresh_collection.py   # rebuilds collection.json + releases/ from Discogs
+DISCOGS_TOKEN=… python3 build/refresh_collection.py
 ```
 
-Flags: `SKIP_RELEASES=1` (metadata + covers only, ~30s), `RELEASE_NEW_ONLY=1` (only
-new records' tracklists), `RELEASE_LIMIT=N` (cap get_release calls). The weekly GitHub
-Action runs this for you.
+Flags: `SKIP_PRICES=1` (fast metadata + covers only, ~30s), `SKIP_RELEASES=1`,
+`RELEASE_NEW_ONLY=1` (only new records' tracklists), `RELEASE_LIMIT=N`. A full pass takes
+~35–40 minutes against the rate limit. The weekly Action does this for you; you only need it
+by hand to pick up new records immediately.
 
-## The two seams (see TRAXWAX-DESIGN-SPEC.md §7)
+## Versioning
 
-- **Seam 1 — data.** `public/collection.json`, shape `{id, artist, title, year, label,
-  styles[], genres[], vinyl, thumb, cover_image, added, rating, price, crating, crcount,
-  have, want}`. Covers load from the Discogs CDN (`cover_image`, 600px). Immutable
-  tracklists live in `public/releases/<id>.json`.
-- **Seam 2 — mostly baked.** The modal reads its tracklist from the static
-  `releases/<id>.json` and its stats/price from `collection.json` — no live call. The
-  Cloudflare proxy (`/api/value` for the header value, `/api/release/:id` as a fallback for
-  a not-yet-baked new record) is the only live piece left.
+`VERSION` (semver) is the single source of truth. To cut a release: edit `VERSION`, add a
+`[x.y.z]` section to `CHANGELOG.md`, commit, push. `sync-version-badge.yml` rewrites the badge
+above to match and warns if the changelog was not updated in the same push.
 
-## What's implemented vs. what's next
+## Status
 
-**Done (this phase):** full redesign ported (Crate grid, Timeline, Ledger, detail modal),
-composable facet filters with the SHOWING row, single-control sort + direction, light/dark
-themes (persisted, respects `prefers-color-scheme`), responsive columns (6→2), empty state,
-loading state, all 1,850 records. The Claude Design `DESIGN STATES` demo strip was removed
-per spec. Verified via headless render in light + dark + filtered + modal with zero console
-errors.
+**Shipped** through **v0.4.0** — the full redesign (Crate / Timeline / Ledger), composable
+facet filters, single-control sort, light/dark themes, responsive 6→2 columns, the baked
+detail modal, mobile layout, the self-refresh pipeline, the custom domain, and the required
+Discogs attribution. Full history in `CHANGELOG.md`.
 
-**Done (deploy phase):** the proxy Functions (`functions/api/release/[id].js`, `value.js`,
-`price/[id].js`) are built and `app.js` calls them (with graceful mock fallback for local
-dev). Header **EST.** and the detail modal go live once the token is set. See **DEPLOY.md**.
-
-**Next:**
-1. Push + connect to Cloudflare Pages + set `DISCOGS_TOKEN` — **DEPLOY.md** steps 1–4.
-2. Custom domain `traxwax.com` (move nameservers to Cloudflare) — DEPLOY.md step 5.
-3. Bake per-record grid prices via the weekly task — DEPLOY.md step 6 (grid/Ledger read `—`
-   until then; the modal's lowest sale is already live).
-4. Spec polish still open: modal focus-trap + return focus, roving grid focus, `aria-live`
-   on the result count, and `cover_image` (not the 150px `thumb`) for the modal cover.
-```
+**Next** — see `docs/roadmap.md`:
+- **v0.5.0** accessibility polish: modal focus-trap and focus restore, roving grid focus,
+  `aria-live` on the result count, `cover_image` for the modal cover.
+- **v1.0.0** multi-user: Clerk login, per-user Discogs OAuth, a shared CC0 release catalog,
+  and live-only Restricted data. Design in `docs/multi-user-spec.md`; foundations in
+  `docs/phase-0-plan.md` (complete); build plan in `docs/phase-1-plan.md`.
