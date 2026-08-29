@@ -147,14 +147,22 @@ input::placeholder { color:var(--faint); }
 
 .tw-land-bar {
   display:flex; align-items:center; justify-content:space-between; gap:16px;
-  padding:14px 22px; background:var(--panel); border-bottom:1.5px solid var(--line);
+  padding:14px 22px; background:var(--accent); border-bottom:1.5px solid var(--line);
 }
 .tw-land-bar-r { display:flex; align-items:center; gap:18px; }
 .tw-land-signin {
   font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700;
-  letter-spacing:.14em; color:var(--muted);
+  letter-spacing:.14em; color:var(--on-accent);
 }
-.tw-land-signin:hover { color:var(--accent); }
+.tw-land-signin:hover { color:var(--on-accent); text-decoration:underline; }
+/* On the red bar the primary CTA would be red-on-red. Give it the app-header treatment:
+   an always-white button with a black rule (mirrors app.js's RE-SYNC / LIGHTS OUT buttons,
+   which are hard-coded #fff/#16171a because they sit on the always-red header). */
+.tw-land-bar .tw-btn-primary {
+  background:var(--on-accent); color:#16171a; border-color:#16171a;
+  box-shadow:2px 2px 0 rgba(0,0,0,.28);
+}
+.tw-land-bar .tw-btn-primary:hover { color:#16171a; }
 
 .tw-land-hero {
   position:relative; padding:66px 56px 54px; background:var(--panel);
@@ -183,21 +191,25 @@ input::placeholder { color:var(--faint); }
   font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint);
 }
 
-/* Cover tiles. Set the twelve background-images inline on the <span>s at build time, or
-   leave them as flat --skel squares — the layout is identical either way. */
-.tw-land-tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; transform:rotate(1.4deg); }
-.tw-land-tiles span {
-  aspect-ratio:1/1; background-color:var(--skel); background-size:cover;
-  background-position:center; border:1.5px solid var(--line); display:block;
+/* A block of real covers cropped from the live crate (public/screenshots/hero-covers.jpg),
+   in the same rotated, bordered treatment the blank tile grid used to have. Replaced the 12
+   empty --skel tiles (Lane, 2026-08-29). */
+.tw-land-covers { transform:rotate(1.4deg); }
+.tw-land-covers img {
+  display:block; width:100%; height:auto;
+  border:1.5px solid var(--line); box-shadow:6px 6px 0 rgba(0,0,0,.14);
 }
 
+/* The middle three-up band is now the dark band. --ink flips with the theme (near-black in
+   light, near-white in dark) and the text below uses --bg for the same reason, so it reads
+   correctly in both without a theme-specific rule — the slab's trick, moved up here. */
 .tw-land-three {
   display:grid; grid-template-columns:repeat(3,1fr);
-  background:var(--bar); border-bottom:3px solid var(--line);
+  background:var(--ink); border-bottom:3px solid var(--line);
 }
 .tw-land-three > div {
   padding:26px 24px; display:flex; flex-direction:column; gap:8px;
-  border-right:1.5px solid var(--line);
+  border-right:1.5px solid var(--faint);   /* --line would vanish on --ink; --faint reads on both */
 }
 .tw-land-three > div:last-child { border-right:0; }
 .tw-land-kick {
@@ -206,11 +218,14 @@ input::placeholder { color:var(--faint); }
 }
 .tw-land-lede {
   font-family:'Barlow Condensed',sans-serif; font-size:27px; font-weight:700;
-  line-height:1.05; color:var(--ink);
+  line-height:1.05; color:var(--bg);   /* was --ink; now the contrasting ink on the dark band */
 }
 .tw-land-note {
   font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.6;
-  color:var(--muted); text-wrap:pretty;
+  /* On the dark band a raw --muted goes light-on-light in dark theme (the band is --ink,
+     which flips near-white). --bg is the legible fallback; color-mix dims it toward --ink
+     for a muted tone that stays readable in BOTH themes. */
+  color:var(--bg); color:color-mix(in srgb, var(--bg) 80%, var(--ink)); text-wrap:pretty;
 }
 
 .tw-land-proof {
@@ -229,33 +244,35 @@ input::placeholder { color:var(--faint); }
 }
 
 .tw-land-slab {
-  padding:34px 56px; background:var(--ink);
+  padding:34px 56px; background:var(--bar);   /* was --ink (black) — now the grey band */
   display:flex; flex-wrap:wrap; gap:20px 44px; align-items:flex-start;
   justify-content:space-between;
 }
 .tw-land-slab-h {
   font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:600;
-  line-height:1.15; color:var(--bg); max-width:34ch; text-wrap:pretty;
+  line-height:1.15; color:var(--ink); max-width:34ch; text-wrap:pretty;   /* dark on grey */
 }
 .tw-land-slab-list {
   font-family:'IBM Plex Mono',monospace; font-size:10.5px; line-height:2;
   letter-spacing:.1em; color:var(--muted);
 }
-/* --ink/--bg invert between themes, so the slab reads correctly in both without a
-   theme-specific rule. --muted clears AA on both --ink values (verified). */
+/* Grey band: --bar background with --ink heading. Both flip with the theme, so it reads
+   in light and dark without a theme-specific rule; --muted clears on --bar in both. */
 
 .tw-land-foot {
-  padding:22px 56px; background:var(--bar); font-family:'IBM Plex Mono',monospace;
-  font-size:10px; line-height:1.9; letter-spacing:.04em; color:var(--muted);
+  padding:22px 56px; background:var(--ink); font-family:'IBM Plex Mono',monospace;
+  font-size:10px; line-height:1.9; letter-spacing:.04em; color:var(--bg);   /* was grey; now black */
 }
-.tw-land-foot a { color:var(--muted); }
-.tw-land-foot a:hover { color:var(--accent); }
+/* The required Discogs attribution must stay legible on the dark footer: --bg text (inverts
+   with the theme) + an accent link, matching the app's footer. */
+.tw-land-foot a { color:var(--accent); }
+.tw-land-foot a:hover { color:var(--bg); }
 
 @media (max-width:900px) {
   .tw-land-hero-grid { grid-template-columns:1fr; gap:34px; }
-  .tw-land-tiles { grid-template-columns:repeat(6,1fr); transform:none; }
+  .tw-land-covers { transform:none; max-width:380px; }   /* don't let the covers block dominate when stacked */
   .tw-land-three { grid-template-columns:1fr; }
-  .tw-land-three > div { border-right:0; border-bottom:1.5px solid var(--line); }
+  .tw-land-three > div { border-right:0; border-bottom:1.5px solid var(--faint); }
   .tw-land-three > div:last-child { border-bottom:0; }
 }
 @media (max-width:640px) {
