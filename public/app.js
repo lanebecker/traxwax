@@ -394,8 +394,10 @@ function render(){
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
         ${DB_MODE()?`<button data-act="resync" title="${esc(_lastSyncedLabel())}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${state._resyncing?'SYNCING…':'RE-SYNC'}</button>`:''}
-        ${DB_MODE()?`<button data-act="account" title="Manage your account" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">ACCOUNT</button>`:''}
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
+        ${DB_MODE()?(()=>{const o=window.TraxWaxOwner||{};const av=o.avatarUrl||'';
+          const icon='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"/><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"/></svg>';
+          return `<button data-act="account" title="${esc(o.displayName||'Your account')}" style="width:33px; height:33px; padding:0; border:1.5px solid #16171a; border-radius:50%; overflow:hidden; background:#fff; flex:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center">${av?`<img src="${esc(av)}" alt="Account" style="width:100%; height:100%; object-fit:cover; display:block">`:icon}</button>`;})():''}
       </div>
       <span style="position:absolute; top:-8px; left:52px; width:92px; height:20px; background:rgba(255,255,255,.32); border-left:1px dashed rgba(0,0,0,.2); border-right:1px dashed rgba(0,0,0,.2); transform:rotate(-3deg); pointer-events:none"></span>
       <span style="position:absolute; top:-8px; right:58px; width:92px; height:20px; background:rgba(255,255,255,.32); border-left:1px dashed rgba(0,0,0,.2); border-right:1px dashed rgba(0,0,0,.2); transform:rotate(2.5deg); pointer-events:none"></span>

@@ -13,6 +13,31 @@ _Nothing yet._
 
 ---
 
+## [1.3.0] — 2026-08-29
+
+Profiles: the social groundwork. Plan: `docs/phase-2-profiles-plan.md` (rev 2, twice
+audited). Migration 0011 is live; deploy order was migration-first by design.
+
+### Added
+- **Avatar button**: the header ACCOUNT text button is now a circle avatar in the upper
+  right — your Clerk photo (Google users get theirs automatically; photo-less users get
+  Clerk's initials avatar), with a house head-and-shoulders icon as the empty fallback.
+- **Profile fields** in the account modal: photo upload (via Clerk — hosting/CDN/resizing
+  included), first/last name, bio (≤200), location, collecting-since, and two https
+  links. All optional; stored own-row-private until a future social phase deliberately
+  exposes them.
+- **A skippable "Whose crate is this?" card** after sign-in when the name is missing —
+  email/password signups only; Google users arrive complete. Clerk's signup form now
+  collects names going forward (dashboard setting).
+
+### Architecture
+- Clerk owns identity (name + photo); `ensureProfile` one-way-syncs `display_name` +
+  `avatar_url` into `profiles` each boot so future social features can query them.
+  `avatar_url` is constraint-pinned to Clerk's image host; all profile fields carry DB
+  CHECK constraints. Profile fields survive disconnect and die with account deletion.
+
+---
+
 ## [1.2.0] — 2026-08-29
 
 Catalog refresh (GitHub #3, cold audit #15): the shared CC0 catalog is no longer frozen

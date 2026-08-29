@@ -124,18 +124,38 @@ function clerkReady() {
   });
 }
 
-/* Ensure a profiles row exists for this Clerk user. This is also Stage A's RLS proof: the
-   write can only succeed if Supabase accepted a real Clerk token AND profiles_insert_own
-   matched auth.jwt()->>'sub' against the row's user_id.
+/* Ensure a profiles row exists for this Clerk user, and SYNC the Clerk-owned display
+   fields into it (Phase 2 profiles): display_name + avatar_url flow one way, Clerk → DB,
+   every boot — so the DB copy future social features query can never drift far. The
+   upsert deliberately NEVER carries the DB-owned fields (bio, location, collecting_since,
+   link1, link2); they are edited directly and must not be touched here.
    upsert (not insert) because two tabs racing would otherwise hit a 23505 PK violation. */
 async function ensureProfile(userId) {
+  const u = window.Clerk.user;
+  const name = [u?.firstName, u?.lastName].filter(Boolean).join(' ').trim();
+  const row = { user_id: userId };
+  if (name) row.display_name = name.slice(0, 80);
+  // imageUrl is always populated (initials avatar when no photo) and always on Clerk's
+  // image host — which the DB check constraint enforces as defense-in-depth.
+  if (u?.imageUrl && u.imageUrl.startsWith('https://img.clerk.com/')) {
+    row.avatar_url = u.imageUrl;
+  }
   const { data, error } = await supabase
     .from('profiles')
-    .upsert({ user_id: userId }, { onConflict: 'user_id', ignoreDuplicates: false })
-    .select('user_id, discogs_username, import_status, last_import_at')
+    .upsert(row, { onConflict: 'user_id', ignoreDuplicates: false })
+    .select('user_id, discogs_username, import_status, last_import_at, ' +
+      'display_name, avatar_url, bio, location, collecting_since, link1, link2')
     .single();
   if (error) throw new Error('profile upsert failed: ' + error.message);
   return data;
+}
+
+/* Phase 2 profiles: the house no-photo user icon — flat head-and-shoulders in the
+   TraxWax idiom. Returns an inline SVG sized to fit a circle of the given px. */
+function TW_USER_ICON(px) {
+  return '<svg width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<circle cx="12" cy="8.2" r="4.2" fill="#16171a"/>' +
+    '<path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"/></svg>';
 }
 
 /* Stage D data providers. app.js stays dependency-free: everything it needs from the
@@ -227,6 +247,9 @@ function ownerInfo(profile) {
       ? profile.discogs_username + "'s shelf · filed by whim"
       : 'Your shelf · filed by whim',
     lastSyncedAt: profile.last_import_at || null,
+    // Phase 2 profiles: the header avatar button + modal read these.
+    displayName: profile.display_name || '',
+    avatarUrl: profile.avatar_url || '',
   };
 }
 
@@ -373,6 +396,9 @@ function openAccountModal() {
   const unameMatch = (owner.ownerLine || '').match(/^(.*)'s shelf/);
   const uname = unameMatch ? unameMatch[1] : 'your Discogs account';
   const mono = "font-family:'IBM Plex Mono',monospace;";
+  const acctInp = mono + ' font-size:11.5px; padding:8px 10px; flex:1; min-width:0; ' +
+    'background:var(--panel); color:var(--ink); border:1.5px solid var(--line); ' +
+    'border-radius:0; box-sizing:border-box; display:block; width:100%';
   const ov = document.createElement('div');
   ov.id = 'tw-account-ov';
   ov.style.cssText = 'position:fixed; inset:0; background:rgba(10,10,12,.62); ' +
@@ -391,6 +417,43 @@ function openAccountModal() {
     'Connected to Discogs as <b>' + esc(uname) + '</b></div>' +
     '<div id="tw-acct-msg" style="' + mono + ' font-size:11.5px; color:var(--accent); ' +
     'line-height:1.6; margin-bottom:14px"></div>' +
+    // ── Phase 2: PROFILE ──────────────────────────────────────────────────────
+    '<div style="border:1.5px solid var(--line); padding:16px; margin-bottom:18px">' +
+    '<div style="display:flex; gap:14px; align-items:center; margin-bottom:12px">' +
+    // rev1-F6: never render <img src=""> (broken-image glyph; some browsers re-request
+    // the page). Falsy avatarUrl gets the house user icon instead.
+    (owner.avatarUrl
+      ? '<img id="tw-prof-avatar" src="' + esc(owner.avatarUrl) + '" alt="" ' +
+        'style="width:56px; height:56px; border-radius:50%; border:1.5px solid var(--line); ' +
+        'object-fit:cover; background:var(--skel)" />'
+      : '<span id="tw-prof-avatar" style="width:56px; height:56px; border-radius:50%; ' +
+        // background #fff, not var(--skel): the glyph is fixed #16171a and must stay
+        // visible in dark theme (pass-2 advisory) — same treatment as the header button.
+        'border:1.5px solid var(--line); background:#fff; display:inline-flex; ' +
+        'align-items:center; justify-content:center">' + TW_USER_ICON(34) + '</span>') +
+    '<label style="' + mono + ' font-size:10.5px; color:var(--muted); cursor:pointer">' +
+    'CHANGE PHOTO<input id="tw-prof-photo" type="file" ' +
+    'accept="image/jpeg,image/png,image/webp" style="display:none" /></label>' +
+    '</div>' +
+    '<div style="display:flex; gap:8px; margin-bottom:8px">' +
+    '<input id="tw-prof-first" placeholder="First name" style="' + acctInp + '" />' +
+    '<input id="tw-prof-last" placeholder="Last name" style="' + acctInp + '" />' +
+    '</div>' +
+    '<input id="tw-prof-bio" placeholder="Bio — one line about your collection" ' +
+    'maxlength="200" style="' + acctInp + ' margin-bottom:8px" />' +
+    '<div style="display:flex; gap:8px; margin-bottom:8px">' +
+    '<input id="tw-prof-loc" placeholder="Location" maxlength="100" style="' + acctInp + '" />' +
+    '<input id="tw-prof-since" placeholder="Collecting since (year)" inputmode="numeric" ' +
+    'maxlength="4" style="' + acctInp + ' width:170px; flex:none" />' +
+    '</div>' +
+    '<input id="tw-prof-link1" placeholder="Link (https://…)" maxlength="200" ' +
+    'style="' + acctInp + ' margin-bottom:8px" />' +
+    '<input id="tw-prof-link2" placeholder="Another link (https://…)" maxlength="200" ' +
+    'style="' + acctInp + ' margin-bottom:12px" />' +
+    '<button id="tw-prof-save" style="' + mono + ' font-size:11px; font-weight:700; ' +
+    'letter-spacing:.08em; padding:9px 14px; border:1.5px solid var(--line); ' +
+    'background:var(--ink); color:var(--panel); cursor:pointer">SAVE PROFILE</button>' +
+    '</div>' +
     '<div style="border:1.5px solid var(--line); padding:16px; margin-bottom:18px">' +
     '<div style="' + mono + ' font-size:11px; line-height:1.7; color:var(--muted); ' +
     'margin-bottom:12px">Disconnecting removes your imported collection from TraxWax. ' +
@@ -424,6 +487,78 @@ function openAccountModal() {
   document.getElementById('tw-acct-close').addEventListener('click', close);
 
   const msg = (t) => { const el = document.getElementById('tw-acct-msg'); if (el) el.textContent = t; };
+
+  // ── Phase 2: populate + save the profile section ─────────────────────────
+  (async () => {
+    try {
+      const { data: p } = await supabase.from('profiles')
+        .select('bio, location, collecting_since, link1, link2')
+        .eq('user_id', window.Clerk.user.id).single();
+      const u = window.Clerk.user;
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+      set('tw-prof-first', u.firstName); set('tw-prof-last', u.lastName);
+      if (p) {
+        set('tw-prof-bio', p.bio); set('tw-prof-loc', p.location);
+        set('tw-prof-since', p.collecting_since ? String(p.collecting_since) : '');
+        set('tw-prof-link1', p.link1); set('tw-prof-link2', p.link2);
+      }
+    } catch (e) { console.error(e); }
+  })();
+
+  const photoInput = document.getElementById('tw-prof-photo');
+  photoInput.addEventListener('change', async () => {
+    const f = photoInput.files[0];
+    if (!f) return;
+    if (f.size > 10 * 1024 * 1024) { msg('That photo is over 10 MB — pick a smaller one.'); return; }
+    msg('Uploading photo…');
+    try {
+      await window.Clerk.user.setProfileImage({ file: f });
+      await window.Clerk.user.reload();   // rev1-F2: imageUrl can be stale until reload
+      const img = document.getElementById('tw-prof-avatar');
+      if (img && img.tagName === 'IMG') img.src = window.Clerk.user.imageUrl;
+      // Sync the new URL to the DB copy + the header button.
+      const p = await ensureProfile(window.Clerk.user.id);
+      window.TraxWaxOwner = ownerInfo(p);
+      msg('Photo updated.');
+    } catch (e) { msg('Photo upload failed (' + ((e && e.message) || e) + ').'); }
+  });
+
+  document.getElementById('tw-prof-save').addEventListener('click', async () => {
+    const val = (id) => (document.getElementById(id)?.value ?? '').trim();
+    const saveBtn = document.getElementById('tw-prof-save');
+    // rev1-F10: once Task L1 makes Name required, Clerk rejects an empty first name —
+    // and that failure would take the unrelated bio/location edits down with it.
+    if (!val('tw-prof-first')) { msg('First name can’t be empty.'); return; }
+    const sinceRaw = val('tw-prof-since');
+    const since = sinceRaw ? Number(sinceRaw) : null;
+    if (sinceRaw && (!Number.isInteger(since) || since < 1900 || since > 2100)) {
+      msg('“Collecting since” wants a year, like 1998.'); return;
+    }
+    for (const id of ['tw-prof-link1', 'tw-prof-link2']) {
+      const v = val(id);
+      if (v && !v.startsWith('https://')) { msg('Links need to start with https://'); return; }
+    }
+    saveBtn.disabled = true; saveBtn.textContent = 'SAVING…';
+    try {
+      await window.Clerk.user.update({
+        firstName: val('tw-prof-first'), lastName: val('tw-prof-last'),
+      });
+      const { error } = await supabase.from('profiles').update({
+        bio: val('tw-prof-bio') || null,
+        location: val('tw-prof-loc') || null,
+        collecting_since: since,
+        link1: val('tw-prof-link1') || null,
+        link2: val('tw-prof-link2') || null,
+      }).eq('user_id', window.Clerk.user.id);
+      if (error) throw new Error(error.message);
+      const p = await ensureProfile(window.Clerk.user.id);   // re-sync name → display_name
+      window.TraxWaxOwner = ownerInfo(p);
+      msg('Profile saved.');
+    } catch (e) {
+      msg('Save failed (' + ((e && e.message) || e) + ').');
+    }
+    saveBtn.disabled = false; saveBtn.textContent = 'SAVE PROFILE';
+  });
 
   const disc = document.getElementById('tw-acct-disc');
   let discArmed = false;
@@ -512,6 +647,75 @@ async function render() {
 
   clearAuthMount();
   const profile = await ensureProfile(window.Clerk.user.id);
+
+  // Phase 2 profiles: ONE skippable completion card, only when the name is missing
+  // (email/password signups before the Clerk name toggle, or with it off; Google users
+  // arrive complete and never see this). Skipping is remembered per browser; completing
+  // sets the Clerk name, so the condition never re-fires anywhere.
+  let profileSkip = false;
+  try { profileSkip = !!localStorage.getItem('tw_profile_skip'); } catch (e) {}
+  // rev1-F9: never intercept an in-flight OAuth return — the parked link expires in
+  // 15 minutes and the verify handler must run first.
+  const inVerifyLeg = new URLSearchParams(window.location.search).get('connect') === 'verify';
+  if (!window.Clerk.user.firstName && !profileSkip && !inVerifyLeg) {
+    const mono = "font-family:'IBM Plex Mono',monospace;";
+    const inp = 'style="' + mono + ' font-size:12px; padding:9px 11px; width:100%; ' +
+      'background:var(--panel); color:var(--ink); border:1.5px solid var(--line); ' +
+      'border-radius:0; box-sizing:border-box"';
+    app().innerHTML = shell(`
+      <div style="font-family:Anton,sans-serif; font-size:34px; letter-spacing:.02em;
+        color:var(--accent); margin-bottom:14px">Whose crate is this?</div>
+      <div style="font-size:13px; line-height:1.7; color:var(--muted); margin-bottom:18px">
+        A name for your shelf — and a photo if you like. You can change both any time
+        from the account button.</div>
+      <div id="tw-ob-err" style="${mono} font-size:11.5px; color:var(--accent);
+        margin-bottom:12px"></div>
+      <div style="display:flex; gap:10px; margin-bottom:10px">
+        <input id="tw-ob-first" placeholder="First name" autocomplete="given-name" ${inp} />
+        <input id="tw-ob-last" placeholder="Last name" autocomplete="family-name" ${inp} />
+      </div>
+      <div style="margin-bottom:18px">
+        <label style="${mono} font-size:11px; color:var(--muted)">Photo (optional)
+          <input id="tw-ob-photo" type="file" accept="image/jpeg,image/png,image/webp"
+            style="display:block; margin-top:6px; ${mono} font-size:11px; color:var(--ink)" />
+        </label>
+      </div>
+      <div style="display:flex; gap:10px">
+        <button id="tw-ob-save" style="${mono} font-size:12px; font-weight:700;
+          letter-spacing:.1em; padding:11px 18px; border:1.5px solid var(--line);
+          background:var(--accent); color:var(--on-accent); cursor:pointer">SAVE</button>
+        <button id="tw-ob-skip" style="${mono} font-size:12px; letter-spacing:.1em;
+          padding:11px 18px; border:1.5px solid var(--line); background:var(--panel);
+          color:var(--muted); cursor:pointer">SKIP FOR NOW</button>
+      </div>
+    `);
+    document.getElementById('tw-ob-skip').addEventListener('click', () => {
+      try { localStorage.setItem('tw_profile_skip', '1'); } catch (e) {}
+      route();
+    });
+    document.getElementById('tw-ob-save').addEventListener('click', async () => {
+      const first = document.getElementById('tw-ob-first').value.trim();
+      const last = document.getElementById('tw-ob-last').value.trim();
+      const err = document.getElementById('tw-ob-err');
+      if (!first) { err.textContent = 'A first name is the one thing we need here.'; return; }
+      const btn = document.getElementById('tw-ob-save');
+      btn.disabled = true; btn.textContent = 'SAVING…';
+      try {
+        await window.Clerk.user.update({ firstName: first, lastName: last });
+        const photo = document.getElementById('tw-ob-photo').files[0];
+        if (photo) {
+          if (photo.size > 10 * 1024 * 1024) throw new Error('That photo is over 10 MB.');
+          await window.Clerk.user.setProfileImage({ file: photo });
+          await window.Clerk.user.reload();   // rev1-F2: imageUrl can be stale until reload
+        }
+        route();   // re-runs ensureProfile → syncs name/avatar to the DB → continues
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'SAVE';
+        err.textContent = 'Could not save (' + ((e && e.message) || e) + '). Try again.';
+      }
+    });
+    return;
+  }
 
   if (!profile.discogs_username) {
     // Phase 2 (#8): finish a parked link. Possession (the code) + identity (this JWT)
