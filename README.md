@@ -1,6 +1,6 @@
 # TraxWax
 
-[![version](https://img.shields.io/badge/version-1.0.1-blueviolet)](VERSION)
+[![version](https://img.shields.io/badge/version-1.1.0-blueviolet)](VERSION)
 
 **Live at [traxwax.com](https://traxwax.com)** — Lane's Discogs vinyl collection as a
 browsable, filterable crate. ~1,861 records. Static site on Cloudflare Pages, no framework,
