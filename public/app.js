@@ -16,20 +16,11 @@ const SETTINGS = {
   ownerLine: "Lane's shelf · filed by whim",
 };
 
-/* ── SEAM 2 — LIVE DISCOGS CALLS ───────────────────────────────────────────
-   These hit the Cloudflare Pages Function proxy (functions/api/*), which holds
-   the Discogs token server-side. Each call degrades gracefully to baked/mock data
-   so the site still works locally (no proxy) and if Discogs is unreachable. */
-const api = {
-  async value(){
-    try { const r = await fetch('/api/value'); if (!r.ok) throw 0; const d = await r.json(); return d.median || d.minimum || null; }
-    catch(e) { return null; }
-  },
-  async price(rec){
-    try { const r = await fetch('/api/price/' + rec.id); if (!r.ok) throw 0; const d = await r.json(); return d.price; }
-    catch(e) { return rec.price; }
-  },
-};
+/* Issue #6 (dead code sweep): the client `api` helper (live value + per-record price) is
+   gone. Its two endpoints (/api/value, /api/price) were deleted in cold-audit #24 —
+   Restricted Data now flows only through the authenticated live-stats Edge Function — so
+   both callers were guaranteed-null dead weight. The one surviving proxy call is
+   /api/release (CC0), used by _fetchReleaseLive below as the modal's last-resort tier. */
 
 /* Release-detail cache. Tracklists are immutable and community stats change slowly, so
    results persist in localStorage — a record you've opened before shows instantly and
@@ -145,7 +136,10 @@ function vinylPlaceholder(initials){
     + `<text x="50" y="49.75" text-anchor="middle" dominant-baseline="central" font-family="'Barlow Condensed',sans-serif" font-weight="700" font-size="16" fill="#fff">${esc(initials)}</text>`
     + `</svg>`;
 }
-const THIS_MONTH = new Date().toISOString().slice(0,7);
+// Audit #23 (issue #7): LOCAL date parts, not toISOString() — the UTC month flipped the
+// JUST IN badge and the THIS MONTH counter a day early/late for non-UTC users.
+const _tmNow = new Date();
+const THIS_MONTH = _tmNow.getFullYear() + '-' + String(_tmNow.getMonth() + 1).padStart(2, '0');
 
 /* ── State ─────────────────────────────────────────────────────────────────── */
 let RECORDS = [];
@@ -153,7 +147,7 @@ const state = {
   theme:'light', view:'crate', query:'', genres:[], coloredOnly:false,
   artist:null, color:null, sort:'added', dir:-1, detailId:null, headerValue:null,
 };
-let _refocusSearch = false;
+let _searchDebounce = null;   // issue #5: pending debounced render, if any
 
 /* ── Theme (persisted; respects prefers-color-scheme on first visit) ────────── */
 function initTheme(){
@@ -446,12 +440,23 @@ function render(){
   ${modalHtml()}`;
 
   const app=document.getElementById('app');
+  // Issue #5 + remediation-audit F1/F3: activeElement is the truth, not a flag. If the
+  // user is in the search box when ANY render fires — the debounce timer, an async stats
+  // render, anything — put them back exactly where they were (the old value-reset trick
+  // always jumped the caret to the end, breaking mid-query edits). If they've moved on
+  // (clicked a card, opened the modal), no refocus: a stale timer must never steal focus,
+  // least of all behind an open dialog.
+  const _ae=document.activeElement;
+  const _wasSearch=!!(_ae && _ae.id==='tw-search');
+  const _caret=_wasSearch ? _ae.selectionStart : null;
   app.innerHTML=html;
-
-  if(_refocusSearch){
+  if(_wasSearch && !state.detailId){
     const si=document.getElementById('tw-search');
-    if(si){ si.focus(); const val=si.value; si.value=''; si.value=val; }
-    _refocusSearch=false;
+    if(si){
+      si.focus();
+      const p = _caret==null ? si.value.length : Math.min(_caret, si.value.length);
+      si.setSelectionRange(p, p);
+    }
   }
 }
 
@@ -584,6 +589,10 @@ async function _loadStats(rec){
 /* ── Events (delegation) ───────────────────────────────────────────────────── */
 function onClick(e){
   const t=e.target.closest('[data-act]'); if(!t) return;
+  // Remediation-audit F2: a pending debounced search render is superseded by whatever
+  // this click renders (state.query is already current); letting the stale timer fire
+  // would rebuild the app a second time for nothing.
+  clearTimeout(_searchDebounce);
   const act=t.dataset.act, arg=t.dataset.arg;
   switch(act){
     case 'theme': setTheme(state.theme==='dark'?'light':'dark'); render(); break;
@@ -613,7 +622,15 @@ function removeFacet(kind, val){
   else if(kind==='SEARCH') state.query='';
 }
 function onInput(e){
-  if(e.target.id==='tw-search'){ state.query=e.target.value; _refocusSearch=true; render(); }
+  if(e.target.id==='tw-search'){
+    // Issue #5 (audit #18): debounce — every keystroke rebuilt the entire app via
+    // innerHTML (up to 1,861 cards). The input keeps its live DOM value while typing;
+    // state.query tracks each keystroke so the render 150ms after the last one matches.
+    // Focus + caret restoration live in render() itself, keyed off activeElement.
+    state.query = e.target.value;
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(render, 150);
+  }
 }
 
 /* ── Re-sync (DB mode) ─────────────────────────────────────────────────────── */
@@ -680,9 +697,9 @@ async function bootCrate(){
   render();
   if (DB_MODE()) {
     window.TraxWaxStats().then(v=>{ if(v && v.value){ state.headerValue=v.value; render(); } });
-  } else {
-    api.value().then(v=>{ if(v){ state.headerValue=v; render(); } });   // live whole-collection EST. (one proxy call)
   }
+  // Baked/local-dev mode: the header EST. is the baked total (valueLabel(v.total)) —
+  // the old live /api/value fetch died with its endpoint (issue #6, cold-audit #24).
 }
 /* The crate no longer self-starts. public/boot.js resolves auth and ownership first, then
    dynamically imports this file and calls bootCrate(). See docs/phase-1-plan.md Stage A. */

@@ -87,41 +87,27 @@ async function handle(req: Request): Promise<Response> {
     return json({ error: 'credentials_unreadable' }, 500);
   }
 
-  // ── The caller's owned release ids, PAGINATED. PostgREST silently caps any single
-  //    select at 1,000 rows (measured fact; rev 1's C-1) -- an unbounded select here
-  //    would silently ignore ~half of a 1,861-item collection. ─────────────────────
-  const owned = new Set<number>();
-  for (let from = 0; ; from += 1000) {
-    const { data: rows, error: idErr } = await admin.from('collection_items')
-      .select('release_id').eq('user_id', userId)
-      .order('id', { ascending: true })
-      .range(from, from + 999);
-    if (idErr) { console.error('own-ids query failed:', idErr.message); return json({ error: 'store_failed' }, 500); }
-    for (const row of rows ?? []) owned.add(row.release_id as number);
-    if (!rows || rows.length < 1000) break;
-  }
-  if (owned.size === 0) {
+  // ── Work discovery: ONE join RPC (issue #4, cold audit #16). Replaces the paginated
+  //    owned-ids scan + chunked IN-list probes (~18 round trips per invocation, ~6,700
+  //    queries over a fresh 1,861-item collection). pending_enrichment is SECURITY
+  //    DEFINER and service-role-only (migration 0008); p_user_id is the VERIFIED Clerk
+  //    sub from jwtVerify above, never a client-supplied value. The RPC does its own
+  //    LIMIT, so PostgREST's silent 1,000-row cap (Stage C rev 1's C-1) cannot bite. ──
+  const { data: work, error: wErr } = await admin.rpc('pending_enrichment', {
+    p_user_id: userId, p_limit: BUDGET });
+  if (wErr) { console.error('pending_enrichment failed:', wErr.message); return json({ error: 'store_failed' }, 500); }
+  const ownedCount = Number(work?.owned ?? 0);
+  const totalPending = Number(work?.total ?? 0);
+  const batch: number[] = Array.isArray(work?.pending) ? work.pending.map(Number) : [];
+
+  if (ownedCount === 0) {
     // A legitimately empty collection is a completed import. Close the gate.
     const { error: emptyErr } = await admin.from('profiles')
       .update({ last_import_at: new Date().toISOString() }).eq('user_id', userId);
     if (emptyErr) console.error('last_import_at (empty) failed:', emptyErr.message);
     return json({ enriched: 0, remaining: 0 });
   }
-
-  // ── Which of those are still un-enriched. tracks IS NULL is the flag: enriched_at is
-  //    NOT NULL DEFAULT now(), stamped even on seed rows, and cannot be used. The
-  //    IN-list is chunked at 200 ids to stay under URL length limits; each chunk's
-  //    result is bounded by the chunk size, so the row cap cannot bite here. ──────
-  const ownedArr = [...owned];
-  const pending: number[] = [];
-  for (let i = 0; i < ownedArr.length; i += 200) {
-    const chunk = ownedArr.slice(i, i + 200);
-    const { data: rows, error: pErr } = await admin.from('releases')
-      .select('release_id').in('release_id', chunk).is('tracks', null);
-    if (pErr) { console.error('pending query failed:', pErr.message); return json({ error: 'store_failed' }, 500); }
-    for (const row of rows ?? []) pending.push(row.release_id as number);
-  }
-  if (pending.length === 0) {
+  if (totalPending === 0) {
     const { error: noneErr } = await admin.from('profiles')
       .update({ last_import_at: new Date().toISOString() }).eq('user_id', userId);
     if (noneErr) console.error('last_import_at (none-pending) failed:', noneErr.message);
@@ -130,7 +116,6 @@ async function handle(req: Request): Promise<Response> {
 
   let enriched = 0;
   let rateLimited = false;
-  const batch = pending.slice(0, BUDGET);
   for (let i = 0; i < batch.length; i++) {
     const rid = batch[i];
     // Pace EVERY request after the first -- including after failures. Pacing only
@@ -199,7 +184,7 @@ async function handle(req: Request): Promise<Response> {
     enriched++;
   }
 
-  const remaining = pending.length - enriched;
+  const remaining = totalPending - enriched;
   if (remaining === 0) {
     const { error: doneErr } = await admin.from('profiles')
       .update({ last_import_at: new Date().toISOString() }).eq('user_id', userId);

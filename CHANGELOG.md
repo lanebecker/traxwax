@@ -13,6 +13,42 @@ _Nothing yet._
 
 ---
 
+## [1.0.1] — 2026-08-29
+
+Post-launch bug batch: the cold-audit backlog's small fixes (issues #2, #4, #5, #6, #7)
+plus the launch-day stale-cache bug (#9). Twice audited before commit (full adversarial
+pass, then the narrow rework pass); DB migration 0008 and both Edge Function updates are
+already live and verified.
+
+### Fixed
+- **Search** no longer rebuilds the whole app on every keystroke (150 ms debounce), and
+  the caret stays where you were editing instead of jumping to the end. Focus and caret
+  now survive *any* re-render — and a stale debounce timer can never steal focus, least
+  of all behind an open modal. (#5)
+- **JUST IN / THIS MONTH** use the local month, not UTC, so the badge and counter no
+  longer flip a day early/late outside UTC. (#7)
+- **Stale JavaScript after deploys**: `_headers` now sends `Cache-Control: no-cache` on
+  HTML, the entry-point JS/CSS and `collection.json` (cheap ETag revalidation), plus a
+  week-long cache on the immutable `releases/*.json`. Returning browsers pick up each
+  deploy on the next load instead of running pre-launch code from cache. (#9)
+
+### Changed
+- **enrich-release** discovers pending work with a single `pending_enrichment` join RPC
+  (migration 0008, SECURITY DEFINER, service-role-only) instead of ~18 DB round trips per
+  invocation — ~6,700 queries saved per fresh 1,861-item collection. (#4)
+- **connect-discogs** rate-limits OAuth leg 1 per user: a 10-second, DB-clocked cooldown
+  armed *before* the Discogs call, so failed calls throttle a hostile loop too and the
+  shared consumer key's 60/min budget can't be exhausted by one account. The connect UI
+  explains the cooldown instead of showing a raw error token. (#2)
+
+### Removed
+- Dead code (#6): the client `api` helper — both its endpoints (`/api/value`,
+  `/api/price`) were deleted in the 1.0.0 cold audit, leaving guaranteed-null callers —
+  and the never-used `profiles.display_name` column. `collection_items.folder` and the
+  personal `rating` stay imported (deliberately) but remain unrendered.
+
+---
+
 ## [1.0.0] — 2026-08-29
 
 TraxWax goes multi-user: anyone can sign in, connect their Discogs account, and browse

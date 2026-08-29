@@ -4,3 +4,30 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+
+# Issue #9: fixed asset names (/app.js, /boot.js, HTML shells) served stale from browser
+# cache across deploys — observed at launch as a pre-launch app.js dead-ending on
+# "Couldn't load collection.json" while production served correct code. no-cache means
+# "revalidate before every use": Pages serves ETags, so an unchanged file is a cheap 304
+# and a deploy is picked up on the next load. HTML + entry-point JS/CSS only.
+/
+  Cache-Control: no-cache
+/app
+  Cache-Control: no-cache
+/app/
+  Cache-Control: no-cache
+/app/*
+  Cache-Control: no-cache
+/collection.json
+  Cache-Control: no-cache
+/app.js
+  Cache-Control: no-cache
+/boot.js
+  Cache-Control: no-cache
+/styles.css
+  Cache-Control: no-cache
+
+# The baked per-release files are write-once immutable (Stage C enriches the DB, not
+# these) — a week of browser cache is safe and spares the modal's fallback tier a fetch.
+/releases/*
+  Cache-Control: public, max-age=604800
