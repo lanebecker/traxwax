@@ -9,7 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
-### Added — Multi-user (Phase 1, on the `multi-user` branch; version bumps to 1.0.0 at merge)
+_Nothing yet._
+
+---
+
+## [1.0.0] — 2026-08-29
+
+TraxWax goes multi-user: anyone can sign in, connect their Discogs account, and browse
+their own crate at `traxwax.com`.
+
+### Added — Multi-user (Phase 1)
 
 - **Accounts & sign-in** via Clerk; each visitor gets their own crate at `/app/<username>`,
   private to them.
