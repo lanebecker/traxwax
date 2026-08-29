@@ -29,12 +29,10 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const SUPABASE_URL = 'https://sfipqknrbvamwwahwxnl.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_RLxgLYBzZoh5YCkYJ3NJZw_8BLFMIWg';
 
-/* Until Stage D swaps the data source, the ONLY collection this app can render is the baked
-   public/collection.json — which is Lane's. Serving it to any other signed-in user would be
-   exactly the Restricted-Data transfer this project's compliance argument forbids. So the
-   crate renders for its actual owner and nobody else until the swap lands.
-   Stage D deletes this constant and its guard. */
-const BAKED_CRATE_OWNER = 'lanebecker';
+/* Stage D: the crate renders from Supabase (collection_items ⋈ releases) under the
+   signed-in user's own RLS — the baked-owner guard that protected the baked-data era is
+   gone, exactly as its comment promised. (Named obliquely on purpose: D8 step 6b greps for
+   the old constant to prove no reference survives, comments included.) */
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   accessToken: async () => {
@@ -135,6 +133,95 @@ async function ensureProfile(userId) {
     .single();
   if (error) throw new Error('profile upsert failed: ' + error.message);
   return data;
+}
+
+/* Stage D data providers. app.js stays dependency-free: everything it needs from the
+   authenticated world arrives through these four globals, installed before it is imported.
+   When they are absent (main branch until the merge; local dev), app.js falls back to the
+   baked collection.json unchanged. */
+function installCrateProviders(profile) {
+  const fnCall = async (path, payload) => {
+    const token = await window.Clerk.session.getToken();
+    const r = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) return null;
+    return r.json().catch(() => null);
+  };
+
+  // The crate rows: collection_items ⋈ releases via the 0005 FK embed, PAGINATED —
+  // PostgREST silently caps any select at 1,000 rows and this user owns ~1,861.
+  window.TraxWaxData = async () => {
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('collection_items')
+        .select('release_id, added, rating, vinyl, ' +
+          'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
+        .order('id', { ascending: true })
+        .range(from, from + 999);
+      if (error) throw new Error('collection query failed: ' + error.message);
+      for (const it of data ?? []) {
+        const rel = it.releases || {};
+        rows.push({
+          id: it.release_id,
+          artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
+          label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
+          vinyl: it.vinyl || '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
+          added: it.added || '', rating: it.rating || 0,
+          price: null, crating: null, crcount: null, have: null, want: null,
+        });
+      }
+      if (!data || data.length < 1000) break;
+    }
+    return rows;
+  };
+
+  // Modal tracklist tier 0: the shared CC0 catalog (covers the whole catalog independently
+  // of the baked static files). Public-read RLS; shape matches the static files.
+  window.TraxWaxReleaseData = async (id) => {
+    const { data, error } = await supabase
+      .from('releases')
+      .select('tracks, country, released, videos')
+      .eq('release_id', id)
+      .maybeSingle();
+    if (error || !data || data.tracks == null) return null;
+    return {
+      tracks: data.tracks || [], country: data.country || '',
+      released: data.released || '', videos: data.videos || [],
+    };
+  };
+
+  // Restricted data, live under the caller's token, server-cached ≤6h.
+  window.TraxWaxStats = async (id) => fnCall('live-stats',
+    id == null ? { kind: 'value' } : { kind: 'release', id });
+
+  // RE-SYNC: the Stage C pipeline is idempotent and client-driven; run it again, then
+  // refresh the profile so last_import_at is current for the indicator.
+  window.TraxWaxRefresh = async () => {
+    const ok = await runImport();
+    if (ok) {
+      const p = await ensureProfile(window.Clerk.user.id);
+      window.TraxWaxOwner = ownerInfo(p);
+    }
+    return ok;
+  };
+
+  window.TraxWaxOwner = ownerInfo(profile);
+}
+function ownerInfo(profile) {
+  return {
+    ownerLine: profile.discogs_username
+      ? profile.discogs_username + "'s shelf · filed by whim"
+      : 'Your shelf · filed by whim',
+    lastSyncedAt: profile.last_import_at || null,
+  };
 }
 
 /* Stage C import driver. Renders its own progress UI via notice(), drives the chunked
@@ -369,14 +456,8 @@ async function render() {
     if (!ok) return;            // runImport rendered the error state itself
   }
 
-  // Pre-Stage-D guard — see BAKED_CRATE_OWNER above.
-  if (profile.discogs_username.toLowerCase() !== BAKED_CRATE_OWNER) {
-    notice('Your crate is still being built',
-      'Your Discogs account is connected, but per-user collections land in Stage D.<br><br>' +
-      'Nothing of yours is lost — it just is not rendered yet.', true);
-    return;
-  }
-
+  // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
+  installCrateProviders(profile);
   await import('/app.js');
   window.TraxWaxBootCrate();
 }

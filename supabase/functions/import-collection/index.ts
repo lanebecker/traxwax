@@ -223,18 +223,21 @@ async function handle(req: Request): Promise<Response> {
   }
 
   if (items.length > 0) {
-    const { error: itemErr } = await admin.from('collection_items')
-      .upsert(items, { onConflict: 'user_id,instance_id' });
-    if (itemErr) {
-      console.error('collection upsert failed:', itemErr.message);
-      return json({ error: 'store_failed' }, 500);
-    }
+    // SEED FIRST. Migration 0005 added collection_items.release_id -> releases(release_id);
+    // inserting an item whose release row does not exist yet now violates the FK, so the
+    // catalog seed must land before the items that reference it.
     // ignoreDuplicates: an already-enriched (or already-seeded) release row is NEVER
     // overwritten -- seeding must not regress tracks back to null.
     const { error: seedErr } = await admin.from('releases')
       .upsert([...seeds.values()], { onConflict: 'release_id', ignoreDuplicates: true });
     if (seedErr) {
       console.error('release seed failed:', seedErr.message);
+      return json({ error: 'store_failed' }, 500);
+    }
+    const { error: itemErr } = await admin.from('collection_items')
+      .upsert(items, { onConflict: 'user_id,instance_id' });
+    if (itemErr) {
+      console.error('collection upsert failed:', itemErr.message);
       return json({ error: 'store_failed' }, 500);
     }
   }
