@@ -2,9 +2,10 @@
 
 [![version](https://img.shields.io/badge/version-1.2.0-blueviolet)](VERSION)
 
-**Live at [traxwax.com](https://traxwax.com)** — Lane's Discogs vinyl collection as a
-browsable, filterable crate. ~1,861 records. Static site on Cloudflare Pages, no framework,
-no build step, and it refreshes itself weekly with no human in the loop.
+**Live at [traxwax.com](https://traxwax.com)** — anyone's Discogs vinyl collection as a
+browsable, filterable crate. Sign in, connect Discogs, and your records import in about a
+minute. Static front-end on Cloudflare Pages (no framework, no build step) over a Supabase
+backend (Postgres + Edge Functions) with Clerk auth.
 
 ## Layout
 
@@ -13,53 +14,57 @@ traxwax/
 ├── public/                   # Cloudflare Pages build output directory
 │   ├── index.html            # landing page, served at /
 │   ├── app/index.html        # app shell, served at /app and /app/<username>
-│   ├── boot.js               # auth + routing entry point; decides whether app.js loads
+│   ├── boot.js               # auth + routing entry; connect/import/account UI; data providers
 │   ├── app.js                # the crate renderer, ported from the Claude Design kit
 │   ├── styles.css            # tokens (light/dark) + base + ≤640px responsive
-│   ├── collection.json       # every record: metadata, covers, baked stats + price
-│   ├── releases/<id>.json    # per-release immutable tracklist/country/released/videos
-│   └── _redirects            # rewrites /app/* to the app shell (see note below)
-├── functions/api/            # Pages Functions — the Discogs proxy; token stays server-side
-│   ├── release/[id].js       #   fallback release detail for un-baked new records
-│   ├── price/[id].js         #   marketplace stats for one release
-│   └── value.js              #   whole-collection estimated value (header EST.)
+│   ├── collection.json       # DEV FIXTURE: baked single-user data (Restricted fields removed)
+│   ├── releases/<id>.json    # baked CC0 release files — modal fallback tier for local dev
+│   ├── _headers              # security headers + cache policy (no-cache entry points)
+│   ├── _redirects            # rewrites /app/* to the app shell (see Routing)
+│   └── _routes.json          # pins Pages Functions to /api/* so the static rules above apply
+├── functions/api/
+│   └── release/[id].js       # legacy CC0 proxy — last-resort modal fallback only
+├── supabase/
+│   ├── migrations/           # 0001–0010: schema, RLS, RPCs (see CLAUDE.md for the map)
+│   └── functions/            # 8 Edge Functions — the real backend (see DEPLOY.md)
 ├── build/
-│   ├── refresh_collection.py #   THE data builder: Discogs API → collection.json + releases/
-│   ├── build_collection.py   #   legacy: discogs_records.json → collection.json
-│   └── seed_catalog.py       #   one-shot: emits the CC0 catalog seed for Supabase (Phase 0)
-├── supabase/migrations/      # multi-user schema + RLS
+│   ├── refresh_collection.py # legacy single-user data builder (manual dispatch only)
+│   ├── build_collection.py   # legacy: discogs_records.json → collection.json
+│   └── seed_catalog.py       # one-shot: emitted the CC0 catalog seed for Supabase (Phase 0)
 ├── .github/workflows/
-│   ├── refresh-collection.yml  # weekly data refresh → commit → auto-deploy
+│   ├── refresh-collection.yml  # RETIRED from cron; workflow_dispatch only (dev fixture)
 │   └── sync-version-badge.yml  # keeps the README badge in sync with VERSION
-├── docs/                     # roadmap, multi-user spec, phase plans
+├── docs/                     # roadmap, multi-user spec, phase plans + audits
 ├── screenshots/              # rendered reference states
 ├── VERSION · CHANGELOG.md · CLAUDE.md · DEPLOY.md
 ```
 
-## How it stays current
+## How data flows (v1.0.0+)
 
-`.github/workflows/refresh-collection.yml` runs weekly and on `workflow_dispatch`. It
-executes `build/refresh_collection.py`, which pulls the collection from the Discogs API, does
-one `get_release` pass per record, writes `collection.json` plus any new `releases/*.json`,
-and commits. Cloudflare deploys the commit automatically.
+Signed-in users read their crate from **Supabase** (`collection_items ⋈ releases` under
+RLS). Imports run client-driven through the `import-collection` Edge Function under each
+user's own Discogs OAuth token; the shared CC0 catalog (`releases`) is enriched in the
+background by `enrich-release` and **keeps itself current** (v1.2.0): basic metadata merges
+last-import-wins on every import, 404 tombstones retry after 7 days, and deep fields
+re-fetch after 180 days. Restricted data (prices, community stats, ownership) is fetched
+live per user via `live-stats` with a ≤6h server-side cache and never permanently stored.
 
-**No scheduled task, no local machine, no human.** The Cowork artifact that used to require
-all three was retired 2026-08-28.
+The baked `collection.json` + `releases/*.json` remain as the local-dev fixture and the
+modal's offline fallback tiers — not the production data path.
 
 ## Architecture notes
 
-**The detail modal makes zero live calls.** Immutable data (tracklist, country, release date,
-videos) is baked once into write-once `public/releases/<id>.json`; mutable stats (community
-rating, have/want, lowest sale) live on each `collection.json` record and refresh weekly. The
-modal is therefore immune to rate limits and can never show a fabricated tracklist.
-
-**Covers come from the Discogs CDN** — `cover_image`, roughly 600px at q90. There is no
-base64 embedding; that only ever existed to work around Cowork iframes blocking CDN URLs, and
-that constraint died with the artifact.
+**Covers come from the Discogs CDN** — `cover_image`, roughly 600px at q90.
 
 **Attribution is mandatory.** The footer carries the two notices the Discogs API Terms
-require: the do-follow "Data provided by Discogs" link and the affiliation disclaimer. Do not
-remove them. See `../Discogs-API-Terms-Summary.md`.
+require: the do-follow "Data provided by Discogs" link and the affiliation disclaimer. Do
+not remove them. See `../Discogs-API-Terms-Summary.md`.
+
+**Account controls (v1.1.0):** the header ACCOUNT modal offers disconnect (removes the
+credential + imported collection; profile survives) and typed-confirmation data deletion
+(everything TraxWax stores; the Clerk sign-in identity is deliberately untouched). The
+OAuth callback parks completed links as *pending*; a one-time fragment code plus the
+verified Clerk session completes them (`finalize-connect`), closing the link-CSRF.
 
 ## Routing
 
@@ -76,24 +81,14 @@ MIME check would reject it, and every page would render blank.
 
 ## Run locally
 
-`app.js` fetches `./collection.json`, so serve it over HTTP rather than `file://`:
+`app.js` falls back to the baked fixture when the Supabase providers are absent, so the
+crate renders standalone. Serve over HTTP rather than `file://`:
 
 ```
 cd public && python3 -m http.server 8000    # http://localhost:8000
 ```
 
-To exercise the proxy Functions too, see **DEPLOY.md → Local testing**.
-
-## Regenerate the data
-
-```
-DISCOGS_TOKEN=… python3 build/refresh_collection.py
-```
-
-Flags: `SKIP_PRICES=1` (fast metadata + covers only, ~30s), `SKIP_RELEASES=1`,
-`RELEASE_NEW_ONLY=1` (only new records' tracklists), `RELEASE_LIMIT=N`. A full pass takes
-~35–40 minutes against the rate limit. The weekly Action does this for you; you only need it
-by hand to pick up new records immediately.
+Auth, import, and live stats need the deployed Edge Functions — see **DEPLOY.md**.
 
 ## Versioning
 
@@ -103,14 +98,12 @@ above to match and warns if the changelog was not updated in the same push.
 
 ## Status
 
-**Shipped** through **v0.4.0** — the full redesign (Crate / Timeline / Ledger), composable
-facet filters, single-control sort, light/dark themes, responsive 6→2 columns, the baked
-detail modal, mobile layout, the self-refresh pipeline, the custom domain, and the required
-Discogs attribution. Full history in `CHANGELOG.md`.
+**Shipped through v1.2.0** (2026-08-29): the full single-user redesign (v0.x), then
+multi-user launch — Clerk auth, per-user Discogs OAuth (tokens AES-256-GCM at rest),
+client-driven import + background CC0 enrichment, live-only Restricted data (v1.0.0);
+post-launch bug batch (v1.0.1); account controls + the authenticated finalize closing the
+link-CSRF (v1.1.0); the self-healing catalog (v1.2.0). Full history in `CHANGELOG.md`,
+release-by-release detail in `docs/roadmap.md`.
 
-**Next** — see `docs/roadmap.md`:
-- **v0.5.0** accessibility polish: modal focus-trap and focus restore, roving grid focus,
-  `aria-live` on the result count, `cover_image` for the modal cover.
-- **v1.0.0** multi-user: Clerk login, per-user Discogs OAuth, a shared CC0 release catalog,
-  and live-only Restricted data. Design in `docs/multi-user-spec.md`; foundations in
-  `docs/phase-0-plan.md` (complete); build plan in `docs/phase-1-plan.md`.
+**Next** — accessibility polish (modal focus-trap and focus restore, roving grid focus,
+`aria-live` on the result count, `cover_image` for the modal cover). See `docs/roadmap.md`.
