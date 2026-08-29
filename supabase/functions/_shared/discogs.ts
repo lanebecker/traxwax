@@ -89,3 +89,10 @@ export async function selfTest(keyB64: string): Promise<void> {
     throw new Error('crypto self-test failed');
   }
 }
+
+/** SHA-256 as lowercase hex. The finalize code is stored only as this hash, so a DB read
+    cannot complete a pending link. */
+export async function sha256hex(s: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}

@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `0.4.0`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.1.0`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -62,22 +62,40 @@ Site footer carrying the two notices the Discogs API Terms require: the
 "Data provided by Discogs" do-follow link and the affiliation/trademark
 disclaimer.
 
+### v1.0.0 — Multi-user (launched 2026-08-29)
+
+The substantial one: Clerk login, per-user Discogs OAuth (per-user tokens
+AES-256-GCM at rest), client-driven import + shared CC0 catalog enrichment,
+the read-path flip to Supabase, live-only Restricted data. Four staged phases
+(auth shell → OAuth → import/enrich → the flip), each twice-audited, plus an
+end-of-phase cold audit. Spec: `docs/multi-user-spec.md`.
+
+### v1.0.1 — Post-launch bug batch
+
+Search debounce + caret preservation; local-month JUST IN/THIS MONTH;
+cache-control headers (stale-deploy fix); enrichment discovery as one join RPC;
+per-user connect cooldown; dead-code sweep. GitHub #2, #4, #5, #6, #7, #9.
+
+### v1.1.0 — Account controls
+
+Disconnect Discogs, TraxWax-data deletion (Clerk identity untouched), and the
+authenticated finalize step that closes the accepted Stage B link-CSRF.
+GitHub #8; plan: `docs/phase-2-account-plan.md`.
+
 ---
 
 ## Next
 
-### v0.5.0 — Accessibility & polish
+### Accessibility & polish
 
 - Modal focus-trap + restore focus to the invoking card on close
 - Roving arrow-key focus across the grid; `aria-live` on the result count
 - Modal cover uses `cover_image` (not the 150px `thumb`)
 
-### v1.0.0 — Multi-user
+### Catalog refresh path (GitHub #3)
 
-The substantial one, specified in `docs/multi-user-spec.md` and grounded by
-`docs/phase-0-plan.md`. Clerk login, per-user Discogs OAuth, a shared CC0
-release catalog, and live-only Restricted data. Phase 0 foundations are largely
-in place; Phase 1 is the first shippable multi-user app.
+Permanent 404 tombstones and never-re-fetched catalog metadata need a refresh
+design before the shared catalog gets big.
 
 ---
 

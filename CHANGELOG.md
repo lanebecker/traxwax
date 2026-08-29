@@ -13,6 +13,38 @@ _Nothing yet._
 
 ---
 
+## [1.1.0] — 2026-08-29
+
+Account controls (GitHub #8): disconnect, deletion, and the authenticated-finalize step
+that closes the link-CSRF accepted at Stage B. Plan: `docs/phase-2-account-plan.md`
+(rev 2, twice audited). Migration 0009 and the four Edge Function deploys are live.
+
+### Added
+- **ACCOUNT modal** (header button, next to RE-SYNC): connected-as line, disconnect, and
+  a danger-zone deletion with typed `DELETE` confirmation.
+- **Disconnect Discogs** — removes the encrypted credential, the imported collection
+  (Restricted Data tied to the connection, per the same rule re-linking uses), and any
+  in-flight handshake state; the profile resets to never-connected. The dialog says all
+  of this plainly, and points at Discogs → Settings → Applications for full revocation
+  (Discogs offers no token-revocation API).
+- **Delete my TraxWax data** — purges everything TraxWax stores (profile included).
+  Deliberately does NOT delete the Clerk sign-in identity, which is shared infrastructure
+  for future apps; the copy says so.
+- The `import_status = 'error'` dead end now offers the disconnect exit it had been
+  promising since Stage C.
+
+### Security
+- **Link-CSRF closed** (Stage B round-2 M-2, accepted 2026-08-28; Stage C/D carried it).
+  The OAuth callback now parks completed links as *pending* and hands the approving
+  browser a one-time code in the URL fragment (never sent to a server); the new
+  `finalize-connect` function completes the link only when the code (possession) AND the
+  verified Clerk sub (identity) both match the pending row — looked up by code hash,
+  never by sub, because the state row's user id is the attacker's own in that attack.
+  Only the code's SHA-256 lands in the DB. Proven by SQL replay: victim-with-code →
+  `link_not_yours` + row consumed; attacker-without-code → cannot address the row.
+
+---
+
 ## [1.0.1] — 2026-08-29
 
 Post-launch bug batch: the cold-audit backlog's small fixes (issues #2, #4, #5, #6, #7)
