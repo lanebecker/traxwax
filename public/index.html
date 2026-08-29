@@ -9,7 +9,7 @@
 <meta property="og:description" content="You own records. Now find them.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://traxwax.com/">
-<meta property="og:image" content="https://traxwax.com/screenshots/crate-hero.png">
+<meta property="og:image" content="https://traxwax.com/screenshots/crate-hero.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -97,11 +97,11 @@
       <div class="tw-land-shot">
         <span class="tw-tape tw-tape-c" aria-hidden="true"></span>
         <span class="tw-tape tw-tape-d" aria-hidden="true"></span>
-        <!-- ASSET TODO (spec §11): capture a fresh crate-hero.png — covers loaded, prices
-             populated, ≥1 JUST IN badge. The repo's 01-crate-light.png predates covers.
-             onerror degrades to a framed skeleton so a not-yet-captured hero never renders
-             a broken-image glyph in production. -->
-        <img src="/screenshots/crate-hero.png" width="2560" height="1840"
+        <!-- crate-hero.jpg: captured 2026-08-29 from lanebecker's live crate (spec §11 —
+             covers loaded, JUST IN badges, varied wax), cropped to the design's 2560×1840
+             landscape band and encoded JPEG q88 (~800KB vs ~4MB PNG; it doubles as the OG
+             card). The onerror still degrades to a framed skeleton if the file ever 404s. -->
+        <img src="/screenshots/crate-hero.jpg" width="2560" height="1840"
              onerror="this.onerror=null;this.removeAttribute('src');this.style.cssText='display:block;width:100%;height:auto;min-height:340px;background:var(--skel);border:1.5px solid var(--line);box-shadow:8px 8px 0 rgba(0,0,0,.16)'"
              alt="The TraxWax crate: a grid of album covers with style filters above them">
       </div>

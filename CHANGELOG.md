@@ -60,9 +60,11 @@ wave→version map stable (`docs/social-roadmap.md` W0.5).
   not the old `opacity:.45` that was still clickable.
 
 ### Notes
-- **Asset TODO before the landing is fully done:** a fresh `public/screenshots/crate-hero.png`
-  (spec §11) — captured on Lane's Mac against his loaded crate. Until then the hero degrades
-  to a framed skeleton (no broken-image glyph).
+- **Landing hero captured** (`public/screenshots/crate-hero.jpg`, 2560×1840): a light-theme
+  band off Lane's live crate — header + style filters + two `JUST IN` rows, covers loaded,
+  varied wax. JPEG q88 (~800KB, vs ~4MB PNG; it doubles as the OG card). The `<img>` keeps an
+  `onerror` skeleton fallback regardless. (Design spec named it `.png`; JPEG is the right call
+  for a photographic hero.)
 - `public/_redirects` + `public/_headers` gained the `/account` route; `_routes.json`
   unchanged. **Verify a hard cold-load of `/account/discogs` post-deploy** — a Cloudflare
   rewrite is the one thing that can't be tested locally.
