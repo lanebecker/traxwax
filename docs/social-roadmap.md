@@ -225,9 +225,8 @@ Prerequisites that block everything, none of them features:
   `UI.toggle` (consent switches — W1/2/4), `UI.emptyState` (reused empty states — W1/2/3),
   `.tw-badge-*` + `badgesHtml`/`badgesFor` (match badges — W2), `priceCellHtml` (friend-crate
   price cell — W1), the account nav's disabled `SHARING`/`FRIENDS` `SOON` rows (W1), and the
-  landing `.tw-land-slab` (public-crates slot — W5). **One asset TODO:** the landing needs a
-  fresh `public/screenshots/crate-hero.png` (spec §11) — captured on Lane's Mac against his
-  own loaded crate; until then the hero degrades to a framed skeleton.
+  landing `.tw-land-slab` (public-crates slot — W5). The landing hero was captured
+  2026-08-29 → `public/screenshots/crate-hero.jpg` (2560×1840, JPEG; also the OG card).
 
 ## 4. Wave 1 — Friends & consented crates → **v1.4.0**
 
