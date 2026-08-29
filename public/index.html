@@ -56,12 +56,12 @@
             <span class="tw-land-cta-note">Free · your data stays yours · no marketplace</span>
           </div>
         </div>
-        <!-- Twelve covers. Swap the src list for whatever the current top of the crate is;
-             they are decorative, hence aria-hidden and empty alt. -->
-        <div class="tw-land-tiles" aria-hidden="true">
-          <span></span><span></span><span></span><span></span>
-          <span></span><span></span><span></span><span></span>
-          <span></span><span></span><span></span><span></span>
+        <!-- A block of real covers cropped from the live crate (a lower section than the
+             proof-shot hero, so it's a different set of records). Decorative → aria-hidden;
+             onerror degrades to a framed skeleton if the file 404s. -->
+        <div class="tw-land-covers" aria-hidden="true">
+          <img src="/screenshots/hero-covers.jpg" alt=""
+               onerror="this.onerror=null;this.removeAttribute('src');this.style.cssText='display:block;width:100%;aspect-ratio:.68;background:var(--skel);border:1.5px solid var(--line)'">
         </div>
       </div>
     </div>

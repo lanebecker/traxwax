@@ -65,6 +65,13 @@ wave→version map stable (`docs/social-roadmap.md` W0.5).
   varied wax. JPEG q88 (~800KB, vs ~4MB PNG; it doubles as the OG card). The `<img>` keeps an
   `onerror` skeleton fallback regardless. (Design spec named it `.png`; JPEG is the right call
   for a photographic hero.)
+- **Landing color rework** (Lane, 2026-08-29): the top bar goes red (app-style, with a
+  white/black button on it like the crate header), the middle three-up band goes black, the
+  position slab goes grey, and the footer goes black — all through the theme-flipping
+  `--ink`/`--bar`/`--bg` tokens so both light and dark stay legible (one fix: the three-up
+  note uses a `color-mix` muted, since a raw `--muted` would render light-on-light on the
+  band's inverted dark-theme value). The hero's blank cover tiles become a real block of
+  covers cropped from a lower section of the crate (`public/screenshots/hero-covers.jpg`).
 - `public/_redirects` + `public/_headers` gained the `/account` route; `_routes.json`
   unchanged. **Verify a hard cold-load of `/account/discogs` post-deploy** — a Cloudflare
   rewrite is the one thing that can't be tested locally.
