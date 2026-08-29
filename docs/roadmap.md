@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.3.0`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.3.2`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -94,14 +94,32 @@ Circle avatar button, profile fields (photo/name/bio/location/collecting-since/l
 with Clerk-owned identity synced to the DB, skippable onboarding card. The groundwork
 for social. Plan: `docs/phase-2-profiles-plan.md`.
 
+### v1.3.1 — Avatar reposition
+
+The avatar button floats in the true upper-right corner of the header, above the
+controls bar (Lane's visual review of live v1.3.0).
+
+### v1.3.2 — Design-surfaces pass
+
+The whole non-crate UI rebuilt into one shell system: a new landing page, TraxWax
+chrome around the Clerk auth card, the nine bare system states turned into a single
+wordmarked "state card," the account **modal turned into a route** (`/account`,
+`/account/discogs`), and a real empty-crate state distinct from filter-empty. New
+modules `public/boot.ui.js` (+ `boot.clerk.js`); no schema, RLS, or Edge-function change.
+Carries reserved space for every social wave. Spec: `docs/design-surfaces-spec.md`;
+surface→file map: `docs/design-screen-map.md`. (Cut as a patch by decision, keeping the
+social-roadmap wave→version map stable.)
+
 ---
 
 ## Next
 
 ### Accessibility & polish
 
-- Modal focus-trap + restore focus to the invoking card on close
-- Roving arrow-key focus across the grid; `aria-live` on the result count
+- Modal focus-trap + restore focus to the invoking card on close (`trapFocus` now exists
+  in `boot.ui.js` — reuse it)
+- Roving arrow-key focus across the grid
+- ~~`aria-live` on the result count~~ — **shipped in v1.3.2**
 - Modal cover uses `cover_image` (not the 150px `thumb`)
 
 ---

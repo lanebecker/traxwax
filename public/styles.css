@@ -74,3 +74,263 @@ input::placeholder { color:var(--faint); }
   .tw-footer { flex-direction:column !important; align-items:flex-start !important; margin-top:16px !important; gap:8px !important; }
   .tw-footer .tw-footer-note { text-align:left !important; min-width:0 !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   TraxWax — additions to public/styles.css
+   Design source: "TraxWax Surfaces.dc.html" (S0–S20).
+
+   APPEND this file to the END of public/styles.css. It introduces NO new tokens; every
+   value resolves through the thirteen already defined on :root / body[data-theme="dark"],
+   so dark theme and accent swaps come free.
+
+   Why classes here and inline styles in boot.ui.js: the landing page is static HTML with
+   no JS, so classes are the right tool. The app's runtime surfaces stay inline-styled to
+   match the existing app.js idiom (and so a re-render can't lose them).
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shared: the wordmark block ────────────────────────────────────────────────
+   Black in BOTH themes per Design Kit v1 §1. The dark-theme border keeps it from
+   dissolving into the panel; in light theme --line IS #16171a so it's invisible. */
+.tw-wordmark {
+  background:#16171a; color:#fff; font-family:Anton,sans-serif; letter-spacing:.01em;
+  font-size:38px; padding:11px 13px 8px; transform:rotate(-1.2deg);
+  border:1.5px solid var(--line); display:inline-block;
+}
+.tw-wordmark-sm { font-size:19px; padding:6px 8px 4px; }
+.tw-wordmark-md { font-size:30px; padding:9px 11px 7px; }
+
+/* ── Shared: tape ─────────────────────────────────────────────────────────────
+   The only decorative element in the design. Four strips maximum. Do not add more. */
+.tw-tape {
+  position:absolute; height:20px; background:var(--tape); pointer-events:none;
+  border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18);
+}
+.tw-tape-a { top:-9px; left:120px;  width:96px;  transform:rotate(2deg); }
+.tw-tape-b { top:-9px; right:180px; width:96px;  transform:rotate(-2.5deg); }
+.tw-tape-c { top:-11px; left:60px;  width:110px; height:22px; transform:rotate(-2deg); z-index:2; }
+.tw-tape-d { top:-11px; right:60px; width:110px; height:22px; transform:rotate(2.2deg); z-index:2; }
+
+/* ── Shared: buttons ──────────────────────────────────────────────────────────
+   THE RULE: accent is the affirmative color. A destructive action starts OUTLINED
+   (.tw-btn-danger) and only earns the accent fill once armed (.tw-btn-danger-armed) —
+   so the color tells you which step of the confirmation you're on. */
+.tw-btn {
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700;
+  letter-spacing:.12em; text-transform:uppercase; padding:11px 18px;
+  border-radius:0; cursor:pointer; display:inline-block; text-decoration:none;
+  border:1.5px solid var(--line);
+}
+.tw-btn-primary   { background:var(--accent); color:var(--on-accent); box-shadow:3px 3px 0 var(--shadow); }
+.tw-btn-secondary { background:var(--panel);  color:var(--ink);       box-shadow:3px 3px 0 var(--shadow); }
+.tw-btn-quiet     { background:var(--panel);  color:var(--muted); border-color:var(--hair); }
+.tw-btn-danger    { background:var(--panel);  color:var(--accent); border-color:var(--accent); }
+.tw-btn-danger-armed { background:var(--accent); color:var(--on-accent); box-shadow:3px 3px 0 var(--shadow); }
+.tw-btn:disabled, .tw-btn[disabled] {
+  background:var(--bg); color:var(--faint); border-color:var(--hair);
+  box-shadow:none; cursor:not-allowed;
+}
+.tw-btn-primary:active, .tw-btn-secondary:active, .tw-btn-danger-armed:active {
+  box-shadow:0 0 0 var(--shadow); transform:translate(3px,3px);
+}
+.tw-btn-primary:hover, .tw-btn-danger-armed:hover { color:var(--on-accent); }
+.tw-btn-secondary:hover { color:var(--accent); }
+.tw-btn-sm { font-size:10.5px; padding:9px 14px; letter-spacing:.14em; }
+.tw-btn-lg { font-size:12px;   padding:14px 22px; letter-spacing:.14em; box-shadow:4px 4px 0 var(--shadow); }
+
+/* ═══ LANDING PAGE (S1) ═══════════════════════════════════════════════════════ */
+
+.tw-land { min-height:100vh; background:var(--bg); padding:26px; }
+.tw-land-panel {
+  max-width:1180px; margin:0 auto; background:var(--bg);
+  border:1.5px solid var(--line); box-shadow:6px 6px 0 rgba(0,0,0,.16);
+}
+
+.tw-land-bar {
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 22px; background:var(--panel); border-bottom:1.5px solid var(--line);
+}
+.tw-land-bar-r { display:flex; align-items:center; gap:18px; }
+.tw-land-signin {
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700;
+  letter-spacing:.14em; color:var(--muted);
+}
+.tw-land-signin:hover { color:var(--accent); }
+
+.tw-land-hero {
+  position:relative; padding:66px 56px 54px; background:var(--panel);
+  border-bottom:3px solid var(--line); overflow:hidden;
+}
+.tw-land-hero-grid {
+  display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:52px; align-items:start;
+}
+.tw-land-hero-copy { display:flex; flex-direction:column; gap:22px; min-width:0; }
+.tw-land-eyebrow-wrap { display:flex; flex-direction:column; gap:16px; }
+.tw-land-eyebrow {
+  font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700;
+  letter-spacing:.22em; color:var(--accent);
+}
+.tw-land-h1 {
+  font-family:Anton,sans-serif; font-weight:400; margin:0;
+  font-size:clamp(46px, 7.6vw, 96px); line-height:.9; letter-spacing:.005em; color:var(--ink);
+}
+.tw-land-h1 span { color:var(--accent); }
+.tw-land-sub {
+  font-family:Archivo,Helvetica,sans-serif; font-size:16px; line-height:1.65;
+  color:var(--muted); max-width:46ch; margin:0; text-wrap:pretty;
+}
+.tw-land-cta { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+.tw-land-cta-note {
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint);
+}
+
+/* Cover tiles. Set the twelve background-images inline on the <span>s at build time, or
+   leave them as flat --skel squares — the layout is identical either way. */
+.tw-land-tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; transform:rotate(1.4deg); }
+.tw-land-tiles span {
+  aspect-ratio:1/1; background-color:var(--skel); background-size:cover;
+  background-position:center; border:1.5px solid var(--line); display:block;
+}
+
+.tw-land-three {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  background:var(--bar); border-bottom:3px solid var(--line);
+}
+.tw-land-three > div {
+  padding:26px 24px; display:flex; flex-direction:column; gap:8px;
+  border-right:1.5px solid var(--line);
+}
+.tw-land-three > div:last-child { border-right:0; }
+.tw-land-kick {
+  font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700;
+  letter-spacing:.18em; color:var(--accent);
+}
+.tw-land-lede {
+  font-family:'Barlow Condensed',sans-serif; font-size:27px; font-weight:700;
+  line-height:1.05; color:var(--ink);
+}
+.tw-land-note {
+  font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.6;
+  color:var(--muted); text-wrap:pretty;
+}
+
+.tw-land-proof {
+  padding:48px 56px; background:var(--panel); border-bottom:3px solid var(--line);
+  display:flex; flex-direction:column; gap:26px; align-items:center;
+}
+.tw-land-proof-head { display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center; }
+.tw-land-proof-h {
+  font-family:'Barlow Condensed',sans-serif; font-size:34px; font-weight:700;
+  line-height:1.05; color:var(--ink);
+}
+.tw-land-shot { position:relative; width:100%; max-width:900px; transform:rotate(-.6deg); }
+.tw-land-shot img {
+  display:block; width:100%; height:auto; border:1.5px solid var(--line);
+  box-shadow:8px 8px 0 rgba(0,0,0,.16);
+}
+
+.tw-land-slab {
+  padding:34px 56px; background:var(--ink);
+  display:flex; flex-wrap:wrap; gap:20px 44px; align-items:flex-start;
+  justify-content:space-between;
+}
+.tw-land-slab-h {
+  font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:600;
+  line-height:1.15; color:var(--bg); max-width:34ch; text-wrap:pretty;
+}
+.tw-land-slab-list {
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; line-height:2;
+  letter-spacing:.1em; color:var(--muted);
+}
+/* --ink/--bg invert between themes, so the slab reads correctly in both without a
+   theme-specific rule. --muted clears AA on both --ink values (verified). */
+
+.tw-land-foot {
+  padding:22px 56px; background:var(--bar); font-family:'IBM Plex Mono',monospace;
+  font-size:10px; line-height:1.9; letter-spacing:.04em; color:var(--muted);
+}
+.tw-land-foot a { color:var(--muted); }
+.tw-land-foot a:hover { color:var(--accent); }
+
+@media (max-width:900px) {
+  .tw-land-hero-grid { grid-template-columns:1fr; gap:34px; }
+  .tw-land-tiles { grid-template-columns:repeat(6,1fr); transform:none; }
+  .tw-land-three { grid-template-columns:1fr; }
+  .tw-land-three > div { border-right:0; border-bottom:1.5px solid var(--line); }
+  .tw-land-three > div:last-child { border-bottom:0; }
+}
+@media (max-width:640px) {
+  .tw-land { padding:8px; }
+  .tw-land-hero { padding:44px 20px 36px; }
+  .tw-land-proof, .tw-land-slab, .tw-land-foot { padding-left:20px; padding-right:20px; }
+  .tw-land-bar { padding:12px 14px; }
+  .tw-land-bar-r { gap:12px; }
+  /* The bar's two actions must not wrap into the wordmark; drop the text link on phones —
+     the sign-up card links to sign-in anyway. */
+  .tw-land-signin { display:none; }
+  .tw-land-proof-h { font-size:26px; }
+  .tw-land-slab-h { font-size:24px; }
+  .tw-land-shot { transform:none; }
+  .tw-tape-c, .tw-tape-d { display:none; }
+}
+
+/* ═══ STATE CARDS (S2–S12) ════════════════════════════════════════════════════
+   The card geometry is inline in boot.ui.js stateCard(); these are the responsive
+   overrides only, so they need !important to beat the inline styles (same convention
+   as the existing mobile block above). */
+@media (max-width:640px) {
+  .tw-card { box-shadow:4px 4px 0 var(--shadow) !important; }
+  .tw-card-body { padding:32px 18px 22px !important; }
+  .tw-card-body h1 { font-size:30px !important; }
+}
+
+/* ═══ ACCOUNT PAGE (S13–S16) ══════════════════════════════════════════════════ */
+
+.tw-acct-wrap { min-height:100vh; background:var(--bg); padding:26px 26px 60px; }
+
+@media (max-width:820px) {
+  /* Nav becomes a horizontal strip above the content. The row-based markup survives it —
+     which is the other reason the friend list is a page and not a modal. */
+  .tw-acct-body { grid-template-columns:1fr !important; }
+  .tw-acct-nav {
+    border-right:0 !important; border-bottom:1.5px solid var(--line) !important;
+    display:flex !important; flex-wrap:wrap; align-items:center; gap:2px;
+    padding:10px 12px !important;
+  }
+  .tw-acct-nav > div:first-child {
+    border-bottom:0 !important; margin-bottom:0 !important; padding:0 12px 0 4px !important;
+    width:100%;
+  }
+  .tw-acct-nav > a, .tw-acct-nav > div { padding:8px 12px !important; }
+  .tw-acct-nav > div[aria-current] { border-left:0 !important; border-bottom:3px solid var(--accent); }
+}
+@media (max-width:640px) {
+  .tw-acct-wrap { padding:8px 8px 36px; }
+  .tw-acct-grid { grid-template-columns:1fr !important; }
+}
+
+/* ═══ EMPTY CRATE (S17) ═══════════════════════════════════════════════════════ */
+@media (max-width:640px) {
+  .tw-empty-h { font-size:28px !important; }
+}
+
+/* ═══ CARD BADGES (S19) ═══════════════════════════════════════════════════════
+   ▸ ROADMAP — RESERVED FOR WAVE 2. Nothing emits these yet; the geometry is claimed now
+   so adding them later is not a card redesign.
+
+   Badge grammar:
+     .tw-badge-you   accent fill      — true about YOU        (on your wantlist)
+     .tw-badge-both  ink fill         — true about BOTH        (you own this too)
+     .tw-badge-else  panel + ink rule — action lives ELSEWHERE (for sale on Discogs)
+
+   Slot: the cover's RIGHT edge, mirroring JUST IN on the left, stacking downward at
+   24px intervals. TWO badges is the cap — a third means the card is doing too much. */
+.tw-badge {
+  position:absolute; right:-7px; font-family:'IBM Plex Mono',monospace; font-size:9px;
+  font-weight:800; letter-spacing:.1em; padding:3px 6px; transform:rotate(2deg);
+  white-space:nowrap; z-index:1;
+}
+.tw-badge-1 { top:8px; }
+.tw-badge-2 { top:32px; }
+.tw-badge-you  { background:var(--accent); color:var(--on-accent); }
+.tw-badge-both { background:var(--ink);    color:var(--bg); }
+.tw-badge-else { background:var(--panel);  color:var(--ink); border:1.5px solid var(--line); padding:2px 6px; }

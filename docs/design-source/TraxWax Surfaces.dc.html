@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#dfe2e5; font-family:Archivo,Helvetica,sans-serif; }
+  a { color:#e8194b; text-decoration:none; }
+  a:hover { color:#16171a; }
+  * { box-sizing:border-box; }
+</style>
+</helmet>
+
+<section style="display:flex; flex-direction:column; gap:64px; padding:56px 56px 120px">
+
+  <div style="display:flex; flex-direction:column; gap:18px; max-width:1200px">
+    <div style="display:flex; align-items:flex-start; gap:16px">
+      <div style="background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:38px; letter-spacing:.01em; padding:11px 13px 8px; transform:rotate(-1.2deg)">TRAXWAX</div>
+      <div style="font-family:'Barlow Condensed',sans-serif; font-size:44px; font-weight:700; line-height:1; color:#16171a; padding-top:6px">SURFACES<span style="color:#e8194b">.</span></div>
+    </div>
+    <div style="font-family:Archivo,Helvetica,sans-serif; font-size:14px; line-height:1.7; color:#54585f; max-width:74ch">
+      Every screen outside the crate, brought onto the system. Each surface carries an id — reference them by id in review. Notes under each frame say what changed and, where relevant, what space was deliberately left for the social roadmap.
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#54585f">
+      <span style="border:1.5px solid #16171a; padding:5px 9px">20 SURFACES</span>
+      <span style="border:1.5px solid #16171a; padding:5px 9px">LIGHT + DARK</span>
+      <span style="border:1.5px solid #e8194b; color:#e8194b; padding:5px 9px">▸ = ROADMAP SPACE</span>
+    </div>
+  </div>
+
+  <div style="height:3px; background:#16171a; max-width:1200px"></div>
+
+  <div id="S0" style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">
+      <span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S0</span>
+      <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; color:#16171a">The shell system</span>
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#54585f">NEW — the parts every surface below is built from</span>
+    </div>
+
+    <div style="background:#eceef0; border:1px solid #d6d8dc; padding:40px; display:flex; flex-wrap:wrap; gap:44px">
+
+      <div style="display:flex; flex-direction:column; gap:14px">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#e8194b">BUTTONS</div>
+        <div style="display:flex; flex-direction:column; gap:12px; align-items:flex-start">
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer" style-active="box-shadow:0 0 0 #16171a; transform:translate(3px,3px)">Connect Discogs</button>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; border:1.5px solid #16171a; background:#fff; color:#16171a; box-shadow:3px 3px 0 #16171a; cursor:pointer" style-active="box-shadow:0 0 0 #16171a; transform:translate(3px,3px)">Skip for now</button>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; border:1.5px solid #e8194b; background:#fff; color:#e8194b; cursor:pointer">Disconnect Discogs</button>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer">Delete my data</button>
+          <button disabled style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; border:1.5px solid #d6d8dc; background:#eceef0; color:#9ea2a9; cursor:not-allowed">Delete my data</button>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.8; letter-spacing:.06em; color:#666a72; max-width:26ch">PRIMARY · SECONDARY · DESTRUCTIVE (UNARMED) · DESTRUCTIVE (ARMED) · DISABLED</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#e8194b">FIELDS</div>
+        <div style="display:flex; flex-direction:column; gap:12px; width:280px">
+          <div style="display:flex; flex-direction:column; gap:6px">
+            <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">DISPLAY NAME</label>
+            <input value="Lane Becker" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #16171a; border-radius:0">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px">
+            <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">BIO</label>
+            <input placeholder="One line about your collection" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #d6d8dc; border-radius:0">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px">
+            <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#e8194b">COLLECTING SINCE</label>
+            <input value="19998" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #e8194b; border-radius:0">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.04em; color:#e8194b">Wants a year, like 1998.</span>
+          </div>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.8; letter-spacing:.06em; color:#666a72; max-width:30ch">FILLED · EMPTY (HAIRLINE BORDER) · ERROR. LABELS ARE MONO CAPS ABOVE THE FIELD — NOT PLACEHOLDERS.</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#e8194b">TOGGLE ▸ NEW</div>
+        <div style="display:flex; flex-direction:column; gap:16px">
+          <div style="display:flex; align-items:center; gap:12px">
+            <span style="width:46px; height:24px; border:1.5px solid #16171a; background:#d8dade; display:inline-flex; align-items:center; padding:2px"><span style="width:17px; height:17px; background:#16171a; display:block"></span></span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; color:#54585f">PRIVATE</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px">
+            <span style="width:46px; height:24px; border:1.5px solid #16171a; background:#e8194b; display:inline-flex; align-items:center; justify-content:flex-end; padding:2px"><span style="width:17px; height:17px; background:#fff; display:block"></span></span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; color:#16171a">FRIENDS</span>
+          </div>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.8; letter-spacing:.06em; color:#666a72; max-width:26ch">SQUARE KNOB, NO RADIUS. OFF IS GREY-ON-GREY; ON IS ACCENT. USED THREE TIMES BY WAVE 4.</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#e8194b">STATUS KICKERS</div>
+        <div style="display:flex; flex-direction:column; gap:9px; align-items:flex-start">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">CONNECT · STEP 1 OF 2</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">IMPORT · RUNNING</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">ERROR 503 · CRATE UNREACHABLE</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#54585f">PRIVATE SHELF</span>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.8; letter-spacing:.06em; color:#666a72; max-width:28ch">EVERY STATE CARD OPENS WITH ONE. IT IS THE LINE THAT TELLS YOU WHERE YOU ARE — AND THE SLOT ANY NEW STATE FILLS.</div>
+      </div>
+
+    </div>
+    <div style="max-width:78ch; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">
+      <b style="color:#16171a">The one new rule.</b> Accent is the affirmative color. Destructive actions start as an outlined accent button and only <i>earn</i> a filled accent fill once armed — the two-step disconnect and the typed <code style="font-family:'IBM Plex Mono',monospace; font-size:11.5px">DELETE</code> both already work this way, so the color now tells you which step you are on.
+    </div>
+  </div>
+
+  <div style="height:3px; background:#16171a; max-width:1200px"></div>
+
+  <div id="S1" style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">
+      <span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S1</span>
+      <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; color:#16171a">Landing page — traxwax.com</span>
+      <sc-if value="{{ showImplNotes }}" hint-placeholder-val="{{ true }}"><span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#54585f">public/index.html · REPLACES the one-screen door</span></sc-if>
+    </div>
+
+    <div style="background:#eceef0; border:1px solid #d6d8dc; padding:28px; display:flex; justify-content:center; overflow:auto">
+      <div style="flex:none; width:1180px; background:#eceef0; border:1.5px solid #16171a; box-shadow:6px 6px 0 rgba(0,0,0,.16)">
+
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 22px; background:#fff; border-bottom:1.5px solid #16171a">
+          <div style="background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:19px; letter-spacing:.01em; padding:6px 8px 4px; transform:rotate(-1.2deg)">TRAXWAX</div>
+          <div style="display:flex; align-items:center; gap:18px">
+            <a href="#S2" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.14em; color:#54585f">SIGN IN</a>
+            <a href="#S3" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.14em; padding:9px 14px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a">CREATE AN ACCOUNT</a>
+          </div>
+        </div>
+
+        <div style="position:relative; padding:66px 56px 54px; background:#fff; border-bottom:3px solid #16171a; overflow:hidden">
+          <span style="position:absolute; top:-9px; left:120px; width:96px; height:20px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2deg)"></span>
+          <span style="position:absolute; top:-9px; right:180px; width:96px; height:20px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(-2.5deg)"></span>
+          <div style="display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:52px; align-items:start">
+            <div style="display:flex; flex-direction:column; gap:22px; min-width:0">
+              <div style="display:flex; flex-direction:column; gap:16px">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.22em; color:#e8194b">FOR PEOPLE WITH TOO MUCH VINYL</span>
+                <div style="font-family:Anton,sans-serif; font-size:96px; line-height:.9; letter-spacing:.005em; color:#16171a">YOU OWN RECORDS,<br><span style="color:#e8194b">NOW FIND THEM.</span></div>
+              </div>
+              <div style="font-family:Archivo,Helvetica,sans-serif; font-size:16px; line-height:1.65; color:#54585f; max-width:46ch">Connect Discogs and get a crate you can actually browse — by style, by color, by the year you were obsessed. Everything you already own, finally sorted the way you think about it.</div>
+              <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center">
+                <a href="#S3" style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; padding:14px 22px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:4px 4px 0 #16171a">Open your crate</a>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:#666a72">Free · your data stays yours · no marketplace</span>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; transform:rotate(1.4deg)">
+              <sc-for list="{{ heroTiles }}" as="t" hint-placeholder-count="12">
+                <div style="aspect-ratio:1/1; background-color:#e4e6e9; background-size:cover; background-position:center; border:1.5px solid #16171a; background-image:{{ t.img }}"></div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); background:#d8dade; border-bottom:3px solid #16171a">
+          <div style="padding:26px 24px; border-right:1.5px solid #16171a; display:flex; flex-direction:column; gap:8px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">FILE BY STYLE</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:27px; font-weight:700; line-height:1.05; color:#16171a">Post-punk, on pink, from 2019</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.6; color:#54585f">Stack as many filters as you like. Nothing here cancels anything else out.</span>
+          </div>
+          <div style="padding:26px 24px; border-right:1.5px solid #16171a; display:flex; flex-direction:column; gap:8px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">FILE BY COLOR</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:27px; font-weight:700; line-height:1.05; color:#16171a">We speak variant</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.6; color:#54585f">Neon Flamingo Translucent is a color. “Fifth Pressing” is not, and we won't pretend otherwise.</span>
+          </div>
+          <div style="padding:26px 24px; display:flex; flex-direction:column; gap:8px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">FILE BY REGRET</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:27px; font-weight:700; line-height:1.05; color:#16171a">The damage, itemized</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.6; color:#54585f">What it's worth, what you bought this month, and the five records you'd rather not discuss.</span>
+          </div>
+        </div>
+
+        <div style="padding:48px 56px; background:#fff; border-bottom:3px solid #16171a; display:flex; flex-direction:column; gap:26px; align-items:center">
+          <div style="display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">THE CRATE</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:34px; font-weight:700; line-height:1.05; color:#16171a">One shelf, catalogued past the point of reason</span>
+          </div>
+          <div style="position:relative; width:100%; max-width:900px; transform:rotate(-.6deg)">
+            <span style="position:absolute; top:-11px; left:60px; width:110px; height:22px; background:rgba(150,155,163,.4); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(-2deg); z-index:2"></span>
+            <span style="position:absolute; top:-11px; right:60px; width:110px; height:22px; background:rgba(150,155,163,.4); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.2deg); z-index:2"></span>
+            <img src="screenshots/01-crate-light.png" alt="The TraxWax crate view" style="display:block; width:100%; border:1.5px solid #16171a; box-shadow:8px 8px 0 rgba(0,0,0,.16)">
+          </div>
+        </div>
+
+        <div style="padding:34px 56px; background:#16171a; display:flex; flex-wrap:wrap; gap:20px 44px; align-items:flex-start; justify-content:space-between">
+          <div style="font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:600; line-height:1.15; color:#f0efed; max-width:34ch">No marketplace. No feed. No algorithm with opinions about your taste.</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; line-height:2; letter-spacing:.1em; color:#b4b7bd">READS YOUR DISCOGS COLLECTION<br>PRICES STAY BETWEEN YOU AND DISCOGS<br>DISCONNECT ANY TIME — IT TAKES ONE CLICK</div>
+        </div>
+
+        <div style="padding:22px 56px; background:#d8dade; font-family:'IBM Plex Mono',monospace; font-size:10px; line-height:1.9; letter-spacing:.04em; color:#54585f">
+          <a href="https://www.discogs.com" rel="noopener" style="color:#54585f">Data provided by Discogs</a><br>
+          This application uses Discogs' API but is not affiliated with, sponsored or endorsed by Discogs. “Discogs” is a trademark of Zink Media, LLC.
+        </div>
+      </div>
+    </div>
+
+    <div style="max-width:78ch; display:flex; flex-direction:column; gap:8px; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">
+      <div>The door became a front page. The wordmark now behaves the way the spec describes it — black block, white knockout, rotated — instead of being set in accent-red type, which was the one place the brand contradicted itself. The hero grid is real covers; the crate screenshot is taped up like an artifact.</div>
+      <div style="border-left:3px solid #16171a; padding-left:12px; color:#16171a"><b style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em">■ ASSET TODO </b> The crate screenshot here is the repo's <code style="font-family:'IBM Plex Mono',monospace; font-size:11.5px">screenshots/01-crate-light.png</code>, captured before covers loaded — every tile is an empty skeleton and every price an em-dash. Replace at implementation with a fresh full-width light-theme capture: covers loaded, prices populated, a JUST IN badge visible, varied wax swatches. It is the largest piece of evidence on the page.</div>
+      <div>Two CTAs where there was one: existing users need SIGN IN, and there was previously no path to sign-up from the landing page at all.</div>
+      <sc-if value="{{ showRoadmapNotes }}" hint-placeholder-val="{{ true }}">
+        <div style="border-left:3px solid #e8194b; padding-left:12px; color:#16171a"><b style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#e8194b">▸ ROADMAP SPACE </b> The dark slab above the footer is the slot for Wave 5's public story — “browse public crates”, an OG-card preview, or the DNA card. It is a full-bleed band, so a row of shared-crate cards can drop in without touching the hero. The three-up strip is likewise extensible to four cells (FILE BY FRIEND).</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <div style="height:3px; background:#16171a; max-width:1200px"></div>
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:1200px">
+    <div style="font-family:'Barlow Condensed',sans-serif; font-size:34px; font-weight:700; color:#16171a">The state cards <span style="color:#e8194b">S2–S11</span></div>
+    <div style="font-family:Archivo,Helvetica,sans-serif; font-size:13.5px; line-height:1.7; color:#54585f; max-width:76ch">Every one of these is <code style="font-family:'IBM Plex Mono',monospace; font-size:12px">notice()</code> today: centred muted text in a bare column, no wordmark, no frame. They now share one card — 540px, hard border, offset shadow, the wordmark block hung over the top-left corner and a strip of tape at the top-right. The kicker line and the headline are the only things that change between them.</div>
+  </div>
+
+  <div style="background:#eceef0; border:1px solid #d6d8dc; padding:44px; display:flex; flex-wrap:wrap; gap:52px 44px">
+
+    <div id="S2" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S2</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Sign in</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:18px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">SIGN IN</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Back to the crate</span>
+          </div>
+          <div style="border:1.5px dashed #d6d8dc; padding:18px; display:flex; flex-direction:column; gap:12px">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#9ea2a9">CLERK &lt;SIGNIN /&gt; — STOCK COMPONENT, VARIABLES ONLY</div>
+            <div style="display:flex; flex-direction:column; gap:6px">
+              <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">EMAIL ADDRESS</label>
+              <input placeholder="you@example.com" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a; border-radius:0">
+            </div>
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:11px 18px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer">CONTINUE</button>
+            <div style="display:flex; align-items:center; gap:10px"><span style="flex:1; height:1px; background:#d6d8dc"></span><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#9ea2a9">OR</span><span style="flex:1; height:1px; background:#d6d8dc"></span></div>
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:11px 18px; border:1.5px solid #16171a; background:#fff; color:#16171a; cursor:pointer">CONTINUE WITH GOOGLE</button>
+          </div>
+          <div style="border-top:1px solid #d6d8dc; padding-top:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:#666a72">New here? <a href="#S3" style="color:#e8194b">Create an account</a></div>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">Your chrome, Clerk's card. The dashed area is the only part Clerk owns — themed through its variables (font, accent, zero radius, hard borders) and nothing else, so a Clerk update can't break the frame around it.</div>
+    </div>
+
+    <div id="S3" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S3</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Sign up</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:18px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">CREATE AN ACCOUNT · STEP 1 OF 3</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Start a crate</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">Sign up, name your shelf, connect Discogs. Under two minutes, then it files itself.</span>
+          </div>
+          <div style="border:1.5px dashed #d6d8dc; padding:18px; display:flex; flex-direction:column; gap:12px">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.14em; color:#9ea2a9">CLERK &lt;SIGNUP /&gt;</div>
+            <div style="display:flex; flex-direction:column; gap:6px">
+              <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">EMAIL ADDRESS</label>
+              <input placeholder="you@example.com" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a; border-radius:0">
+            </div>
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:11px 18px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer">CONTINUE</button>
+          </div>
+          <div style="border-top:1px solid #d6d8dc; padding-top:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:#666a72">Already have an account? <a href="#S2" style="color:#e8194b">Sign in</a></div>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">Sign-up gets the step counter, because sign-up is the one flow with three doors to walk through. Naming it up front is why nobody abandons at “Connect your collection”.</div>
+    </div>
+
+    <div id="S4" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S4</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Onboarding — name the shelf</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">CREATE AN ACCOUNT · STEP 2 OF 3</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Whose crate is this?</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">A name for your shelf, and a photo if you like. Both are editable later from your account.</span>
+          </div>
+          <div style="display:flex; gap:16px; align-items:center">
+            <span style="width:64px; height:64px; border-radius:50%; border:1.5px solid #16171a; background:#fff; display:inline-flex; align-items:center; justify-content:center; flex:none"><svg width="38" height="38" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"></circle><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"></path></svg></span>
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.12em; padding:9px 14px; border:1.5px solid #16171a; background:#fff; color:#16171a; cursor:pointer">ADD A PHOTO</button>
+          </div>
+          <div style="display:flex; gap:10px">
+            <div style="display:flex; flex-direction:column; gap:6px; flex:1; min-width:0">
+              <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">FIRST NAME</label>
+              <input style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #16171a; border-radius:0">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px; flex:1; min-width:0">
+              <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">LAST NAME</label>
+              <input style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #d6d8dc; border-radius:0">
+            </div>
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:11px 18px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer">SAVE AND CONTINUE</button>
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.12em; padding:11px 18px; border:1.5px solid #d6d8dc; background:#fff; color:#54585f; cursor:pointer">SKIP FOR NOW</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px">
+        <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">The bare file input becomes a real avatar affordance with the house user icon. Labels move above the fields so the form is still readable once filled.</div>
+        <sc-if value="{{ showRoadmapNotes }}" hint-placeholder-val="{{ true }}">
+          <div style="border-left:3px solid #e8194b; padding-left:12px; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#16171a"><b style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#e8194b">▸ ROADMAP SPACE </b> This card is the natural home for Wave 1's first-run sharing question — one toggle, defaulted private, under the name fields. Designed as a vertical stack for exactly that reason: a fourth row costs nothing.</div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div id="S5" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S5</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Connect Discogs</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">CREATE AN ACCOUNT · STEP 3 OF 3</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Connect your collection</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">TraxWax needs permission to read your Discogs collection. You'll approve it on Discogs and come straight back.</span>
+          </div>
+          <div style="border:1.5px solid #d6d8dc; padding:14px 16px; display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">WHAT WE READ</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.6; color:#54585f">Your collection, and nothing else. We never write to your Discogs account, never touch the marketplace, and never see your password.</span>
+          </div>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:12px 20px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer; align-self:flex-start">CONNECT DISCOGS</button>
+          <div style="border-top:1px solid #d6d8dc; padding-top:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:#666a72"><a href="#S0" style="color:#666a72">Sign out</a></div>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">A reassurance panel earns its place here — this is the screen where someone hands over an OAuth token. The step counter closes the loop opened at sign-up.</div>
+    </div>
+
+    <div id="S6" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S6</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Connect — error variant</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">CONNECT · THAT LINK EXPIRED</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Connect your collection</span>
+          </div>
+          <div style="border-left:4px solid #e8194b; background:#eceef0; padding:13px 15px; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.6; color:#16171a">That connection link was already used, or it has expired. Nothing is wrong with your account — start it again.</div>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:12px 20px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer; align-self:flex-start">TRY AGAIN</button>
+          <div style="border-top:1px solid #d6d8dc; padding-top:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:#666a72"><a href="#S0" style="color:#666a72">Sign out</a></div>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">All thirteen <code style="font-family:'IBM Plex Mono',monospace; font-size:12px">CONNECT_ERRORS</code> render through this one treatment: the failure goes in the kicker, the human explanation in a red-ruled slab, and the retry stays a primary button. Today the error is an unstyled red sentence above the body copy.</div>
+    </div>
+
+  </div>
+
+  <div style="background:#eceef0; border:1px solid #d6d8dc; padding:44px; display:flex; flex-wrap:wrap; gap:52px 44px">
+
+    <div id="S7" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S7</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Import running</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">IMPORT · RUNNING</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Filing your records</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">Pulling your collection from Discogs. This runs once, and it's under a minute for most crates.</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px">
+            <div style="display:flex; align-items:baseline; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em"><span style="color:#16171a">PAGE 7 OF 19</span><span style="color:#e8194b">642 RECORDS</span></div>
+            <div style="height:14px; background:#d8dade; border:1.5px solid #16171a; padding:2px"><div style="width:37%; height:100%; background:#e8194b"></div></div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; color:#666a72">Tracklists and sleeve detail keep loading in the background once your crate opens.</div>
+          </div>
+          <div style="border-top:1px solid #d6d8dc; padding-top:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:#666a72"><a href="#S0" style="color:#666a72">Sign out</a></div>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">The progress line is already computed (<code style="font-family:'IBM Plex Mono',monospace; font-size:12px">page N of M</code>) but rendered as a sentence. Given a real count, draw a real bar — hard-edged, accent fill, no animation. The background-enrichment caveat gets said once, quietly, instead of surprising people later.</div>
+    </div>
+
+    <div id="S8" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S8</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Import failed</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">IMPORT · STOPPED AT PAGE 7</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Import hit a wall</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">We couldn't finish pulling your collection from Discogs. Nothing is lost — reloading picks up exactly where it stopped.</span>
+          </div>
+          <div style="height:14px; background:#d8dade; border:1.5px solid #16171a; padding:2px"><div style="width:37%; height:100%; background:#54585f"></div></div>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:12px 20px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer; align-self:flex-start">RELOAD AND RESUME</button>
+          <div style="border-top:1px solid #d6d8dc; padding-top:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:#666a72"><a href="#S0" style="color:#666a72">Sign out</a></div>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">The bar stays on screen and goes grey — you can see how far it got, which is the entire reason the “nothing is lost” claim is believable. The retry was a text link; it's a button now.</div>
+    </div>
+
+    <div id="S9" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S9</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Connection needs attention</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">DISCOGS · CONNECTION UNREADABLE</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Importing is paused</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">Your stored Discogs connection can't be read, so we've stopped rather than guess. Disconnect and reconnect fixes it — your Discogs account itself is fine.</span>
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap">
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:12px 20px; border:1.5px solid #e8194b; background:#fff; color:#e8194b; cursor:pointer">DISCONNECT AND START OVER</button>
+          </div>
+          <div style="border-top:1px solid #d6d8dc; padding-top:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:#666a72"><a href="#S0" style="color:#666a72">Sign out</a></div>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">The only state whose sole action is destructive, so it takes the outlined-accent treatment rather than a filled primary. “Import needs attention” told you a category; “Importing is paused” tells you the consequence.</div>
+    </div>
+
+    <div id="S10" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S10</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">No crate here</span><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.12em; color:#e8194b; border:1.5px solid #e8194b; padding:3px 6px">PRIVACY-CRITICAL</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#54585f"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#54585f">PRIVATE SHELF</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">No crate here</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">This crate is private, or it doesn't exist. That's all we'll say about it.</span>
+          </div>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:12px 20px; border:1.5px solid #16171a; background:#fff; color:#16171a; box-shadow:3px 3px 0 #16171a; cursor:pointer; align-self:flex-start">GO TO YOUR OWN CRATE</button>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px">
+        <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">The one card with a grey top rule rather than accent — this is not an error, and it should not alarm the person who mistyped a URL. The wry second sentence does real work: it signals on purpose that we're withholding, which is more trustworthy than a bland 404.</div>
+        <sc-if value="{{ showRoadmapNotes }}" hint-placeholder-val="{{ true }}">
+          <div style="border-left:3px solid #e8194b; padding-left:12px; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#16171a"><b style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#e8194b">▸ ROADMAP SPACE </b> Load-bearing for Wave 1: not-found and not-friends must render <i>identically</i>, or the page confirms that a username exists to a stranger. Copy is written so it stays honest for both — no “ask them for an invite”, no “this user is private”, nothing that varies with the answer. Never add a per-case detail here.</div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div id="S11" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S11</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Something went sideways</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">ERROR · UNEXPECTED</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Something went sideways</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">Not your fault, and nothing was lost. Reloading usually settles it.</span>
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:12px 20px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer">RELOAD</button>
+          </div>
+          <details style="border-top:1px solid #d6d8dc; padding-top:14px">
+            <summary style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.12em; color:#666a72; cursor:pointer">TECHNICAL DETAIL</summary>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; line-height:1.7; color:#666a72; background:#eceef0; border:1px solid #d6d8dc; padding:10px 12px; margin-top:10px; word-break:break-word">collection query failed: JWT expired at 2026-08-29T14:02:11Z</div>
+          </details>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">Raw exception text was the body copy. It moves into a collapsed <code style="font-family:'IBM Plex Mono',monospace; font-size:12px">&lt;details&gt;</code> — still there when you're debugging with a user, no longer the first thing they read.</div>
+    </div>
+
+    <div id="S12" style="display:flex; flex-direction:column; gap:12px; width:540px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S12</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Finishing the link</span></div>
+      <div style="position:relative; background:#fff; border:1.5px solid #16171a; box-shadow:6px 6px 0 #16171a; margin-top:14px">
+        <div style="height:5px; background:#e8194b"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg)">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 30px; display:flex; flex-direction:column; gap:16px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">CONNECT · VERIFYING</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#16171a">Finishing the link</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f">Confirming this connection belongs to you. A couple of seconds.</span>
+          </div>
+          <div style="display:flex; gap:5px">
+            <span style="width:22px; height:8px; background:#e8194b"></span><span style="width:22px; height:8px; background:#e8194b"></span><span style="width:22px; height:8px; background:#d8dade"></span><span style="width:22px; height:8px; background:#d8dade"></span><span style="width:22px; height:8px; background:#d8dade"></span>
+          </div>
+        </div>
+      </div>
+      <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f">A sub-two-second state, so it gets no buttons and no sign-out — just enough structure that it doesn't read as a flash of broken page. Five hard blocks, filling; the kit has no spinner and shouldn't gain one.</div>
+    </div>
+
+  </div>
+
+  <div style="height:3px; background:#16171a; max-width:1200px"></div>
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:1200px">
+    <div style="font-family:'Barlow Condensed',sans-serif; font-size:34px; font-weight:700; color:#16171a">The account surface <span style="color:#e8194b">S13–S16</span></div>
+    <div style="font-family:Archivo,Helvetica,sans-serif; font-size:13.5px; line-height:1.7; color:#54585f; max-width:78ch">Promoted out of the 520px modal into a page at <code style="font-family:'IBM Plex Mono',monospace; font-size:12px">/app/account</code>, with a left nav. The modal is three stacked boxes today and roughly doubles by Wave 4 — and a friends list is browsable content that wants a URL, not a scroll position. Note for implementation: <code style="font-family:'IBM Plex Mono',monospace; font-size:12px">/app/account</code> collides with the <code style="font-family:'IBM Plex Mono',monospace; font-size:12px">/app/&lt;username&gt;</code> grammar in boot.js and needs a reserved-word carve-out.</div>
+  </div>
+
+  <div id="S13" style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">
+      <span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S13</span>
+      <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; color:#16171a">Account — Profile</span>
+      <sc-if value="{{ showImplNotes }}" hint-placeholder-val="{{ true }}"><span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#54585f">boot.js openAccountModal() → a route</span></sc-if>
+    </div>
+
+    <div style="background:#eceef0; border:1px solid #d6d8dc; padding:34px; display:flex; justify-content:center; overflow:auto">
+      <div style="flex:none; width:1040px; background:#fff; border:1.5px solid #16171a; box-shadow:5px 5px 0 rgba(0,0,0,.16)">
+
+        <div style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:20px 24px 16px; background:#e8194b; border-bottom:3px solid #16171a">
+          <span style="position:absolute; top:-9px; left:44px; width:88px; height:20px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2deg)"></span>
+          <span style="position:absolute; top:-9px; right:120px; width:88px; height:20px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(-2.5deg)"></span>
+          <div style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap">
+            <div style="background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:30px; letter-spacing:.01em; padding:9px 11px 7px; transform:rotate(-1.2deg)">TRAXWAX</div>
+            <div style="display:flex; flex-direction:column; gap:3px; padding-bottom:3px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:rgba(255,255,255,.78)">SETTINGS</span>
+              <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; line-height:1; color:#fff">Your account</span>
+            </div>
+          </div>
+          <a href="#S17" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:8px 12px; background:#fff; color:#16171a; border:1.5px solid #16171a">← BACK TO THE CRATE</a>
+        </div>
+
+        <div style="display:grid; grid-template-columns:236px minmax(0,1fr)">
+          <div style="border-right:1.5px solid #16171a; background:#fff; padding:18px 0">
+            <div style="display:flex; align-items:center; gap:12px; padding:0 18px 18px; border-bottom:1px solid #d6d8dc; margin-bottom:12px">
+              <span style="width:40px; height:40px; border-radius:50%; border:1.5px solid #16171a; background:#fff; display:inline-flex; align-items:center; justify-content:center; flex:none"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"></circle><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"></path></svg></span>
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <span style="font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:700; line-height:1; color:#16171a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Lane Becker</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:#666a72; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">lanebecker</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:11px 18px; background:#eceef0; border-left:4px solid #e8194b"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#16171a">PROFILE</span></div>
+            <a href="#S15" style="display:flex; align-items:center; gap:8px; padding:11px 18px 11px 22px; text-decoration:none"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#54585f">SHARING</span><span style="font-family:'IBM Plex Mono',monospace; font-size:8.5px; font-weight:700; letter-spacing:.12em; color:#e8194b; border:1px solid #e8194b; padding:2px 4px">SOON</span></a>
+            <a href="#S16" style="display:flex; align-items:center; gap:8px; padding:11px 18px 11px 22px; text-decoration:none"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#54585f">FRIENDS</span><span style="font-family:'IBM Plex Mono',monospace; font-size:8.5px; font-weight:700; letter-spacing:.12em; color:#e8194b; border:1px solid #e8194b; padding:2px 4px">SOON</span></a>
+            <a href="#S14" style="display:block; padding:11px 18px 11px 22px; text-decoration:none"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#54585f">DISCOGS</span></a>
+            <div style="height:1px; background:#d6d8dc; margin:12px 0"></div>
+            <a href="#S14" style="display:block; padding:11px 18px 11px 22px; text-decoration:none"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#e8194b">DANGER ZONE</span></a>
+          </div>
+
+          <div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:26px">
+            <div style="display:flex; flex-direction:column; gap:5px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">PROFILE</span>
+              <span style="font-family:'Barlow Condensed',sans-serif; font-size:32px; font-weight:700; line-height:1; color:#16171a">How your shelf introduces itself</span>
+              <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#54585f; max-width:58ch">Nobody sees any of this yet — your crate is private. It's here so it's ready when sharing arrives.</span>
+            </div>
+
+            <div style="display:flex; gap:20px; align-items:center; border:1.5px solid #d6d8dc; padding:16px">
+              <span style="width:72px; height:72px; border-radius:50%; border:1.5px solid #16171a; background:#fff; display:inline-flex; align-items:center; justify-content:center; flex:none"><svg width="44" height="44" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"></circle><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"></path></svg></span>
+              <div style="display:flex; flex-direction:column; gap:8px">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">PROFILE PHOTO</span>
+                <div style="display:flex; gap:10px; flex-wrap:wrap">
+                  <button style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.12em; padding:9px 14px; border:1.5px solid #16171a; background:#fff; color:#16171a; cursor:pointer">UPLOAD A PHOTO</button>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.06em; color:#9ea2a9; align-self:center">JPG, PNG or WEBP · UNDER 10 MB</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px 18px">
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">FIRST NAME</label>
+                <input value="Lane" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #16171a; border-radius:0">
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">LAST NAME</label>
+                <input value="Becker" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #16171a; border-radius:0">
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px; grid-column:1 / -1">
+                <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">BIO <span style="color:#9ea2a9">· ONE LINE, 200 CHARACTERS</span></label>
+                <input value="Mostly indie rock and whatever the clerk talked me into." style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #16171a; border-radius:0">
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">LOCATION</label>
+                <input placeholder="Optional" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #d6d8dc; border-radius:0">
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">COLLECTING SINCE</label>
+                <input value="1998" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #16171a; border-radius:0">
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">LINK</label>
+                <input placeholder="https://" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #d6d8dc; border-radius:0">
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">ANOTHER LINK</label>
+                <input placeholder="https://" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:100%; background:#fff; color:#16171a; border:1.5px solid #d6d8dc; border-radius:0">
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:16px; border-top:1px solid #d6d8dc; padding-top:18px">
+              <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:11px 18px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a; cursor:pointer">SAVE PROFILE</button>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:#666a72">Saved 14:02</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="max-width:80ch; display:flex; flex-direction:column; gap:8px; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">
+      <div>Seven fields that were seven identical placeholder-only inputs now have labels, a two-column grid, and an obvious hierarchy: photo, name, bio, then the optional stuff. The success message moves from a red line at the top of the modal to a quiet timestamp beside the button.</div>
+      <div>The nav carries the avatar and handle — it's the only place in the product that tells you which account you're operating on, which starts mattering the moment two people share a browser.</div>
+      <sc-if value="{{ showRoadmapNotes }}" hint-placeholder-val="{{ true }}">
+        <div style="border-left:3px solid #e8194b; padding-left:12px; color:#16171a"><b style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#e8194b">▸ ROADMAP SPACE </b> The nav is the growth axis: SHARING and FRIENDS are already drawn with SOON chips, and Wave 4's for-sale settings land inside SHARING rather than as a sixth item. The copy line “Nobody sees any of this yet” is written to be deleted the day Wave 1 ships — it is the honest version of a profile nobody can see.</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <div style="background:#eceef0; border:1px solid #d6d8dc; padding:40px; display:flex; flex-wrap:wrap; gap:48px 40px">
+
+    <div id="S14" style="display:flex; flex-direction:column; gap:12px; width:760px">
+      <div style="display:flex; align-items:baseline; gap:10px"><span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S14</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Account — Discogs &amp; Danger zone</span></div>
+      <div style="background:#fff; border:1.5px solid #16171a; padding:28px 30px 32px; display:flex; flex-direction:column; gap:28px">
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">DISCOGS</span>
+          <span style="font-family:'Barlow Condensed',sans-serif; font-size:32px; font-weight:700; line-height:1; color:#16171a">The connection</span>
+        </div>
+
+        <div style="border:1.5px solid #16171a; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px">
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">CONNECTED AS</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; line-height:1; color:#16171a">lanebecker</span>
+          </div>
+          <div style="display:flex; gap:26px; flex-wrap:wrap">
+            <div style="display:flex; flex-direction:column; gap:4px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.14em; color:#666a72">RECORDS</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:700; line-height:1; color:#16171a">1,861</span></div>
+            <div style="display:flex; flex-direction:column; gap:4px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.14em; color:#666a72">LAST SYNCED</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:700; line-height:1; color:#16171a">2 HOURS AGO</span></div>
+          </div>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:10px 15px; border:1.5px solid #16171a; background:#fff; color:#16171a; box-shadow:3px 3px 0 #16171a; cursor:pointer">RE-SYNC NOW</button>
+        </div>
+
+        <div style="border:1.5px solid #d6d8dc; padding:16px 18px; display:flex; flex-direction:column; gap:12px">
+          <span style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f; max-width:66ch">Disconnecting removes your imported collection from TraxWax. Your Discogs account is untouched, and reconnecting re-imports everything in about a minute. To fully revoke access, also remove TraxWax under Discogs → Settings → Applications.</span>
+          <button style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:10px 15px; border:1.5px solid #e8194b; background:#fff; color:#e8194b; cursor:pointer; align-self:flex-start">DISCONNECT DISCOGS</button>
+        </div>
+
+        <div style="height:1px; background:#16171a"></div>
+
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">DANGER ZONE</span>
+          <span style="font-family:'Barlow Condensed',sans-serif; font-size:32px; font-weight:700; line-height:1; color:#16171a">Delete everything</span>
+        </div>
+
+        <div style="border:1.5px solid #e8194b; padding:16px 18px; display:flex; flex-direction:column; gap:14px">
+          <span style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.65; color:#54585f; max-width:66ch">This removes everything TraxWax stores about you — profile, imported collection, Discogs connection. Your sign-in identity is <b style="color:#16171a">not</b> deleted and keeps working elsewhere.</span>
+          <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap">
+            <div style="display:flex; flex-direction:column; gap:6px">
+              <label style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#54585f">TYPE DELETE TO CONFIRM</label>
+              <input placeholder="DELETE" style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding:10px 11px; width:140px; background:#fff; color:#16171a; border:1.5px solid #e8194b; border-radius:0">
+            </div>
+            <button disabled style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:10px 15px; border:1.5px solid #d6d8dc; background:#eceef0; color:#9ea2a9; cursor:not-allowed">DELETE MY TRAXWAX DATA</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px; max-width:76ch; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">
+        <div>New: a connection panel that states what's actually connected — handle, record count, last sync — because “Connected to Discogs as <b>lanebecker</b>” in 11px grey was the only confirmation the product offered. RE-SYNC moves here alongside its own status, and stays in the crate header too.</div>
+        <div>Disconnect and delete sit in one column separated by a hard black rule, in escalating order. Both stay outlined until armed; the delete button is genuinely disabled rather than 45%-opacity-and-clickable.</div>
+      </div>
+    </div>
+
+    <div id="S15" style="display:flex; flex-direction:column; gap:12px; width:380px">
+      <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap"><span style="background:#e8194b; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S15</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Sharing</span><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.12em; color:#e8194b; border:1.5px solid #e8194b; padding:3px 6px">▸ WAVE 1 — NOT FOR BUILD</span></div>
+      <div style="background:#fff; border:1.5px dashed #9ea2a9; padding:22px 24px; display:flex; flex-direction:column; gap:20px; opacity:.85">
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#9ea2a9">SHARING</span>
+          <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; line-height:1; color:#54585f">Who can see your crate</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:14px">
+          <div style="border:1.5px solid #d6d8dc; padding:14px; display:flex; gap:14px; align-items:flex-start">
+            <span style="width:46px; height:24px; border:1.5px solid #9ea2a9; background:#e8194b; display:inline-flex; align-items:center; justify-content:flex-end; padding:2px; flex:none"><span style="width:17px; height:17px; background:#fff; display:block"></span></span>
+            <div style="display:flex; flex-direction:column; gap:4px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.12em; color:#54585f">YOUR CRATE · FRIENDS</span>
+              <span style="font-family:Archivo,Helvetica,sans-serif; font-size:12px; line-height:1.6; color:#666a72">Friends you've invited can browse your records. Prices are never shown to anyone but you.</span>
+            </div>
+          </div>
+          <div style="border:1.5px solid #d6d8dc; padding:14px; display:flex; gap:14px; align-items:flex-start">
+            <span style="width:46px; height:24px; border:1.5px solid #9ea2a9; background:#d8dade; display:inline-flex; align-items:center; padding:2px; flex:none"><span style="width:17px; height:17px; background:#9ea2a9; display:block"></span></span>
+            <div style="display:flex; flex-direction:column; gap:4px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.12em; color:#54585f">YOUR WANTLIST · PRIVATE</span>
+              <span style="font-family:Archivo,Helvetica,sans-serif; font-size:12px; line-height:1.6; color:#666a72">Wave 2. A separate switch on purpose — saying yes once should never expand later.</span>
+            </div>
+          </div>
+          <div style="border:1.5px dashed #d6d8dc; padding:14px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.8; letter-spacing:.1em; color:#9ea2a9">WAVE 4 · FOR-SALE SHELF<br>WAVE 5 · PUBLIC LINK + SHARE CARD</div>
+        </div>
+      </div>
+      <div style="max-width:44ch; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">Drawn, not built. One row per dataset, each with its own switch and its own sentence about what it exposes — the shape the roadmap's per-dataset consent rule requires. Four rows fit without redesign.</div>
+    </div>
+
+    <div id="S16" style="display:flex; flex-direction:column; gap:12px; width:380px">
+      <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap"><span style="background:#e8194b; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S16</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; color:#16171a">Friends</span><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.12em; color:#e8194b; border:1.5px solid #e8194b; padding:3px 6px">▸ WAVE 1 — NOT FOR BUILD</span></div>
+      <div style="background:#fff; border:1.5px dashed #9ea2a9; padding:22px 24px; display:flex; flex-direction:column; gap:18px; opacity:.85">
+        <div style="display:flex; flex-direction:column; gap:5px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#9ea2a9">FRIENDS · 1</span>
+          <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; line-height:1; color:#54585f">People in your crate</span>
+        </div>
+        <div style="border:1.5px solid #d6d8dc; display:flex; align-items:center; gap:12px; padding:12px 14px">
+          <span style="width:36px; height:36px; border-radius:50%; border:1.5px solid #9ea2a9; background:#eceef0; flex:none"></span>
+          <div style="display:flex; flex-direction:column; gap:3px; flex:1; min-width:0">
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:19px; font-weight:700; line-height:1; color:#54585f">Tommy</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:#9ea2a9">SOUNDABOUNDS · 214 RECORDS IN COMMON</span>
+          </div>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.1em; color:#9ea2a9">REMOVE</span>
+        </div>
+        <div style="border:1.5px dashed #d6d8dc; padding:14px; display:flex; flex-direction:column; gap:10px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.14em; color:#9ea2a9">INVITE SOMEONE</span>
+          <div style="display:flex; gap:8px">
+            <span style="flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11px; padding:9px 10px; border:1.5px solid #d6d8dc; color:#9ea2a9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">traxwax.com/i/8f2a…</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.1em; padding:9px 12px; border:1.5px solid #9ea2a9; color:#9ea2a9">COPY</span>
+          </div>
+        </div>
+        <div style="border-top:1px dashed #d6d8dc; padding-top:12px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.8; letter-spacing:.1em; color:#9ea2a9">WAVE 3 · ACTIVITY PULSE PER ROW<br>WAVE 4 · “SELLING 2 YOU WANT”</div>
+      </div>
+      <div style="max-width:44ch; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">Drawn, not built — and the clearest argument for a page over a modal. The friend row is a three-line slot: name, one meta line, one action. Wave 3's pulse and Wave 4's for-sale count replace the meta line without changing the row.</div>
+    </div>
+
+  </div>
+
+  <div style="height:3px; background:#16171a; max-width:1200px"></div>
+
+  <div style="display:flex; flex-direction:column; gap:10px; max-width:1200px">
+    <div style="font-family:'Barlow Condensed',sans-serif; font-size:34px; font-weight:700; color:#16171a">The crate's own new states <span style="color:#e8194b">S17–S19</span></div>
+    <div style="font-family:Archivo,Helvetica,sans-serif; font-size:13.5px; line-height:1.7; color:#54585f; max-width:78ch">Three things inside the designed part of the app that multi-user introduced or will introduce. S17 exists now and has no design. S18 and S19 are the two places where five minutes of decision today saves a redesign in Wave 2.</div>
+  </div>
+
+  <div id="S17" style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">
+      <span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S17</span>
+      <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; color:#16171a">An empty crate</span>
+      <sc-if value="{{ showImplNotes }}" hint-placeholder-val="{{ true }}"><span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#54585f">app.js · currently falls through to “0 RESULTS”</span></sc-if>
+    </div>
+    <div style="background:#eceef0; border:1px solid #d6d8dc; padding:34px; display:flex; justify-content:center; overflow:auto">
+      <div style="flex:none; width:1040px; background:#fff; border:1.5px solid #16171a; box-shadow:5px 5px 0 rgba(0,0,0,.16)">
+        <div style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:20px 24px 16px; background:#e8194b; border-bottom:3px solid #16171a">
+          <span style="position:absolute; top:-9px; left:44px; width:88px; height:20px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2deg)"></span>
+          <div style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap">
+            <div style="background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:30px; letter-spacing:.01em; padding:9px 11px 7px; transform:rotate(-1.2deg)">TRAXWAX</div>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.1em; color:rgba(255,255,255,.85); padding-bottom:6px">Your shelf · filed by whim</span>
+          </div>
+          <div style="display:flex; gap:22px; padding-bottom:4px">
+            <div style="display:flex; flex-direction:column; gap:2px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.14em; color:rgba(255,255,255,.75)">RECORDS</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; line-height:1; color:#fff">0</span></div>
+            <div style="display:flex; flex-direction:column; gap:2px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.14em; color:rgba(255,255,255,.75)">EST. VALUE</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; line-height:1; color:#fff">—</span></div>
+          </div>
+        </div>
+        <div style="padding:70px 40px 76px; display:flex; flex-direction:column; align-items:center; gap:18px; text-align:center">
+          <div style="width:112px; height:112px; border:1.5px solid #d6d8dc; background:#eceef0; display:flex; align-items:center; justify-content:center">
+            <div style="width:74px; height:74px; border-radius:50%; background:#d8dade; display:flex; align-items:center; justify-content:center"><div style="width:22px; height:22px; border-radius:50%; background:#e8194b"></div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; align-items:center">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e8194b">AN EMPTY CRATE</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:38px; font-weight:700; line-height:1; color:#16171a">Nothing on the shelf yet</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13.5px; line-height:1.7; color:#54585f; max-width:48ch">Your Discogs collection came back empty. Add a few records over there and re-sync — they'll be filed here within the minute.</span>
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">
+            <a href="https://www.discogs.com" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:12px 20px; border:1.5px solid #16171a; background:#e8194b; color:#fff; box-shadow:3px 3px 0 #16171a">ADD RECORDS ON DISCOGS</a>
+            <button style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; padding:12px 20px; border:1.5px solid #16171a; background:#fff; color:#16171a; box-shadow:3px 3px 0 #16171a; cursor:pointer">RE-SYNC</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:80ch; display:flex; flex-direction:column; gap:8px; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">
+      <div>A real state, not the filter-empty state wearing the wrong copy. A brand-new user with an empty Discogs collection currently lands on “0 RESULTS · Nothing filed under that · CLEAR THE FILTERS” — advice that cannot possibly help, since no filters are set. The header keeps its zeroes rather than hiding, because the strip is the thing that fills in.</div>
+      <sc-if value="{{ showRoadmapNotes }}" hint-placeholder-val="{{ true }}">
+        <div style="border-left:3px solid #e8194b; padding-left:12px; color:#16171a"><b style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#e8194b">▸ ROADMAP SPACE </b> This centred disc-and-copy block is the empty-state <i>pattern</i>, not a one-off. Wave 1's “no friends yet”, Wave 2's “no matches”, and Wave 3's empty overlap all reuse it verbatim — kicker, headline, one dry line, one or two actions. Build it as a function, not a literal.</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <div id="S18" style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">
+      <span style="background:#e8194b; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S18</span>
+      <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; color:#16171a">Visiting someone else's crate — header</span>
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.12em; color:#e8194b; border:1.5px solid #e8194b; padding:3px 6px">▸ WAVE 1 — SPACE ONLY</span>
+    </div>
+    <div style="background:#eceef0; border:1px solid #d6d8dc; padding:34px; display:flex; justify-content:center; overflow:auto">
+      <div style="flex:none; width:1040px; border:1.5px dashed #9ea2a9">
+        <div style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:20px 24px 16px; background:#e8194b; border-bottom:3px solid #16171a">
+          <span style="position:absolute; top:-9px; left:44px; width:88px; height:20px; background:rgba(150,155,163,.26); border-left:1px dashed rgba(0,0,0,.18); border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2deg)"></span>
+          <div style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap">
+            <div style="background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:30px; letter-spacing:.01em; padding:9px 11px 7px; transform:rotate(-1.2deg)">TRAXWAX</div>
+            <div style="display:flex; align-items:center; gap:11px; padding-bottom:2px">
+              <span style="width:38px; height:38px; border-radius:50%; border:1.5px solid #16171a; background:#fff; flex:none"></span>
+              <div style="display:flex; flex-direction:column; gap:2px">
+                <span style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1; color:#fff">Tommy's shelf</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; color:rgba(255,255,255,.85)">SOUNDABOUNDS · COLLECTING SINCE 2004</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; gap:20px; padding-bottom:4px">
+            <div style="display:flex; flex-direction:column; gap:2px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.14em; color:rgba(255,255,255,.75)">RECORDS</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; line-height:1; color:#fff">1,204</span></div>
+            <div style="display:flex; flex-direction:column; gap:2px; border-left:1px solid rgba(255,255,255,.4); padding-left:20px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.14em; color:rgba(255,255,255,.75)">IN COMMON</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; line-height:1; color:#fff">214</span></div>
+            <div style="display:flex; flex-direction:column; gap:2px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.14em; color:rgba(255,255,255,.75)">YOU WANT</span><span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; line-height:1; color:#fff">12</span></div>
+          </div>
+        </div>
+        <div style="background:#d8dade; padding:12px 24px; display:flex; gap:16px; align-items:center; border-bottom:1px solid #d6d8dc">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.12em; color:#54585f">READ-ONLY · NO RE-SYNC · NO ACCOUNT · NO PRICES</span>
+          <span style="flex:1"></span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.12em; color:#e8194b">← BACK TO YOUR CRATE</span>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:80ch; display:flex; flex-direction:column; gap:8px; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">
+      <sc-if value="{{ showRoadmapNotes }}" hint-placeholder-val="{{ true }}">
+        <div style="border-left:3px solid #e8194b; padding-left:12px; color:#16171a"><b style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#e8194b">▸ ROADMAP SPACE </b> Not for build — this frame exists so today's owner header is designed with the visitor variant in mind. Three findings worth writing down: the owner line is the slot that becomes avatar + name + collecting-since; the stat strip takes the match numbers by <i>appending cells with a hairline divider</i>, so EST. VALUE simply drops out on someone else's shelf and nothing reflows; and the grey bar under the header is where a visiting context lives, keeping the red band's geometry identical in both modes.</div>
+      </sc-if>
+      <div>Designing today's header knowing this exists is what stops EST. VALUE from being load-bearing in the layout — on a friend's crate it can't legally appear.</div>
+    </div>
+  </div>
+
+  <div id="S19" style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">
+      <span style="background:#e8194b; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S19</span>
+      <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; color:#16171a">The card's badge slot</span>
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.12em; color:#e8194b; border:1.5px solid #e8194b; padding:3px 6px">▸ RESERVE NOW, USE IN WAVE 2</span>
+    </div>
+    <div style="background:#eceef0; border:1px solid #d6d8dc; padding:40px; display:flex; gap:30px; flex-wrap:wrap">
+
+      <div style="display:flex; flex-direction:column; gap:10px; width:236px">
+        <div style="background:#fff; border:1.5px solid #16171a; box-shadow:3px 3px 0 #16171a">
+          <div style="position:relative; margin:6px 6px 0"><div role="img" aria-label="cover" style="aspect-ratio:1/1; background-color:#e4e6e9; background-size:cover; background-position:center; background-image:url({{ c0 }})"></div>
+            <span style="position:absolute; top:8px; left:-7px; background:#e8194b; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px; transform:rotate(-2.5deg)">JUST IN</span>
+          </div>
+          <div style="padding:9px 10px 10px; display:flex; flex-direction:column; gap:5px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#666a72; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">The Raveonettes</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.05; color:#16171a">Pretty In Black</span>
+            <div style="display:flex; align-items:center; gap:6px"><span style="width:9px; height:9px; border:1.5px solid #16171a; background:linear-gradient(90deg,#ffc0cb 0 50%,#fff 50% 100%); flex:none"></span><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.06em; color:#666a72; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">HALF PINK / HALF WHITE</span></div>
+            <div style="height:1px; background:#d6d8dc"></div>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.5; letter-spacing:.06em; color:#666a72">2026 · GARAGE ROCK</span><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; color:#e8194b">$34</span></div>
+          </div>
+        </div>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.14em; color:#16171a">A · YOUR OWN CARD, TODAY</span>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px; width:236px">
+        <div style="background:#fff; border:1.5px solid #16171a; box-shadow:3px 3px 0 #16171a">
+          <div style="position:relative; margin:6px 6px 0"><div role="img" aria-label="cover" style="aspect-ratio:1/1; background-color:#e4e6e9; background-size:cover; background-position:center; background-image:url({{ c1 }})"></div>
+            <span style="position:absolute; top:8px; right:-7px; background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px; transform:rotate(2deg)">YOU OWN THIS</span>
+          </div>
+          <div style="padding:9px 10px 10px; display:flex; flex-direction:column; gap:5px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#666a72; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Wednesday</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.05; color:#16171a">Bleeds</span>
+            <div style="display:flex; align-items:center; gap:6px"><span style="width:9px; height:9px; border:1.5px solid #16171a; background:#fff; flex:none"></span><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.06em; color:#666a72">WHITE</span></div>
+            <div style="height:1px; background:#d6d8dc"></div>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.5; letter-spacing:.06em; color:#666a72">2025 · INDIE ROCK</span><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.06em; color:#9ea2a9">—</span></div>
+          </div>
+        </div>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.14em; color:#16171a">B · ON A FRIEND'S SHELF</span>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px; width:236px">
+        <div style="background:#fff; border:1.5px solid #16171a; box-shadow:3px 3px 0 #16171a">
+          <div style="position:relative; margin:6px 6px 0"><div role="img" aria-label="cover" style="aspect-ratio:1/1; background-color:#e4e6e9; background-size:cover; background-position:center; background-image:url({{ c2 }})"></div>
+            <span style="position:absolute; top:8px; right:-7px; background:#e8194b; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px; transform:rotate(2deg)">ON YOUR WANTLIST</span>
+            <span style="position:absolute; top:32px; right:-7px; background:#fff; color:#16171a; border:1.5px solid #16171a; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:2px 6px; transform:rotate(2deg)">FOR SALE</span>
+          </div>
+          <div style="padding:9px 10px 10px; display:flex; flex-direction:column; gap:5px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#666a72; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Turnstile</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.05; color:#16171a">Never Enough</span>
+            <div style="display:flex; align-items:center; gap:6px"><span style="width:9px; height:9px; border:1.5px solid #16171a; background:#ff8fa8; flex:none"></span><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.06em; color:#666a72; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">NEON FLAMINGO</span></div>
+            <div style="height:1px; background:#d6d8dc"></div>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px"><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.5; letter-spacing:.06em; color:#666a72">2025 · HARDCORE</span><span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.06em; color:#e8194b">SEE ON DISCOGS →</span></div>
+          </div>
+        </div>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.14em; color:#16171a">C · WANTED, AND FOR SALE</span>
+      </div>
+
+    </div>
+    <div style="max-width:80ch; display:flex; flex-direction:column; gap:8px; font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#54585f">
+      <div>The card gains one reserved region: the cover's right edge, mirroring JUST IN on the left, stacking downward at 24px intervals. Two badges is the cap.</div>
+      <sc-if value="{{ showRoadmapNotes }}" hint-placeholder-val="{{ true }}">
+        <div style="border-left:3px solid #e8194b; padding-left:12px; color:#16171a"><b style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:#e8194b">▸ ROADMAP SPACE </b> Badge grammar, decided now: <b>accent fill</b> = something is true about <i>you</i> (on your wantlist); <b>black fill</b> = something is true about <i>both</i> of you (you own this too); <b>white with a black rule</b> = an action lives elsewhere (for sale on Discogs). And the price cell is the load-bearing detail — on a friend's card the server sends no price, so the cell holds an em-dash or the Discogs link rather than collapsing. The meta row stays <code style="font-family:'IBM Plex Mono',monospace; font-size:11.5px">align-items:flex-start</code>, so card heights never move between your shelf and theirs.</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ showDarkSection }}" hint-placeholder-val="{{ true }}">
+  <div id="S20" style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">
+      <span style="background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em; padding:5px 9px">S20</span>
+      <span style="font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:700; color:#16171a">Lights out</span>
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:#54585f">the same surfaces on the dark token set</span>
+    </div>
+    <div style="background:#0e0f11; border:1px solid #2b2d33; padding:56px 44px; display:flex; flex-wrap:wrap; gap:48px 44px; align-items:flex-start">
+
+      <div style="position:relative; width:520px; background:#17181b; border:1.5px solid #3a3d44; box-shadow:6px 6px 0 #000; margin-top:14px">
+        <div style="height:5px; background:#e01046"></div>
+        <div style="position:absolute; top:-17px; left:24px; background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:22px; letter-spacing:.01em; padding:7px 10px 5px; transform:rotate(-1.2deg); border:1.5px solid #3a3d44">TRAXWAX</div>
+        <span style="position:absolute; top:-9px; right:40px; width:78px; height:18px; background:rgba(255,255,255,.12); border-left:1px dashed rgba(255,255,255,.16); border-right:1px dashed rgba(255,255,255,.16); transform:rotate(2.5deg)"></span>
+        <div style="padding:38px 30px 26px; display:flex; flex-direction:column; gap:20px">
+          <div style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:#e01046">IMPORT · RUNNING</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:700; line-height:1; color:#f0efed">Filing your records</span>
+            <span style="font-family:Archivo,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#b4b7bd">Pulling your collection from Discogs. This runs once, and it's under a minute for most crates.</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px">
+            <div style="display:flex; align-items:baseline; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.1em"><span style="color:#f0efed">PAGE 7 OF 19</span><span style="color:#e01046">642 RECORDS</span></div>
+            <div style="height:14px; background:#212329; border:1.5px solid #3a3d44; padding:2px"><div style="width:37%; height:100%; background:#e01046"></div></div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; color:#9ea2a9">Tracklists and sleeve detail keep loading in the background once your crate opens.</div>
+          </div>
+          <div style="border-top:1px solid #2b2d33; padding-top:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:#9ea2a9">Sign out</div>
+        </div>
+      </div>
+
+      <div style="width:400px; background:#17181b; border:1.5px solid #3a3d44; padding:18px 0">
+        <div style="display:flex; align-items:center; gap:12px; padding:0 18px 18px; border-bottom:1px solid #2b2d33; margin-bottom:12px">
+          <span style="width:40px; height:40px; border-radius:50%; border:1.5px solid #3a3d44; background:#fff; display:inline-flex; align-items:center; justify-content:center; flex:none"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"></circle><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"></path></svg></span>
+          <div style="display:flex; flex-direction:column; gap:2px">
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:700; line-height:1; color:#f0efed">Lane Becker</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:#9ea2a9">lanebecker</span>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; padding:11px 18px; background:#212329; border-left:4px solid #e01046"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#f0efed">PROFILE</span></div>
+        <div style="display:flex; align-items:center; gap:8px; padding:11px 18px 11px 22px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#b4b7bd">SHARING</span><span style="font-family:'IBM Plex Mono',monospace; font-size:8.5px; font-weight:700; letter-spacing:.12em; color:#e01046; border:1px solid #e01046; padding:2px 4px">SOON</span></div>
+        <div style="display:flex; align-items:center; gap:8px; padding:11px 18px 11px 22px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#b4b7bd">FRIENDS</span><span style="font-family:'IBM Plex Mono',monospace; font-size:8.5px; font-weight:700; letter-spacing:.12em; color:#e01046; border:1px solid #e01046; padding:2px 4px">SOON</span></div>
+        <div style="padding:11px 18px 11px 22px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#b4b7bd">DISCOGS</span></div>
+        <div style="height:1px; background:#2b2d33; margin:12px 0"></div>
+        <div style="padding:11px 18px 11px 22px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.12em; color:#e01046">DANGER ZONE</span></div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px; width:220px">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.16em; color:#e01046">DARK NOTES</div>
+        <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#b4b7bd">The wordmark block stays black in both themes per the spec — in dark it gains a <code style="font-family:'IBM Plex Mono',monospace; font-size:11.5px">--line</code> border so it doesn't dissolve into the card.</div>
+        <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#b4b7bd">Offset shadows go to pure black. Accent drops to <code style="font-family:'IBM Plex Mono',monospace; font-size:11.5px">#e01046</code>, which is the only value that clears AA with white text.</div>
+        <div style="font-family:Archivo,Helvetica,sans-serif; font-size:12.5px; line-height:1.7; color:#b4b7bd">The avatar circle keeps a white fill, because the house user glyph is a fixed ink shape.</div>
+      </div>
+
+    </div>
+  </div>
+  </sc-if>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showRoadmapNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Annotations&quot;},&quot;showImplNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Annotations&quot;},&quot;showDarkSection&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Annotations&quot;}}">
+class Component extends DCLogic {
+  state = { records: [] };
+  componentDidMount() {
+    import('./records.js').then(m => this.setState({ records: m.RECORDS || [] })).catch(() => {});
+  }
+  renderVals() {
+    const r = this.state.records;
+    const cover = (i) => (r[i] && (r[i].thumb || '')) || '';
+    return {
+      showRoadmapNotes: this.props.showRoadmapNotes ?? true,
+      showImplNotes: this.props.showImplNotes ?? true,
+      showDarkSection: this.props.showDarkSection ?? true,
+      heroTiles: r.slice(0, 12).map((x, i) => ({
+        img: 'url("' + (x.thumb || '') + '")',
+        key: i
+      })),
+      c0: cover(0), c1: cover(1), c2: cover(2),
+      rec0: r[0] || {}, rec1: r[1] || {}, rec2: r[2] || {}
+    };
+  }
+}
+</script>
+</body>
+</html>

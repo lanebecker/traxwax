@@ -25,6 +25,8 @@
    user, and never re-evaluated — leaving a signed-in user staring at a sign-in form. */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import * as UI from '/boot.ui.js';          // the shell system + every non-crate surface
+import { clerkAppearance } from '/boot.clerk.js';   // S2/S3 auth chrome
 
 const SUPABASE_URL = 'https://sfipqknrbvamwwahwxnl.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_RLxgLYBzZoh5YCkYJ3NJZw_8BLFMIWg';
@@ -62,15 +64,12 @@ function initThemeEarly() {
   document.body.dataset.theme = t;
 }
 
-function shell(inner) {
-  return `<div style="max-width:640px; margin:0 auto; padding:96px 0;
-    font-family:'IBM Plex Mono',monospace; color:var(--ink)">${inner}</div>`;
-}
+/* shell() — the bare 640px column every state used to wear — is retired. Its callers now
+   render UI.stateCard() (public/boot.ui.js), which supplies the wordmark, kicker, and frame
+   that make a system message read as the same artifact as the crate. (Surfaces spec §1.) */
 
-function esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+/* esc() is now UI.esc (boot.ui.js) — every former caller here routes through the state
+   card, which owns escaping. No local copy remains, to keep one source of truth. */
 
 function clearAuthMount() {
   if (!mountedAuthNode) return;
@@ -79,31 +78,50 @@ function clearAuthMount() {
   mountedAuthNode = null;
 }
 
-function notice(title, bodyHtml, withSignOut = false) {
+/* notice() is now a thin shim over UI.stateCard() (surfaces spec step 3). Every existing
+   call keeps working, wearing the card; call sites that need a kicker / problem slab /
+   custom actions pass them through opts. Copy lives in UI.COPY, not inline here. */
+function notice(title, bodyHtml, withSignOut = false, opts = {}) {
   clearAuthMount();
-  const signOut = withSignOut
-    ? `<div style="margin-top:28px"><a href="#" id="tw-signout"
-         style="color:var(--muted); font-size:11px">Sign out</a></div>`
-    : '';
-  app().innerHTML = shell(`
-    <div style="font-family:Anton,sans-serif; font-size:34px; letter-spacing:.02em;
-      color:var(--accent); margin-bottom:14px">${esc(title)}</div>
-    <div style="font-size:13px; line-height:1.7; color:var(--muted)">${bodyHtml}</div>
-    ${signOut}
-  `);
+  const el = app();
+  // A state card owns its own full-screen layout; drop any lingering page class (the
+  // account page's tw-acct-wrap) so a card rendered over it — e.g. RE-SYNC → runImport —
+  // isn't double-wrapped. showError() does the same for the error path.
+  el.className = '';
+  el.innerHTML = UI.stateCard({
+    kicker: opts.kicker || 'TRAXWAX',
+    headline: title,
+    body: bodyHtml,
+    problem: opts.problem,
+    extra: opts.extra,
+    actions: opts.actions,
+    rule: opts.rule,
+    footer: withSignOut ? UI.signOutLink : opts.footer,
+  });
   const so = document.getElementById('tw-signout');
   if (so) so.addEventListener('click', (e) => { e.preventDefault(); window.Clerk.signOut(); });
 }
 
+/* S11: the raw exception moves into a collapsed <details> labelled TECHNICAL DETAIL — still
+   there when debugging with a user, no longer the first thing they read. */
 function showError(err) {
   const el = app();
   if (!el) return;
-  el.innerHTML = shell(`
-    <div style="font-family:Anton,sans-serif; font-size:34px; color:var(--accent);
-      margin-bottom:14px">Something went sideways</div>
-    <div style="font-size:13px; line-height:1.7; color:var(--muted)">${
-      esc(String((err && err.message) || err))
-    }</div>`);
+  clearAuthMount();
+  el.className = '';   // in case we're erroring out of the account page (tw-acct-wrap)
+  el.innerHTML = UI.stateCard({
+    kicker: UI.COPY.unexpected.kicker,
+    headline: UI.COPY.unexpected.headline,
+    body: UI.COPY.unexpected.body,
+    extra: '<details style="' + UI.MONO + '; font-size:10.5px; color:var(--faint)">' +
+      '<summary style="cursor:pointer; letter-spacing:.12em; text-transform:uppercase">' +
+      'Technical detail</summary>' +
+      '<pre style="white-space:pre-wrap; word-break:break-word; margin:10px 0 0; ' + UI.MONO +
+      '; font-size:11px; color:var(--muted)">' + UI.esc(String((err && err.message) || err)) +
+      '</pre></details>',
+    actions: UI.btnLink(UI.COPY.unexpected.cta,
+      window.location.pathname + window.location.search, { variant: 'secondary' }),
+  });
   console.error(err);
 }
 
@@ -150,13 +168,8 @@ async function ensureProfile(userId) {
   return data;
 }
 
-/* Phase 2 profiles: the house no-photo user icon — flat head-and-shoulders in the
-   TraxWax idiom. Returns an inline SVG sized to fit a circle of the given px. */
-function TW_USER_ICON(px) {
-  return '<svg width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true">' +
-    '<circle cx="12" cy="8.2" r="4.2" fill="#16171a"/>' +
-    '<path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"/></svg>';
-}
+/* The house no-photo user icon (TW_USER_ICON) moved to UI.userIcon(px) / UI.avatar(url, px)
+   in boot.ui.js — same fixed-ink SVG, plus the never-render-<img src=""> guard. */
 
 /* Stage D data providers. app.js stays dependency-free: everything it needs from the
    authenticated world arrives through these four globals, installed before it is imported.
@@ -238,8 +251,10 @@ function installCrateProviders(profile) {
 
   window.TraxWaxOwner = ownerInfo(profile);
 
-  // Phase 2 (#8): the ACCOUNT modal opener; app.js's header button calls this.
-  window.TraxWaxAccount = openAccountModal;
+  // The account surface is a ROUTE now (S13–S16), not a modal. app.js's header avatar
+  // button still calls window.TraxWaxAccount() via its data-act="account" delegate —
+  // nothing in app.js changes.
+  window.TraxWaxAccount = () => { window.location.href = '/account'; };
 }
 function ownerInfo(profile) {
   return {
@@ -300,14 +315,17 @@ const _pipeAttempt = async (fn, onLine) => {
 
 /* The import phase only: pages 1..N with elapsed-aware pacing (audit #14: a fixed 250ms
    pace only held 60/min while round-trips stayed >=750ms). Throws on give-up. */
-async function importLoop(onLine) {
+/* onProgress(page, pages, items) drives the S7 progress bar; onHiccup(msg) is the retry
+   line _pipeAttempt writes on a transient failure. Both optional (backgroundHeal passes
+   neither). Previously one onLine string callback did double duty. */
+async function importLoop(onProgress, onHiccup) {
   let page = 1, pages = 1, startedAt = null;
   do {
     const t0 = Date.now();
     const d = await _pipeAttempt(() => _pipeCall('import-collection',
-      startedAt ? { page, started_at: startedAt } : { page }), onLine);
+      startedAt ? { page, started_at: startedAt } : { page }), onHiccup);
     pages = d.pages; startedAt = d.started_at;
-    onLine('Importing — page ' + d.page + ' of ' + d.pages + ' (' + d.items + ' records)');
+    if (onProgress) onProgress(d.page, d.pages, d.items);
     if (d.done) break;
     page++;
     const elapsed = Date.now() - t0;
@@ -352,271 +370,138 @@ function backgroundEnrich() {
    with no UI, then the background drain. */
 function backgroundHeal() {
   (async () => {
-    try { await importLoop(() => {}); }
+    try { await importLoop(); }
     catch (e) { console.warn('background import heal stopped:', e); return; }
     backgroundEnrich();
   })();
 }
 
 /* Blocking import with progress UI; returns true when the caller may continue rendering.
-   Enrichment is NOT awaited -- the crate renders and tracklists fill in behind it. */
+   Enrichment is NOT awaited -- the crate renders and tracklists fill in behind it.
+   S7/S8: the progress line is now a real bar (UI.progressBar); on failure the bar STAYS on
+   screen and goes grey at the page it reached — seeing how far it got is what makes
+   "nothing is lost" believable. _lastImport* remember that position for the failure card. */
+let _lastImportPage = 0, _lastImportPages = 1, _lastImportPct = 0;
 async function runImport() {
-  const setLine = (msg) => {
-    const el = document.getElementById('tw-import-line');
-    if (el) el.textContent = msg;
+  const setProgress = (page, pages, items) => {
+    _lastImportPage = page; _lastImportPages = pages;
+    _lastImportPct = (page / Math.max(1, pages)) * 100;
+    const el = document.getElementById('tw-import-progress');
+    if (!el) return;
+    el.innerHTML =
+      '<div style="display:flex; align-items:baseline; justify-content:space-between; ' +
+        "font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; " +
+        'letter-spacing:.1em"><span style="color:var(--ink)">PAGE ' + page + ' OF ' + pages +
+        '</span><span style="color:var(--accent)">' + items.toLocaleString() + ' RECORDS</span></div>' +
+      UI.progressBar(_lastImportPct);
   };
-  notice('Filing your records',
-    'Pulling your collection from Discogs. This runs once and takes under a minute for ' +
-    'most crates.<br><br><div id="tw-import-line" style="color:var(--accent); ' +
-    "font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.08em\">" +
-    'Contacting Discogs…</div>', true);
+  _lastImportPage = 0; _lastImportPages = 1; _lastImportPct = 0;
+  notice(UI.COPY.importRunning.headline, UI.COPY.importRunning.body, true, {
+    kicker: UI.COPY.importRunning.kicker,
+    extra: '<div id="tw-import-progress">' +
+        '<div style="display:flex; align-items:baseline; justify-content:space-between; ' +
+        UI.MONO + '; font-size:11px; font-weight:700; letter-spacing:.1em">' +
+        '<span style="color:var(--ink)">CONTACTING DISCOGS…</span></div>' +
+        UI.progressBar(0) + '</div>' +
+      '<div style="' + UI.MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--faint); ' +
+        'line-height:1.5">' + UI.esc(UI.COPY.importRunning.aside) + '</div>',
+  });
+  // Surface transient-retry ("Hiccup … — retrying") beneath the bar; the next successful
+  // page redraws #tw-import-progress and clears it, which is the behaviour we want.
+  const onHiccup = (m) => {
+    const el = document.getElementById('tw-import-progress');
+    if (el) el.insertAdjacentHTML('beforeend',
+      '<div style="' + UI.MONO + '; font-size:10px; letter-spacing:.04em; color:var(--accent); ' +
+      'margin-top:6px">' + UI.esc(m) + '</div>');
+  };
   try {
-    await importLoop(setLine);
+    await importLoop(setProgress, onHiccup);
   } catch (e) {
     console.error(e);
-    notice('Import hit a wall',
-      'We could not finish pulling your collection from Discogs. Nothing is lost — ' +
-      'reloading this page picks up where it left off.<br><br>' +
-      '<a href="" style="color:var(--accent)">Reload and resume</a>', true);
+    notice(UI.COPY.importFailed.headline, UI.COPY.importFailed.body, true, {
+      kicker: 'IMPORT · STOPPED AT PAGE ' + (_lastImportPage || 1),
+      extra: '<div>' + UI.progressBar(_lastImportPct, true) + '</div>',
+      actions: UI.btnLink(UI.COPY.importFailed.cta,
+        window.location.pathname + window.location.search, { variant: 'primary' }),
+    });
     return false;
   }
   backgroundEnrich();
   return true;
 }
 
-/* Phase 2 (#8): the ACCOUNT modal. Rendered as its own overlay OUTSIDE #app so app.js
-   re-renders cannot destroy it. Opened via window.TraxWaxAccount (installed in
-   installCrateProviders); app.js's header ACCOUNT button calls it. */
-function openAccountModal() {
-  if (document.getElementById('tw-account-ov')) return;
-  const owner = window.TraxWaxOwner || {};
-  // Rev1-F7: derive the username only when ownerLine carries one; the null-username form
-  // ("Your shelf · filed by whim") is unreachable here (the crate loads only after
-  // discogs_username is set) but must not display as a fake handle if that ever changes.
-  const unameMatch = (owner.ownerLine || '').match(/^(.*)'s shelf/);
-  const uname = unameMatch ? unameMatch[1] : 'your Discogs account';
-  const mono = "font-family:'IBM Plex Mono',monospace;";
-  const acctInp = mono + ' font-size:11.5px; padding:8px 10px; flex:1; min-width:0; ' +
-    'background:var(--panel); color:var(--ink); border:1.5px solid var(--line); ' +
-    'border-radius:0; box-sizing:border-box; display:block; width:100%';
-  const ov = document.createElement('div');
-  ov.id = 'tw-account-ov';
-  ov.style.cssText = 'position:fixed; inset:0; background:rgba(10,10,12,.62); ' +
-    'display:flex; align-items:flex-start; justify-content:center; padding:80px 20px; ' +
-    'overflow:auto; z-index:60';
-  ov.innerHTML =
-    '<div id="tw-account-box" style="position:relative; width:520px; max-width:100%; ' +
-    'background:var(--panel); border:1.5px solid var(--line); ' +
-    'box-shadow:8px 8px 0 rgba(0,0,0,.4); padding:24px; color:var(--ink)">' +
-    '<button id="tw-acct-close" title="Close" style="position:absolute; top:12px; right:12px; ' +
-    'width:28px; height:28px; border:1.5px solid var(--line); background:var(--panel); ' +
-    mono + ' font-size:12px; cursor:pointer">✕</button>' +
-    '<div style="font-family:Anton,sans-serif; font-size:26px; color:var(--accent); ' +
-    'margin-bottom:6px">YOUR ACCOUNT</div>' +
-    '<div style="' + mono + ' font-size:11px; color:var(--muted); margin-bottom:20px">' +
-    'Connected to Discogs as <b>' + esc(uname) + '</b></div>' +
-    '<div id="tw-acct-msg" style="' + mono + ' font-size:11.5px; color:var(--accent); ' +
-    'line-height:1.6; margin-bottom:14px"></div>' +
-    // ── Phase 2: PROFILE ──────────────────────────────────────────────────────
-    '<div style="border:1.5px solid var(--line); padding:16px; margin-bottom:18px">' +
-    '<div style="display:flex; gap:14px; align-items:center; margin-bottom:12px">' +
-    // rev1-F6: never render <img src=""> (broken-image glyph; some browsers re-request
-    // the page). Falsy avatarUrl gets the house user icon instead.
-    (owner.avatarUrl
-      ? '<img id="tw-prof-avatar" src="' + esc(owner.avatarUrl) + '" alt="" ' +
-        'style="width:56px; height:56px; border-radius:50%; border:1.5px solid var(--line); ' +
-        'object-fit:cover; background:var(--skel)" />'
-      : '<span id="tw-prof-avatar" style="width:56px; height:56px; border-radius:50%; ' +
-        // background #fff, not var(--skel): the glyph is fixed #16171a and must stay
-        // visible in dark theme (pass-2 advisory) — same treatment as the header button.
-        'border:1.5px solid var(--line); background:#fff; display:inline-flex; ' +
-        'align-items:center; justify-content:center">' + TW_USER_ICON(34) + '</span>') +
-    '<label style="' + mono + ' font-size:10.5px; color:var(--muted); cursor:pointer">' +
-    'CHANGE PHOTO<input id="tw-prof-photo" type="file" ' +
-    'accept="image/jpeg,image/png,image/webp" style="display:none" /></label>' +
-    '</div>' +
-    '<div style="display:flex; gap:8px; margin-bottom:8px">' +
-    '<input id="tw-prof-first" placeholder="First name" style="' + acctInp + '" />' +
-    '<input id="tw-prof-last" placeholder="Last name" style="' + acctInp + '" />' +
-    '</div>' +
-    '<input id="tw-prof-bio" placeholder="Bio — one line about your collection" ' +
-    'maxlength="200" style="' + acctInp + ' margin-bottom:8px" />' +
-    '<div style="display:flex; gap:8px; margin-bottom:8px">' +
-    '<input id="tw-prof-loc" placeholder="Location" maxlength="100" style="' + acctInp + '" />' +
-    '<input id="tw-prof-since" placeholder="Collecting since (year)" inputmode="numeric" ' +
-    'maxlength="4" style="' + acctInp + ' width:170px; flex:none" />' +
-    '</div>' +
-    '<input id="tw-prof-link1" placeholder="Link (https://…)" maxlength="200" ' +
-    'style="' + acctInp + ' margin-bottom:8px" />' +
-    '<input id="tw-prof-link2" placeholder="Another link (https://…)" maxlength="200" ' +
-    'style="' + acctInp + ' margin-bottom:12px" />' +
-    '<button id="tw-prof-save" style="' + mono + ' font-size:11px; font-weight:700; ' +
-    'letter-spacing:.08em; padding:9px 14px; border:1.5px solid var(--line); ' +
-    'background:var(--ink); color:var(--panel); cursor:pointer">SAVE PROFILE</button>' +
-    '</div>' +
-    '<div style="border:1.5px solid var(--line); padding:16px; margin-bottom:18px">' +
-    '<div style="' + mono + ' font-size:11px; line-height:1.7; color:var(--muted); ' +
-    'margin-bottom:12px">Disconnecting removes your imported collection from TraxWax. ' +
-    'Your Discogs account is untouched, and reconnecting re-imports everything in about ' +
-    'a minute. To fully revoke TraxWax’s access, also remove it under ' +
-    'Discogs → Settings → Applications.</div>' +
-    '<button id="tw-acct-disc" style="' + mono + ' font-size:11px; font-weight:700; ' +
-    'letter-spacing:.08em; padding:9px 14px; border:1.5px solid var(--line); ' +
-    'background:var(--panel); color:var(--ink); cursor:pointer">DISCONNECT DISCOGS</button>' +
-    '</div>' +
-    '<div style="border:1.5px solid var(--accent); padding:16px">' +
-    '<div style="' + mono + ' font-size:11px; line-height:1.7; color:var(--muted); ' +
-    'margin-bottom:12px">Deleting removes everything TraxWax stores about you — profile, ' +
-    'imported collection, Discogs connection. Your sign-in identity is <b>not</b> deleted ' +
-    'and keeps working for other apps. Type <b>DELETE</b> to confirm.</div>' +
-    '<div style="display:flex; gap:8px">' +
-    '<input id="tw-acct-confirm" placeholder="DELETE" autocomplete="off" style="' + mono +
-    ' font-size:11px; padding:8px 10px; width:110px; background:var(--panel); ' +
-    'color:var(--ink); border:1.5px solid var(--line); border-radius:0" />' +
-    '<button id="tw-acct-del" disabled style="' + mono + ' font-size:11px; font-weight:700; ' +
-    'letter-spacing:.08em; padding:9px 14px; border:1.5px solid var(--line); ' +
-    'background:var(--accent); color:var(--on-accent); cursor:pointer; opacity:.45">' +
-    'DELETE MY TRAXWAX DATA</button>' +
-    '</div></div></div>';
-  document.body.appendChild(ov);
-
-  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-  document.getElementById('tw-acct-close').addEventListener('click', close);
-
-  const msg = (t) => { const el = document.getElementById('tw-acct-msg'); if (el) el.textContent = t; };
-
-  // ── Phase 2: populate + save the profile section ─────────────────────────
-  (async () => {
-    try {
-      const { data: p } = await supabase.from('profiles')
-        .select('bio, location, collecting_since, link1, link2')
-        .eq('user_id', window.Clerk.user.id).single();
-      const u = window.Clerk.user;
-      const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
-      set('tw-prof-first', u.firstName); set('tw-prof-last', u.lastName);
-      if (p) {
-        set('tw-prof-bio', p.bio); set('tw-prof-loc', p.location);
-        set('tw-prof-since', p.collecting_since ? String(p.collecting_since) : '');
-        set('tw-prof-link1', p.link1); set('tw-prof-link2', p.link2);
-      }
-    } catch (e) { console.error(e); }
-  })();
-
-  const photoInput = document.getElementById('tw-prof-photo');
-  photoInput.addEventListener('change', async () => {
-    const f = photoInput.files[0];
-    if (!f) return;
-    if (f.size > 10 * 1024 * 1024) { msg('That photo is over 10 MB — pick a smaller one.'); return; }
-    msg('Uploading photo…');
-    try {
-      await window.Clerk.user.setProfileImage({ file: f });
-      await window.Clerk.user.reload();   // rev1-F2: imageUrl can be stale until reload
-      const img = document.getElementById('tw-prof-avatar');
-      if (img && img.tagName === 'IMG') img.src = window.Clerk.user.imageUrl;
-      // Sync the new URL to the DB copy + the header button.
-      const p = await ensureProfile(window.Clerk.user.id);
-      window.TraxWaxOwner = ownerInfo(p);
-      msg('Photo updated.');
-    } catch (e) { msg('Photo upload failed (' + ((e && e.message) || e) + ').'); }
+/* S13\u2013S16: the account surface is a ROUTE (/account, /account/discogs), not a modal.
+   Rendered by UI.accountPageHtml + UI.bindAccountPage (public/boot.ui.js), which own the
+   pixels; every network action is injected here so that module stays Clerk/Supabase-free.
+   Why a page, not a modal: Wave 1's friend list is browsable content that needs a URL, and
+   the consent toggles need room for copy that carries weight. (Surfaces spec \u00a76.) */
+async function renderAccount(profile, section) {
+  clearAuthMount();
+  let count = null;
+  try {
+    const res = await supabase.from('collection_items')
+      .select('*', { count: 'exact', head: true });
+    count = res.count;
+  } catch (e) { /* the connection panel shows an em-dash if the count is unavailable */ }
+  const el = app();
+  el.className = 'tw-acct-wrap';
+  el.innerHTML = UI.accountPageHtml({
+    profile,
+    clerkUser: window.Clerk.user,
+    recordCount: count == null ? null : count,
+    lastSyncedLabel: profile.last_import_at
+      ? new Date(profile.last_import_at).toLocaleString() : 'Never',
+    section,
+    crateHref: '/app/' + encodeURIComponent(profile.discogs_username || ''),
+    hrefFor: (id) => (id === 'profile' ? '/account' : '/account/' + id),
   });
-
-  document.getElementById('tw-prof-save').addEventListener('click', async () => {
-    const val = (id) => (document.getElementById(id)?.value ?? '').trim();
-    const saveBtn = document.getElementById('tw-prof-save');
-    // rev1-F10: once Task L1 makes Name required, Clerk rejects an empty first name —
-    // and that failure would take the unrelated bio/location edits down with it.
-    if (!val('tw-prof-first')) { msg('First name can’t be empty.'); return; }
-    const sinceRaw = val('tw-prof-since');
-    const since = sinceRaw ? Number(sinceRaw) : null;
-    if (sinceRaw && (!Number.isInteger(since) || since < 1900 || since > 2100)) {
-      msg('“Collecting since” wants a year, like 1998.'); return;
-    }
-    for (const id of ['tw-prof-link1', 'tw-prof-link2']) {
-      const v = val(id);
-      if (v && !v.startsWith('https://')) { msg('Links need to start with https://'); return; }
-    }
-    saveBtn.disabled = true; saveBtn.textContent = 'SAVING…';
-    try {
-      await window.Clerk.user.update({
-        firstName: val('tw-prof-first'), lastName: val('tw-prof-last'),
-      });
+  UI.bindAccountPage(el, {
+    onSaveProfile: async (v) => {
+      await window.Clerk.user.update({ firstName: v.firstName, lastName: v.lastName });
       const { error } = await supabase.from('profiles').update({
-        bio: val('tw-prof-bio') || null,
-        location: val('tw-prof-loc') || null,
-        collecting_since: since,
-        link1: val('tw-prof-link1') || null,
-        link2: val('tw-prof-link2') || null,
+        bio: v.bio, location: v.location, collecting_since: v.collecting_since,
+        link1: v.link1, link2: v.link2,
       }).eq('user_id', window.Clerk.user.id);
       if (error) throw new Error(error.message);
-      const p = await ensureProfile(window.Clerk.user.id);   // re-sync name → display_name
+      const p = await ensureProfile(window.Clerk.user.id);   // re-sync name -> display_name
       window.TraxWaxOwner = ownerInfo(p);
-      msg('Profile saved.');
-    } catch (e) {
-      msg('Save failed (' + ((e && e.message) || e) + ').');
-    }
-    saveBtn.disabled = false; saveBtn.textContent = 'SAVE PROFILE';
+    },
+    onUploadPhoto: async (file) => {
+      await window.Clerk.user.setProfileImage({ file });
+      await window.Clerk.user.reload();          // imageUrl is stale until reload
+      const p = await ensureProfile(window.Clerk.user.id);
+      window.TraxWaxOwner = ownerInfo(p);
+      return window.Clerk.user.imageUrl;
+    },
+    // RE-SYNC runs the full import pipeline, which renders its own progress card over this
+    // page (runImport -> notice). On success we reload so the fresh count/last-synced show;
+    // on failure runImport's own "stopped" card stays and we must NOT paint over it.
+    onResync: async () => { const ok = await runImport(); if (ok) window.location.reload(); },
+    onDisconnect: async () => { await _pipeCall('disconnect-discogs', {}); window.location.href = '/app'; },
+    onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); await window.Clerk.signOut(); },
   });
-
-  const disc = document.getElementById('tw-acct-disc');
-  let discArmed = false;
-  disc.addEventListener('click', async () => {
-    if (!discArmed) {
-      discArmed = true;
-      disc.textContent = 'REALLY DISCONNECT — REMOVES IMPORTED COLLECTION';
-      return;
-    }
-    disc.disabled = true;
-    disc.textContent = 'DISCONNECTING…';
-    try {
-      await _pipeCall('disconnect-discogs', {});
-      // Full reload: routing sees discogs_username null → the connect card.
-      window.location.href = '/app';
-    } catch (e) {
-      disc.disabled = false;
-      disc.textContent = 'DISCONNECT DISCOGS';
-      discArmed = false;
-      msg('Disconnect failed (' + ((e && e.message) || e) + '). Try again.');
-    }
-  });
-
-  const confirmInput = document.getElementById('tw-acct-confirm');
-  const delBtn = document.getElementById('tw-acct-del');
-  confirmInput.addEventListener('input', () => {
-    const ok = confirmInput.value === 'DELETE';
-    delBtn.disabled = !ok;
-    delBtn.style.opacity = ok ? '1' : '.45';
-  });
-  delBtn.addEventListener('click', async () => {
-    if (confirmInput.value !== 'DELETE') return;
-    delBtn.disabled = true;
-    delBtn.textContent = 'DELETING…';
-    try {
-      await _pipeCall('delete-account', { confirm: 'DELETE' });
-      msg('Deleted. Signing you out…');
-      await window.Clerk.signOut();   // afterSignOutUrl '/' lands on the landing page
-    } catch (e) {
-      delBtn.disabled = false;
-      delBtn.textContent = 'DELETE MY TRAXWAX DATA';
-      msg('Deletion failed (' + ((e && e.message) || e) + '). Try again.');
-    }
-  });
+  const release = UI.trapFocus(el, null);   // no Escape handler -- it's a page, not a modal
+  window.addEventListener('popstate', release, { once: true });
 }
 
+/* S2 / S3: TraxWax chrome, stock card. Our state card supplies the wordmark + kicker +
+   headline; Clerk's component mounts inside the `extra` slot. The step counter on sign-up
+   names the three doors up front, which is why people don't abandon at "connect". */
 function mountAuth() {
   clearAuthMount();
   const wantSignUp = new URLSearchParams(window.location.search).get('mode') === 'signup';
 
-  app().innerHTML = shell(`
-    <div id="tw-auth"></div>
-    <div style="margin-top:20px; text-align:center; font-size:11px; color:var(--muted)">${
-      wantSignUp
-        ? 'Already have an account? <a href="/app" style="color:var(--accent)">Sign in</a>'
-        : 'New here? <a href="/app?mode=signup" style="color:var(--accent)">Create an account</a>'
-    }</div>
-  `);
+  app().innerHTML = UI.stateCard({
+    kicker: wantSignUp ? 'CREATE AN ACCOUNT · STEP 1 OF 3' : 'SIGN IN',
+    headline: wantSignUp ? 'Start a crate' : 'Back to the crate',
+    body: wantSignUp
+      ? 'Sign up, name your shelf, connect Discogs. Under two minutes, then it files itself.'
+      : '',
+    extra: '<div id="tw-auth"></div>',
+    footer: wantSignUp
+      ? 'Already have an account? <a href="/app" style="color:var(--accent)">Sign in</a>'
+      : 'New here? <a href="/app?mode=signup" style="color:var(--accent)">Create an account</a>',
+  });
 
   const node = document.getElementById('tw-auth');
   mountedAuthNode = node;
@@ -648,6 +533,17 @@ async function render() {
   clearAuthMount();
   const profile = await ensureProfile(window.Clerk.user.id);
 
+  // S13–S16: the account surface lives at /account and /account/discogs, OUTSIDE the
+  // /app/<username> grammar — no reserved-word carve-out, no collision (surfaces spec §6,
+  // Lane's decision 2026-08-29). Reached only when signed in; the isSignedIn guard above
+  // has already sent a signed-out visitor to the sign-in card. Branch here, before the
+  // onboarding/connect gates, so /account is always a place you can land.
+  if (segments[0] && segments[0].toLowerCase() === 'account') {
+    const sub = segments[1] ? segments[1].toLowerCase() : 'profile';
+    await renderAccount(profile, sub === 'discogs' ? 'discogs' : 'profile');
+    return;
+  }
+
   // Phase 2 profiles: ONE skippable completion card, only when the name is missing
   // (email/password signups before the Clerk name toggle, or with it off; Google users
   // arrive complete and never see this). Skipping is remembered per browser; completing
@@ -658,37 +554,41 @@ async function render() {
   // 15 minutes and the verify handler must run first.
   const inVerifyLeg = new URLSearchParams(window.location.search).get('connect') === 'verify';
   if (!window.Clerk.user.firstName && !profileSkip && !inVerifyLeg) {
-    const mono = "font-family:'IBM Plex Mono',monospace;";
-    const inp = 'style="' + mono + ' font-size:12px; padding:9px 11px; width:100%; ' +
-      'background:var(--panel); color:var(--ink); border:1.5px solid var(--line); ' +
-      'border-radius:0; box-sizing:border-box"';
-    app().innerHTML = shell(`
-      <div style="font-family:Anton,sans-serif; font-size:34px; letter-spacing:.02em;
-        color:var(--accent); margin-bottom:14px">Whose crate is this?</div>
-      <div style="font-size:13px; line-height:1.7; color:var(--muted); margin-bottom:18px">
-        A name for your shelf — and a photo if you like. You can change both any time
-        from the account button.</div>
-      <div id="tw-ob-err" style="${mono} font-size:11.5px; color:var(--accent);
-        margin-bottom:12px"></div>
-      <div style="display:flex; gap:10px; margin-bottom:10px">
-        <input id="tw-ob-first" placeholder="First name" autocomplete="given-name" ${inp} />
-        <input id="tw-ob-last" placeholder="Last name" autocomplete="family-name" ${inp} />
-      </div>
-      <div style="margin-bottom:18px">
-        <label style="${mono} font-size:11px; color:var(--muted)">Photo (optional)
-          <input id="tw-ob-photo" type="file" accept="image/jpeg,image/png,image/webp"
-            style="display:block; margin-top:6px; ${mono} font-size:11px; color:var(--ink)" />
-        </label>
-      </div>
-      <div style="display:flex; gap:10px">
-        <button id="tw-ob-save" style="${mono} font-size:12px; font-weight:700;
-          letter-spacing:.1em; padding:11px 18px; border:1.5px solid var(--line);
-          background:var(--accent); color:var(--on-accent); cursor:pointer">SAVE</button>
-        <button id="tw-ob-skip" style="${mono} font-size:12px; letter-spacing:.1em;
-          padding:11px 18px; border:1.5px solid var(--line); background:var(--panel);
-          color:var(--muted); cursor:pointer">SKIP FOR NOW</button>
-      </div>
-    `);
+    // S4: real avatar affordance + labelled fields, in the state card. Vertical stack
+    // because Wave 1's first-run sharing question belongs here as a fourth row.
+    app().innerHTML = UI.stateCard({
+      kicker: UI.COPY.onboarding.kicker,
+      headline: UI.COPY.onboarding.headline,
+      body: UI.COPY.onboarding.body,
+      extra:
+        '<div id="tw-ob-err" role="alert" style="' + UI.MONO + '; font-size:11.5px; ' +
+          'color:var(--accent); min-height:0"></div>' +
+        '<div style="display:flex; gap:14px; align-items:center; border:1.5px solid var(--hair); ' +
+          'padding:14px">' +
+          '<span id="tw-ob-avatar">' + UI.avatar('', 56) + '</span>' +
+          '<div style="display:flex; flex-direction:column; gap:7px">' +
+            '<span style="' + UI.MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.16em; ' +
+              'color:var(--muted)">PHOTO · OPTIONAL</span>' +
+            '<label style="' + UI.btnStyle('secondary') + '; display:inline-block">UPLOAD A PHOTO' +
+              '<input id="tw-ob-photo" type="file" accept="image/jpeg,image/png,image/webp" ' +
+              'style="display:none"></label>' +
+          '</div>' +
+        '</div>' +
+        '<div class="tw-acct-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:14px 16px">' +
+          UI.field({ id: 'tw-ob-first', label: 'FIRST NAME', autocomplete: 'given-name' }) +
+          UI.field({ id: 'tw-ob-last', label: 'LAST NAME', autocomplete: 'family-name' }) +
+        '</div>',
+      actions: UI.btn(UI.COPY.onboarding.cta, { id: 'tw-ob-save' }) +
+        UI.btn(UI.COPY.onboarding.skip, { id: 'tw-ob-skip', variant: 'quiet' }),
+    });
+    // Preview a chosen photo in the avatar slot; it's still applied on SAVE, as before.
+    const obPhoto = document.getElementById('tw-ob-photo');
+    if (obPhoto) obPhoto.addEventListener('change', () => {
+      const f = obPhoto.files && obPhoto.files[0];
+      if (!f) return;
+      const slot = document.getElementById('tw-ob-avatar');
+      if (slot) { try { slot.innerHTML = UI.avatar(URL.createObjectURL(f), 56); } catch (e) {} }
+    });
     document.getElementById('tw-ob-skip').addEventListener('click', () => {
       try { localStorage.setItem('tw_profile_skip', '1'); } catch (e) {}
       route();
@@ -697,7 +597,7 @@ async function render() {
       const first = document.getElementById('tw-ob-first').value.trim();
       const last = document.getElementById('tw-ob-last').value.trim();
       const err = document.getElementById('tw-ob-err');
-      if (!first) { err.textContent = 'A first name is the one thing we need here.'; return; }
+      if (!first) { err.textContent = UI.COPY.onboarding.errNoFirst; return; }
       const btn = document.getElementById('tw-ob-save');
       btn.disabled = true; btn.textContent = 'SAVING…';
       try {
@@ -710,7 +610,7 @@ async function render() {
         }
         route();   // re-runs ensureProfile → syncs name/avatar to the DB → continues
       } catch (e) {
-        btn.disabled = false; btn.textContent = 'SAVE';
+        btn.disabled = false; btn.textContent = UI.COPY.onboarding.cta;
         err.textContent = 'Could not save (' + ((e && e.message) || e) + '). Try again.';
       }
     });
@@ -724,7 +624,7 @@ async function render() {
       let code = null;
       try { code = sessionStorage.getItem('tw_finalize_code'); } catch (e) {}
       if (code) {
-        notice('Finishing the link', 'Confirming this connection belongs to you…', false);
+        notice(UI.COPY.verify.headline, UI.COPY.verify.body, false, { kicker: UI.COPY.verify.kicker });
         let failStatus = null;
         try {
           await _pipeCall('finalize-connect', { code });
@@ -746,76 +646,62 @@ async function render() {
       window.location.replace('/app?connect=no_pending');
       return;
     }
-    const CONNECT_ERRORS = {
-      missing_params: 'Discogs sent us back without the expected details. Try again.',
-      not_configured: 'TraxWax is not fully configured yet. This one is on us.',
-      state_error: 'We lost track of that connection attempt. Try again.',
-      unknown_or_used: 'That connection link was already used or has expired. Try again.',
-      no_pending: 'That connection link was already used or has expired. Try again.',
-      link_not_yours: 'That connection was started from a different account, so it was ' +
-        'discarded for safety. Click Connect below to link your own Discogs.',
-      expired: 'That took longer than 15 minutes, so Discogs expired the request. Try again.',
-      access_denied: 'Discogs did not grant access. Try again, and approve on their screen.',
-      identity_failed: 'Discogs would not tell us who you are. Try again.',
-      handle_taken: 'That Discogs account is already linked to another TraxWax account.',
-      no_profile: 'We could not find your TraxWax profile. Sign out and back in.',
-      store_failed: 'We could not save the connection. Try again.',
-      unexpected: 'Something went wrong on our side. Try again.',
-    };
-    const status = new URLSearchParams(window.location.search).get('connect');
-    const problem = (status && status !== 'ok')
-      ? `<div id="tw-connect-err" style="margin-bottom:18px; color:var(--accent)">${
-          esc(CONNECT_ERRORS[status] || 'Connection failed. Try again.')}</div>`
-      : '<div id="tw-connect-err"></div>';
-
-    notice('Connect your collection',
-      problem +
-      'TraxWax needs permission to read your Discogs collection. You will be sent to ' +
-      'Discogs to approve, then brought straight back.<br><br>' +
-      '<button id="tw-connect" style="margin-top:6px; padding:12px 20px; border:0; ' +
-      'cursor:pointer; background:var(--accent); color:var(--on-accent); ' +
-      "font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; " +
-      'letter-spacing:.12em; text-transform:uppercase">Connect Discogs</button>', true);
-
-    const btn = document.getElementById('tw-connect');
-    if (btn) btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      btn.textContent = 'Contacting Discogs…';
-      try {
-        const token = await window.Clerk.session.getToken();
-        const r = await fetch(SUPABASE_URL + '/functions/v1/connect-discogs', {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer ' + token,
-            apikey: SUPABASE_PUBLISHABLE_KEY,
-            'Content-Type': 'application/json',
-          },
+    // S5 / S6: all thirteen connect failures render through ONE treatment — status → kicker,
+    // human sentence → problem slab, retry stays a primary button. Copy is UI.COPY.connect* .
+    // The reassurance panel ("WHAT WE READ") is not decoration: this is the screen where
+    // someone hands over an OAuth token, and the panel is why they do. paintConnect() also
+    // re-renders on an inline failure, rebuilding an enabled button (no dead-button path).
+    const paintConnect = (problemOverride) => {
+      const status = new URLSearchParams(window.location.search).get('connect');
+      const failed = !!problemOverride || (status && status !== 'ok');
+      notice(UI.COPY.connect.headline,
+        '<div style="' + UI.BODY + '; font-size:13px; line-height:1.65">' +
+          UI.COPY.connect.body + '</div>' +
+        '<div style="border:1.5px solid var(--hair); padding:14px 16px; margin-top:16px; ' +
+          'display:flex; flex-direction:column; gap:7px">' +
+          '<span style="' + UI.MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.16em; ' +
+            'color:var(--muted)">' + UI.COPY.connect.reassureLabel + '</span>' +
+          '<span style="' + UI.BODY + '; font-size:12.5px; line-height:1.6">' +
+            UI.COPY.connect.reassure + '</span></div>',
+        true,
+        {
+          kicker: failed
+            ? (UI.COPY.connectErrorKickers[status] || 'CONNECT · SOMETHING FAILED')
+            : UI.COPY.connect.kicker,
+          problem: problemOverride ||
+            (failed ? (UI.COPY.connectErrors[status] || 'Connection failed. Try again.') : null),
+          actions: UI.btn(failed ? 'Try again' : UI.COPY.connect.cta, { id: 'tw-connect' }),
         });
-        const d = await r.json().catch(() => ({}));
-        // Remediation-audit F6: 'cooldown' is the leg-1 throttle (issue #2) — surface
-        // it as guidance, not the raw error token.
-        if (!r.ok || !d.authorize_url) {
-          throw new Error(d.error === 'cooldown'
-            ? 'One connect attempt at a time — try again in a few seconds.'
-            : (d.error || ('HTTP ' + r.status)));
+      const btn = document.getElementById('tw-connect');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Contacting Discogs…';
+        try {
+          const token = await window.Clerk.session.getToken();
+          const r = await fetch(SUPABASE_URL + '/functions/v1/connect-discogs', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + token,
+              apikey: SUPABASE_PUBLISHABLE_KEY,
+              'Content-Type': 'application/json',
+            },
+          });
+          const d = await r.json().catch(() => ({}));
+          // 'cooldown' is the leg-1 throttle (issue #2) — surface guidance, not the token.
+          if (!r.ok || !d.authorize_url) {
+            throw new Error(d.error === 'cooldown'
+              ? 'One connect attempt at a time — try again in a few seconds.'
+              : (d.error || ('HTTP ' + r.status)));
+          }
+          window.location.href = d.authorize_url;
+        } catch (e) {
+          console.error(e);
+          paintConnect(UI.esc('Could not start the connection: ' + ((e && e.message) || e)));
         }
-        window.location.href = d.authorize_url;
-      } catch (e) {
-        // Render inline, NOT via showError() -- that replaces the whole page and would
-        // destroy the button we just re-enabled, leaving no way to retry.
-        btn.disabled = false;
-        btn.textContent = 'Connect Discogs';
-        const slot = document.getElementById('tw-connect-err');
-        if (slot) {
-          // The empty placeholder ships unstyled; style it at insertion time so this
-          // message doesn't render in muted body color with no spacing.
-          slot.style.cssText = 'margin-bottom:18px; color:var(--accent)';
-          slot.innerHTML = esc('Could not start the connection: ' +
-            ((e && e.message) || e));
-        }
-        console.error(e);
-      }
-    });
+      });
+    };
+    paintConnect();
     return;
   }
 
@@ -825,25 +711,31 @@ async function render() {
   }
 
   if (routeUsername.toLowerCase() !== profile.discogs_username.toLowerCase()) {
-    notice('No crate here',
-      'This crate is private, or it does not exist.<br><br>' +
-      '<a href="/app" style="color:var(--accent)">Go to your own crate</a>', true);
+    // S10 — PRIVACY-CRITICAL. Grey rule (not accent): this is not an error and must not
+    // alarm someone who mistyped a URL. In Wave 1 this SAME render must serve both "no such
+    // user" and "exists but hasn't shared with you" — UI.COPY.noCrate is written to be true
+    // of both, so the page never confirms a username's existence to a stranger. Never add a
+    // per-case detail, never vary the kicker or the rule color. (Surfaces spec §9.1.)
+    notice(UI.COPY.noCrate.headline, UI.COPY.noCrate.body, true, {
+      kicker: UI.COPY.noCrate.kicker,
+      rule: 'muted',
+      actions: UI.btnLink(UI.COPY.noCrate.cta, '/app', { variant: 'secondary' }),
+    });
     return;
   }
 
   if (profile.import_status === 'error') {
-    notice('Import needs attention',
-      'Your stored Discogs connection could not be read, so importing is paused.<br><br>' +
-      'Disconnect and reconnect to fix it — your Discogs account itself is fine.<br><br>' +
-      '<button id="tw-err-disc" style="padding:10px 16px; border:1.5px solid var(--line); ' +
-      'cursor:pointer; background:var(--accent); color:var(--on-accent); ' +
-      "font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; " +
-      'letter-spacing:.1em">DISCONNECT DISCOGS</button>', true);
+    // S9: the only state whose sole action is destructive → danger (outlined) treatment,
+    // no primary. Headline is a consequence ("Importing is paused"), not a category.
+    notice(UI.COPY.importPaused.headline, UI.COPY.importPaused.body, true, {
+      kicker: UI.COPY.importPaused.kicker,
+      actions: UI.btn(UI.COPY.importPaused.cta, { id: 'tw-err-disc', variant: 'danger' }),
+    });
     const b = document.getElementById('tw-err-disc');
     if (b) b.addEventListener('click', async () => {
       b.disabled = true; b.textContent = 'DISCONNECTING…';
       try { await _pipeCall('disconnect-discogs', {}); window.location.href = '/app'; }
-      catch (e) { b.disabled = false; b.textContent = 'DISCONNECT DISCOGS'; console.error(e); }
+      catch (e) { b.disabled = false; b.textContent = UI.COPY.importPaused.cta; console.error(e); }
     });
     return;
   }
@@ -912,6 +804,9 @@ async function boot() {
   await clerkReady();
   await window.Clerk.load({
     ui: { ClerkUI: window.__internal_ClerkUICtor },
+    // S2 / S3: TraxWax chrome around Clerk's stock card. initThemeEarly() has already run,
+    // so dataset.theme is set; the dark card is the theme-following variant (boot.clerk.js).
+    appearance: clerkAppearance(document.body.dataset.theme === 'dark'),
     // Without these the DEVELOPMENT instance sends users to its Account Portal on a
     // different origin after sign-in, and (cookieless_dev + url_based_session_syncing)
     // they never come back signed in. See the Audit record in docs/phase-1-plan.md, C2.

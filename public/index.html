@@ -3,16 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TraxWax</title>
-<meta name="description" content="TraxWax — your record collection, filed properly.">
+<title>TraxWax — your record collection, filed properly</title>
+<meta name="description" content="Connect Discogs and get a crate you can actually browse — by style, by color, by the year you were obsessed.">
+<meta property="og:title" content="TraxWax">
+<meta property="og:description" content="You own records. Now find them.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://traxwax.com/">
+<meta property="og:image" content="https://traxwax.com/screenshots/crate-hero.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 <script>
   /* Theme before first paint — mirrors initTheme() in app.js. Without this the landing
-     page renders light-only regardless of the visitor's preference, then the crate
-     snaps to dark on navigation. */
+     page renders light-only regardless of preference, then the crate snaps to dark. */
   (function(){
     var t; try { t = localStorage.getItem('tw_theme'); } catch(e){}
     if(!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
@@ -21,33 +26,105 @@
 </script>
 </head>
 <body>
-  <div style="min-height:100vh; background:var(--bg); color:var(--ink);
-    display:flex; flex-direction:column; justify-content:center;
-    padding:60px 26px; font-family:'IBM Plex Mono',monospace">
+<div class="tw-land">
+  <div class="tw-land-panel">
 
-    <div style="max-width:680px; margin:0 auto; width:100%">
-      <div style="font-family:Anton,sans-serif; font-size:clamp(48px,11vw,104px);
-        line-height:.92; letter-spacing:.01em; color:var(--accent)">TRAXWAX</div>
-
-      <p style="font-size:14px; line-height:1.8; color:var(--muted);
-        margin:22px 0 0; max-width:44ch">
-        Your record collection, filed properly. Connect Discogs and get a crate you can
-        actually browse — by style, by colour, by the year you were obsessed.
-      </p>
-
-      <a href="/app" style="display:inline-block; margin-top:34px; padding:13px 22px;
-        background:var(--accent); color:var(--on-accent); text-decoration:none;
-        font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase">
-        Open your crate
-      </a>
-
-      <div style="margin-top:64px; font-size:10px; line-height:1.9; color:var(--muted)">
-        <a href="https://www.discogs.com" rel="noopener"
-           style="color:var(--muted)">Data provided by Discogs</a><br>
-        This application uses Discogs' API but is not affiliated with, sponsored or endorsed
-        by Discogs. "Discogs" is a trademark of Zink Media, LLC.
+    <!-- ── Bar ─────────────────────────────────────────────────────────────── -->
+    <div class="tw-land-bar">
+      <div class="tw-wordmark tw-wordmark-sm">TRAXWAX</div>
+      <div class="tw-land-bar-r">
+        <a class="tw-land-signin" href="/app">SIGN IN</a>
+        <a class="tw-btn tw-btn-primary tw-btn-sm" href="/app?mode=signup">CREATE AN ACCOUNT</a>
       </div>
     </div>
+
+    <!-- ── Hero ────────────────────────────────────────────────────────────── -->
+    <div class="tw-land-hero">
+      <span class="tw-tape tw-tape-a" aria-hidden="true"></span>
+      <span class="tw-tape tw-tape-b" aria-hidden="true"></span>
+      <div class="tw-land-hero-grid">
+        <div class="tw-land-hero-copy">
+          <div class="tw-land-eyebrow-wrap">
+            <span class="tw-land-eyebrow">FOR PEOPLE WITH TOO MUCH VINYL</span>
+            <h1 class="tw-land-h1">YOU OWN RECORDS,<br><span>NOW FIND THEM.</span></h1>
+          </div>
+          <p class="tw-land-sub">Connect Discogs and get a crate you can actually browse — by
+            style, by color, by the year you were obsessed. Everything you already own, finally
+            sorted the way you think about it.</p>
+          <div class="tw-land-cta">
+            <a class="tw-btn tw-btn-primary tw-btn-lg" href="/app?mode=signup">OPEN YOUR CRATE</a>
+            <span class="tw-land-cta-note">Free · your data stays yours · no marketplace</span>
+          </div>
+        </div>
+        <!-- Twelve covers. Swap the src list for whatever the current top of the crate is;
+             they are decorative, hence aria-hidden and empty alt. -->
+        <div class="tw-land-tiles" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Three-up ────────────────────────────────────────────────────────── -->
+    <div class="tw-land-three">
+      <div>
+        <span class="tw-land-kick">FILE BY STYLE</span>
+        <span class="tw-land-lede">Post-punk, on pink, from 2019</span>
+        <span class="tw-land-note">Stack as many filters as you like. Nothing here cancels
+          anything else out.</span>
+      </div>
+      <div>
+        <span class="tw-land-kick">FILE BY COLOR</span>
+        <span class="tw-land-lede">We speak variant</span>
+        <span class="tw-land-note">Neon Flamingo Translucent is a color. &ldquo;Fifth
+          Pressing&rdquo; is not, and we won&rsquo;t pretend otherwise.</span>
+      </div>
+      <div>
+        <span class="tw-land-kick">FILE BY REGRET</span>
+        <span class="tw-land-lede">The damage, itemized</span>
+        <span class="tw-land-note">What it&rsquo;s worth, what you bought this month, and the
+          five records you&rsquo;d rather not discuss.</span>
+      </div>
+    </div>
+
+    <!-- ── Proof ───────────────────────────────────────────────────────────── -->
+    <div class="tw-land-proof">
+      <div class="tw-land-proof-head">
+        <span class="tw-land-kick">THE CRATE</span>
+        <span class="tw-land-proof-h">One shelf, catalogued past the point of reason</span>
+      </div>
+      <div class="tw-land-shot">
+        <span class="tw-tape tw-tape-c" aria-hidden="true"></span>
+        <span class="tw-tape tw-tape-d" aria-hidden="true"></span>
+        <!-- ASSET TODO (spec §11): capture a fresh crate-hero.png — covers loaded, prices
+             populated, ≥1 JUST IN badge. The repo's 01-crate-light.png predates covers.
+             onerror degrades to a framed skeleton so a not-yet-captured hero never renders
+             a broken-image glyph in production. -->
+        <img src="/screenshots/crate-hero.png" width="2560" height="1840"
+             onerror="this.onerror=null;this.removeAttribute('src');this.style.cssText='display:block;width:100%;height:auto;min-height:340px;background:var(--skel);border:1.5px solid var(--line);box-shadow:8px 8px 0 rgba(0,0,0,.16)'"
+             alt="The TraxWax crate: a grid of album covers with style filters above them">
+      </div>
+    </div>
+
+    <!-- ── Position ───────────────────────────────────────────────────────────
+         ▸ ROADMAP: this full-bleed dark band is the Wave 5 slot (public crates, DNA card,
+         OG preview). A row of shared-crate cards drops in here without touching the hero. -->
+    <div class="tw-land-slab">
+      <div class="tw-land-slab-h">No marketplace. No feed. No algorithm with opinions about
+        your taste.</div>
+      <div class="tw-land-slab-list">READS YOUR DISCOGS COLLECTION<br>PRICES STAY BETWEEN YOU
+        AND DISCOGS<br>DISCONNECT ANY TIME — IT TAKES ONE CLICK</div>
+    </div>
+
+    <!-- ── Footer · the two notices the Discogs API Terms require ──────────── -->
+    <div class="tw-land-foot">
+      <a href="https://www.discogs.com" rel="noopener">Data provided by Discogs</a><br>
+      This application uses Discogs' API but is not affiliated with, sponsored or endorsed by
+      Discogs. "Discogs" is a trademark of Zink Media, LLC.
+    </div>
+
   </div>
+</div>
 </body>
 </html>

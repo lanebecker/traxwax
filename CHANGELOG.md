@@ -13,6 +13,66 @@ _Nothing yet._
 
 ---
 
+## [1.3.2] — 2026-08-29
+
+The **design-surfaces pass** (Claude Design Kit v2). The crate was designed; nothing around
+it was. This rebuilds every non-crate surface into one shell system, with no change to any
+schema, RLS policy, or Edge Function. Spec: `docs/design-surfaces-spec.md`; surface→file
+map: `docs/design-screen-map.md`. Cut as a patch by decision, to keep the social-roadmap
+wave→version map stable (`docs/social-roadmap.md` W0.5).
+
+### Added
+- **A real landing page** (`public/index.html`): wordmark bar, hero, a three-up pitch, a
+  crate screenshot slot, a dark position slab (the Wave-5 public-crates slot), and the two
+  required Discogs attribution notices. Two CTAs — `CREATE AN ACCOUNT` and `SIGN IN` — where
+  before there was no path to sign-up from the landing at all.
+- **The account surface as a route** — `/account` and `/account/discogs`, outside the
+  `/app/<username>` grammar so it can never collide with a Discogs username. Left nav
+  (`PROFILE` · `SHARING` _soon_ · `FRIENDS` _soon_ · `DISCOGS` · `DANGER ZONE`), a connection
+  panel with handle / record count / last sync + `RE-SYNC NOW`, and escalating
+  disconnect→delete. Replaces the old three-box modal.
+- **A distinct empty-crate state** (S17): a brand-new user whose Discogs collection is empty
+  now sees "Nothing on the shelf yet," not the filter-empty "0 RESULTS · CLEAR THE FILTERS"
+  (advice that couldn't help, since no filters were set).
+- **`boot.ui.js`** — the shell system: buttons (five variants, real `disabled`), labelled
+  fields, a square toggle, a progress bar, the wordmarked state card, a reusable empty-state
+  pattern, `trapFocus`, the whole account page, and a `COPY` table so a voice pass never means
+  grepping nine template literals. **`boot.clerk.js`** — the Clerk `appearance` (theme-aware).
+- **Reserved-but-dormant** design for the social waves: consent toggle, card-badge classes +
+  helpers, the friend-crate price cell, the landing public-crates slot. Nothing emits them
+  yet; wiring them later is a data change, not a redesign.
+- `aria-live` on the crate's result count (the one accessibility debt this pass cleared).
+
+### Changed
+- All nine system states (auth, onboarding, connect + 13 errors, import running/failed,
+  importing-paused, no-crate-here, verifying, unexpected-error) now render through the state
+  card, each with a status kicker. Import progress is a real bar with a record count; on
+  failure the bar **stays and goes grey** at the page it reached.
+- Auth is "TraxWax chrome, stock card": our frame, Clerk's component inside it, themed via
+  `variables` + a short `elements` list so a Clerk update can't break the frame.
+- Sign-up carries a `STEP 1/2/3 OF 3` counter; sign-in stays one door.
+- **No-crate-here** keeps a grey (non-error) rule and copy that is true of both "no such user"
+  and (in Wave 1) "hasn't shared with you" — so the page never confirms a username to a
+  stranger.
+
+### Fixed
+- The disconnect and delete buttons are genuinely `disabled` when not yet armed/confirmed,
+  not the old `opacity:.45` that was still clickable.
+
+### Notes
+- **Asset TODO before the landing is fully done:** a fresh `public/screenshots/crate-hero.png`
+  (spec §11) — captured on Lane's Mac against his loaded crate. Until then the hero degrades
+  to a framed skeleton (no broken-image glyph).
+- `public/_redirects` + `public/_headers` gained the `/account` route; `_routes.json`
+  unchanged. **Verify a hard cold-load of `/account/discogs` post-deploy** — a Cloudflare
+  rewrite is the one thing that can't be tested locally.
+- Design reference material is now committed: `github.md` (repo root — the Design team's sync
+  anchor, with an as-built reconciliation of the `/account` divergence) and `docs/design-source/`
+  (the runnable `TraxWax Surfaces.dc.html` + its `support.js`/`records.js`/`screenshots/` and
+  `DESIGN-KIT-V1.md`). Reference only — outside `public/`, so not web-served.
+
+---
+
 ## [1.3.1] — 2026-08-29
 
 ### Changed
