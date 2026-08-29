@@ -227,10 +227,12 @@ async function handle(req: Request): Promise<Response> {
     // SEED FIRST. Migration 0005 added collection_items.release_id -> releases(release_id);
     // inserting an item whose release row does not exist yet now violates the FK, so the
     // catalog seed must land before the items that reference it.
-    // ignoreDuplicates: an already-enriched (or already-seeded) release row is NEVER
-    // overwritten -- seeding must not regress tracks back to null.
-    const { error: seedErr } = await admin.from('releases')
-      .upsert([...seeds.values()], { onConflict: 'release_id', ignoreDuplicates: true });
+    // Phase 2 (#3): seeds now MERGE — last-import-wins on the basic fields, so Discogs
+    // community corrections propagate on every import. The seed_releases RPC (0010)
+    // empty-guards each field ('' / 0 / [] never stomp a real value), and seeds carry no
+    // deep fields, so enrichment (tracks etc.) cannot regress.
+    const { error: seedErr } = await admin.rpc('seed_releases',
+      { p_rows: [...seeds.values()] });
     if (seedErr) {
       console.error('release seed failed:', seedErr.message);
       return json({ error: 'store_failed' }, 500);

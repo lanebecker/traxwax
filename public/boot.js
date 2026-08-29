@@ -300,20 +300,24 @@ function backgroundEnrich() {
   _enrichRunning = true;
   (async () => {
     try {
-      let prevRemaining = Infinity, noProgress = 0;
+      let prevWork = Infinity, noProgress = 0;
       for (let i = 0; i < 500; i++) {
         let d;
         try { d = await _pipeAttempt(() => _pipeCall('enrich-release', {})); }
         catch (e) { console.warn('background enrich stopped:', e); break; }
-        if (d.remaining === 0) break;
+        // Phase 2 (#3): the loop drains refresh work (tombstone retries, stale rows)
+        // after new work. refresh_pending is absent from pre-v5 responses → 0 → the
+        // loop behaves exactly as before during rollout.
+        const work = d.remaining + (d.refresh_pending || 0);
+        if (work === 0) break;
         if (d.rate_limited) {
           await new Promise((r) => setTimeout(r, 30000));
           continue;
         }
-        noProgress = d.remaining >= prevRemaining ? noProgress + 1 : 0;
-        prevRemaining = d.remaining;
+        noProgress = work >= prevWork ? noProgress + 1 : 0;
+        prevWork = work;
         if (noProgress >= 3) {
-          console.warn('enrichment stalled at', d.remaining, '— resumes next visit');
+          console.warn('enrichment stalled at', work, 'pending — resumes next visit');
           break;
         }
       }
