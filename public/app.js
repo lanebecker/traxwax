@@ -394,6 +394,7 @@ function render(){
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
         ${DB_MODE()?`<button data-act="resync" title="${esc(_lastSyncedLabel())}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${state._resyncing?'SYNCING…':'RE-SYNC'}</button>`:''}
+        ${DB_MODE()?`<button data-act="account" title="Manage your account" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">ACCOUNT</button>`:''}
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
       </div>
       <span style="position:absolute; top:-8px; left:52px; width:92px; height:20px; background:rgba(255,255,255,.32); border-left:1px dashed rgba(0,0,0,.2); border-right:1px dashed rgba(0,0,0,.2); transform:rotate(-3deg); pointer-events:none"></span>
@@ -597,6 +598,7 @@ function onClick(e){
   switch(act){
     case 'theme': setTheme(state.theme==='dark'?'light':'dark'); render(); break;
     case 'resync': _resync(); break;
+    case 'account': if(window.TraxWaxAccount) window.TraxWaxAccount(); break;
     case 'view': state.view=arg; render(); break;
     case 'sort': state.sort=arg; render(); break;
     case 'dir': state.dir*=-1; render(); break;

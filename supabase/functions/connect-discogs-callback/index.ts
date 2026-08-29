@@ -7,7 +7,7 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest }
+import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest, sha256hex }
   from '../_shared/discogs.ts';
 
 // Audit #31: env-first so the production flip is a secret change, not five redeploys.
@@ -122,20 +122,35 @@ async function handle(req: Request): Promise<Response> {
     return back('identity_failed');
   }
 
-  // One transaction: profile link + encrypted credentials, or neither.
-  const { error: linkErr } = await admin.rpc('link_discogs_account', {
-    p_user_id: state.user_id,
-    p_username: identity.username,
-    p_token_enc: await encrypt(access.oauth_token, encKey),
-    p_secret_enc: await encrypt(access.oauth_token_secret, encKey),
-  });
+  // Phase 2 (#8): the link is no longer completed here. The callback cannot know WHICH
+  // signed-in TraxWax user is standing at this browser (no Authorization header on a
+  // redirect), and completing the link on state.user_id alone is the accepted link-CSRF.
+  // Park the result as PENDING and hand the browser a one-time code in the URL FRAGMENT —
+  // fragments never reach a server or a log. finalize-connect completes the link only for
+  // a verified Clerk sub that both matches the pending row AND presents this code.
+  const codeBytes = crypto.getRandomValues(new Uint8Array(32));
+  const code = [...codeBytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 
-  if (linkErr) {
-    console.error('link failed:', linkErr.code, linkErr.message);
-    if (linkErr.code === '23505') return back('handle_taken');
-    if (linkErr.code === 'P0002') return back('no_profile');
+  const { error: pendErr } = await admin.from('discogs_pending_links').upsert({
+    user_id: state.user_id,
+    discogs_username: identity.username,
+    oauth_token_enc: await encrypt(access.oauth_token, encKey),
+    oauth_token_secret_enc: await encrypt(access.oauth_token_secret, encKey),
+    finalize_code_hash: await sha256hex(code),
+    // Explicit, not defaults: an upsert over a stale row would otherwise keep the OLD
+    // timestamps.
+    created_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+  }, { onConflict: 'user_id' });
+
+  if (pendErr) {
+    console.error('pending store failed:', pendErr.message);
     return back('store_failed');
   }
 
-  return back('ok');
+  // NOT back(): the code rides the fragment, which back() has no slot for.
+  return new Response(null, {
+    status: 302,
+    headers: { Location: `${APP_ORIGIN}/app?connect=verify#twcode=${code}` },
+  });
 }

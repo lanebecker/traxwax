@@ -217,6 +217,9 @@ function installCrateProviders(profile) {
   };
 
   window.TraxWaxOwner = ownerInfo(profile);
+
+  // Phase 2 (#8): the ACCOUNT modal opener; app.js's header button calls this.
+  window.TraxWaxAccount = openAccountModal;
 }
 function ownerInfo(profile) {
   return {
@@ -354,6 +357,115 @@ async function runImport() {
   return true;
 }
 
+/* Phase 2 (#8): the ACCOUNT modal. Rendered as its own overlay OUTSIDE #app so app.js
+   re-renders cannot destroy it. Opened via window.TraxWaxAccount (installed in
+   installCrateProviders); app.js's header ACCOUNT button calls it. */
+function openAccountModal() {
+  if (document.getElementById('tw-account-ov')) return;
+  const owner = window.TraxWaxOwner || {};
+  // Rev1-F7: derive the username only when ownerLine carries one; the null-username form
+  // ("Your shelf · filed by whim") is unreachable here (the crate loads only after
+  // discogs_username is set) but must not display as a fake handle if that ever changes.
+  const unameMatch = (owner.ownerLine || '').match(/^(.*)'s shelf/);
+  const uname = unameMatch ? unameMatch[1] : 'your Discogs account';
+  const mono = "font-family:'IBM Plex Mono',monospace;";
+  const ov = document.createElement('div');
+  ov.id = 'tw-account-ov';
+  ov.style.cssText = 'position:fixed; inset:0; background:rgba(10,10,12,.62); ' +
+    'display:flex; align-items:flex-start; justify-content:center; padding:80px 20px; ' +
+    'overflow:auto; z-index:60';
+  ov.innerHTML =
+    '<div id="tw-account-box" style="position:relative; width:520px; max-width:100%; ' +
+    'background:var(--panel); border:1.5px solid var(--line); ' +
+    'box-shadow:8px 8px 0 rgba(0,0,0,.4); padding:24px; color:var(--ink)">' +
+    '<button id="tw-acct-close" title="Close" style="position:absolute; top:12px; right:12px; ' +
+    'width:28px; height:28px; border:1.5px solid var(--line); background:var(--panel); ' +
+    mono + ' font-size:12px; cursor:pointer">✕</button>' +
+    '<div style="font-family:Anton,sans-serif; font-size:26px; color:var(--accent); ' +
+    'margin-bottom:6px">YOUR ACCOUNT</div>' +
+    '<div style="' + mono + ' font-size:11px; color:var(--muted); margin-bottom:20px">' +
+    'Connected to Discogs as <b>' + esc(uname) + '</b></div>' +
+    '<div id="tw-acct-msg" style="' + mono + ' font-size:11.5px; color:var(--accent); ' +
+    'line-height:1.6; margin-bottom:14px"></div>' +
+    '<div style="border:1.5px solid var(--line); padding:16px; margin-bottom:18px">' +
+    '<div style="' + mono + ' font-size:11px; line-height:1.7; color:var(--muted); ' +
+    'margin-bottom:12px">Disconnecting removes your imported collection from TraxWax. ' +
+    'Your Discogs account is untouched, and reconnecting re-imports everything in about ' +
+    'a minute. To fully revoke TraxWax’s access, also remove it under ' +
+    'Discogs → Settings → Applications.</div>' +
+    '<button id="tw-acct-disc" style="' + mono + ' font-size:11px; font-weight:700; ' +
+    'letter-spacing:.08em; padding:9px 14px; border:1.5px solid var(--line); ' +
+    'background:var(--panel); color:var(--ink); cursor:pointer">DISCONNECT DISCOGS</button>' +
+    '</div>' +
+    '<div style="border:1.5px solid var(--accent); padding:16px">' +
+    '<div style="' + mono + ' font-size:11px; line-height:1.7; color:var(--muted); ' +
+    'margin-bottom:12px">Deleting removes everything TraxWax stores about you — profile, ' +
+    'imported collection, Discogs connection. Your sign-in identity is <b>not</b> deleted ' +
+    'and keeps working for other apps. Type <b>DELETE</b> to confirm.</div>' +
+    '<div style="display:flex; gap:8px">' +
+    '<input id="tw-acct-confirm" placeholder="DELETE" autocomplete="off" style="' + mono +
+    ' font-size:11px; padding:8px 10px; width:110px; background:var(--panel); ' +
+    'color:var(--ink); border:1.5px solid var(--line); border-radius:0" />' +
+    '<button id="tw-acct-del" disabled style="' + mono + ' font-size:11px; font-weight:700; ' +
+    'letter-spacing:.08em; padding:9px 14px; border:1.5px solid var(--line); ' +
+    'background:var(--accent); color:var(--on-accent); cursor:pointer; opacity:.45">' +
+    'DELETE MY TRAXWAX DATA</button>' +
+    '</div></div></div>';
+  document.body.appendChild(ov);
+
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+  document.getElementById('tw-acct-close').addEventListener('click', close);
+
+  const msg = (t) => { const el = document.getElementById('tw-acct-msg'); if (el) el.textContent = t; };
+
+  const disc = document.getElementById('tw-acct-disc');
+  let discArmed = false;
+  disc.addEventListener('click', async () => {
+    if (!discArmed) {
+      discArmed = true;
+      disc.textContent = 'REALLY DISCONNECT — REMOVES IMPORTED COLLECTION';
+      return;
+    }
+    disc.disabled = true;
+    disc.textContent = 'DISCONNECTING…';
+    try {
+      await _pipeCall('disconnect-discogs', {});
+      // Full reload: routing sees discogs_username null → the connect card.
+      window.location.href = '/app';
+    } catch (e) {
+      disc.disabled = false;
+      disc.textContent = 'DISCONNECT DISCOGS';
+      discArmed = false;
+      msg('Disconnect failed (' + ((e && e.message) || e) + '). Try again.');
+    }
+  });
+
+  const confirmInput = document.getElementById('tw-acct-confirm');
+  const delBtn = document.getElementById('tw-acct-del');
+  confirmInput.addEventListener('input', () => {
+    const ok = confirmInput.value === 'DELETE';
+    delBtn.disabled = !ok;
+    delBtn.style.opacity = ok ? '1' : '.45';
+  });
+  delBtn.addEventListener('click', async () => {
+    if (confirmInput.value !== 'DELETE') return;
+    delBtn.disabled = true;
+    delBtn.textContent = 'DELETING…';
+    try {
+      await _pipeCall('delete-account', { confirm: 'DELETE' });
+      msg('Deleted. Signing you out…');
+      await window.Clerk.signOut();   // afterSignOutUrl '/' lands on the landing page
+    } catch (e) {
+      delBtn.disabled = false;
+      delBtn.textContent = 'DELETE MY TRAXWAX DATA';
+      msg('Deletion failed (' + ((e && e.message) || e) + '). Try again.');
+    }
+  });
+}
+
 function mountAuth() {
   clearAuthMount();
   const wantSignUp = new URLSearchParams(window.location.search).get('mode') === 'signup';
@@ -398,11 +510,42 @@ async function render() {
   const profile = await ensureProfile(window.Clerk.user.id);
 
   if (!profile.discogs_username) {
+    // Phase 2 (#8): finish a parked link. Possession (the code) + identity (this JWT)
+    // are both proven by finalize-connect; see docs/phase-2-account-plan.md.
+    if (new URLSearchParams(window.location.search).get('connect') === 'verify') {
+      let code = null;
+      try { code = sessionStorage.getItem('tw_finalize_code'); } catch (e) {}
+      if (code) {
+        notice('Finishing the link', 'Confirming this connection belongs to you…', false);
+        let failStatus = null;
+        try {
+          await _pipeCall('finalize-connect', { code });
+        } catch (e) {
+          failStatus = (e && e.message) || 'store_failed';
+        }
+        try { sessionStorage.removeItem('tw_finalize_code'); } catch (e) {}
+        if (!failStatus) {
+          // Clean URL + full reload: profile refetch shows the username, routing sends
+          // the user to their crate, and the import gate takes over exactly as before.
+          window.location.replace('/app');
+          return;
+        }
+        window.location.replace('/app?connect=' + encodeURIComponent(failStatus));
+        return;
+      }
+      // Arrived on ?connect=verify with no stored code (history revisit, cleared
+      // storage): treat as a used/expired link.
+      window.location.replace('/app?connect=no_pending');
+      return;
+    }
     const CONNECT_ERRORS = {
       missing_params: 'Discogs sent us back without the expected details. Try again.',
       not_configured: 'TraxWax is not fully configured yet. This one is on us.',
       state_error: 'We lost track of that connection attempt. Try again.',
       unknown_or_used: 'That connection link was already used or has expired. Try again.',
+      no_pending: 'That connection link was already used or has expired. Try again.',
+      link_not_yours: 'That connection was started from a different account, so it was ' +
+        'discarded for safety. Click Connect below to link your own Discogs.',
       expired: 'That took longer than 15 minutes, so Discogs expired the request. Try again.',
       access_denied: 'Discogs did not grant access. Try again, and approve on their screen.',
       identity_failed: 'Discogs would not tell us who you are. Try again.',
@@ -483,7 +626,17 @@ async function render() {
   if (profile.import_status === 'error') {
     notice('Import needs attention',
       'Your stored Discogs connection could not be read, so importing is paused.<br><br>' +
-      'This is on us — a reconnect flow is coming. Nothing of yours is lost.', true);
+      'Disconnect and reconnect to fix it — your Discogs account itself is fine.<br><br>' +
+      '<button id="tw-err-disc" style="padding:10px 16px; border:1.5px solid var(--line); ' +
+      'cursor:pointer; background:var(--accent); color:var(--on-accent); ' +
+      "font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; " +
+      'letter-spacing:.1em">DISCONNECT DISCOGS</button>', true);
+    const b = document.getElementById('tw-err-disc');
+    if (b) b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'DISCONNECTING…';
+      try { await _pipeCall('disconnect-discogs', {}); window.location.href = '/app'; }
+      catch (e) { b.disabled = false; b.textContent = 'DISCONNECT DISCOGS'; console.error(e); }
+    });
     return;
   }
   // ── Audit #9/#11 (gate amended by the report-verification round): render as soon as
@@ -534,6 +687,19 @@ async function route() {
 
 async function boot() {
   initThemeEarly();
+
+  // Phase 2 (#8): the OAuth callback delivers a one-time finalize code in the URL
+  // FRAGMENT (never sent to a server, never logged). Clerk's components use hash routing
+  // and can rewrite location.hash during sign-in, so capture the code into sessionStorage
+  // and strip it from the URL BEFORE Clerk loads. sessionStorage (not a variable):
+  // a signed-out user completes sign-in on this same tab and the code must survive it.
+  try {
+    const m = (window.location.hash || '').match(/twcode=([0-9a-f]{64})/);
+    if (m) {
+      sessionStorage.setItem('tw_finalize_code', m[1]);
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  } catch (e) { /* sessionStorage unavailable → the verify handler reports no_pending */ }
 
   await clerkReady();
   await window.Clerk.load({
