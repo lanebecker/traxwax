@@ -44,6 +44,8 @@ input::placeholder { color:var(--faint); }
   /* Header: stack the wordmark row above the stats/toggle row, and drop the two
      least-vital counters (COLORED, THIS MONTH) so the strip + toggle fit one line. */
   .tw-header { flex-direction:column !important; align-items:stretch !important; justify-content:flex-start !important; gap:12px !important; padding:16px 14px 14px !important; }
+  /* v1.3.x: the floating avatar hugs the tighter mobile padding and clears the wordmark. */
+  .tw-avatar { top:12px !important; right:14px !important; }
   .tw-headL { flex-wrap:wrap; }
   .tw-headR { justify-content:flex-start !important; }
   .tw-hide-mobile { display:none !important; }
