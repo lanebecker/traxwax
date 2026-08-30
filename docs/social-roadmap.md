@@ -13,12 +13,15 @@ that keep documentation and hygiene current. This is a SEQUENCING document — e
 still gets its own implementation plan at the junior-engineer bar, twice audited, before a
 line of its code executes. Nothing here overrides that.
 
-Current shipped version at time of writing: **v1.3.2** — the **design-surfaces pass** (the
-whole non-crate UI rebuilt into one shell system: landing, auth chrome, nine system states,
-the account page as a route, the empty crate). It carries **deliberate reserved space for
-every wave below**; the map from wave → design element is in each wave's **▸ Design (ready
-now)** note, sourced from `docs/design-surfaces-spec.md` §9. See **W0.5**. (Profiles +
-floating avatar shipped in v1.3.0/v1.3.1.) Users: 2 (lanebecker, SoundAbounds/Tommy).
+Current shipped version: **v1.3.4**. **Wave 0 is complete (2026-08-30)** — see the status
+tags in §3; the only open threads are non-blocking (the W0.2b letter is insurance sent in
+parallel, and Tommy's organic name-sync check). The design-surfaces pass (v1.3.2) rebuilt the
+whole non-crate UI into one shell system (landing, auth chrome, nine system states, the account
+page as a route, the empty crate) and carries **deliberate reserved space for every wave below**;
+the map from wave → design element is in each wave's **▸ Design (ready now)** note, sourced from
+`docs/design-surfaces-spec.md` §9. See **W0.5**. Profiles + floating avatar shipped in
+v1.3.0/v1.3.1; a11y polish in v1.3.3; the in-place-avatar fix in v1.3.4. Users: 2 (lanebecker,
+SoundAbounds/Tommy).
 
 ---
 
@@ -98,15 +101,15 @@ when the wave's plan is approved.
 
 Prerequisites that block everything, none of them features:
 
-- **W0.1 — Supabase connector conversion.** The project-scoped connector goes read-only;
-  a separately-armed break-glass connector handles migrations/deploys (Spinbound's
-  pattern). This is standing debt, now active with real users in the DB. Lane-side
-  config; Claude verifies both connectors' postures afterward.
-- **W0.2 — The consent-model terms write-up.** Rewrite the relevant section of
-  `Discogs-API-Terms-Summary.md` to reconcile the standing "transfer the terms forbid"
-  conclusion with the consented-sharing position (§1), clause by clause, with
-  feature-by-feature sensitivity notes and the never-do list. Verification-pass audited
-  like any substantial doc.
+- **W0.1 — Supabase connector conversion. DONE 2026-08-30.** `Supabase — TraxWax` is now
+  read-only (verified: writes refused, no migration/deploy tools) and `Supabase — TraxWax —
+  Break-Glass` is normally disconnected — Spinbound's pattern. See memory
+  `reference-supabase-connectors` + both CLAUDE.mds.
+- **W0.2 — The consent-model terms write-up. DONE 2026-08-30.** `Discogs-API-Terms-Summary.md`
+  rewritten to reconcile the standing "transfer the terms forbid" conclusion with the
+  consented-sharing position, clause by clause (live TOU re-verified verbatim), with the
+  feature sensitivity table, the never-do list, and the outreach record. Verification-pass
+  audited (1 CRITICAL + 4 MAJOR + 5 MINOR, all folded).
 - **W0.2a — Research findings (2026-08-29, forum + current TOU archaeology), for the
   W0.2 rewrite to build on.** The full CURRENT API TOU (last updated 2025-05-27 — newer
   than the basis of our summary) materially strengthens the consent position:
@@ -168,9 +171,10 @@ Prerequisites that block everything, none of them features:
   11. **`/sell/post/{release_id}` verified live** (2026-08-29): auth-gated, resumes
      after Discogs login, lands on the prefilled listing form. Wave 4's zero-API deep
      link stands.
-- **W0.2b — The written question to Discogs (Lane sends).** Short, factual, non-leading;
-  logged in the terms summary with the send date and any reply. Rewritten 2026-08-29
-  after the research pass — now cites the specific clauses and the WantLister precedent:
+- **W0.2b — The written question to Discogs (Lane sends). READY — drafted, send pending
+  (insurance, non-blocking per §1).** Short, factual, non-leading; logged in the terms
+  summary with the send date and any reply. Rewritten 2026-08-29 after the research pass —
+  now cites the specific clauses and the WantLister precedent:
 
   > *Subject: API terms question — consented collection sharing between our app's users*
   >
@@ -193,10 +197,13 @@ Prerequisites that block everything, none of them features:
   > (we note similar member-to-member want/have functionality existed in WantLister
   > prior to your acquisition of it). Could you confirm that reading, or let us know
   > what you'd prefer we change? Happy to adjust to whatever you're comfortable with.*
-- **W0.3 — Profiles V5 E2E confirmation** (leftover from v1.3.x): avatar loads under the
-  custom Clerk domain (the img.clerk.com hypothesis), modal fields persist, photo upload
-  round-trips. Plus Tommy's name appearing in his profile row on his next visit — the
-  first organic test of the sync.
+- **W0.3 — Profiles V5 E2E confirmation. CONFIRMED 2026-08-30 (one fix, one thread open).**
+  Verified on live traxwax.com: avatar loads under the custom Clerk domain (img.clerk.com
+  hypothesis holds), profile fields persist across reload (round-tripped both ways), photo
+  upload round-trips to Clerk. A papercut surfaced and was fixed as **v1.3.4** (the nav-header
+  avatar didn't refresh in place after upload). **Still open (non-blocking):** Tommy's name
+  appearing in his profile row on his next visit — the first organic test of the Clerk→DB
+  sync; awaiting Tommy (a 2026-08-30 afternoon check-in is scheduled).
 - **W0.4 — Accessibility polish. SHIPPED v1.3.3 (2026-08-30).** All four line items done:
   `aria-live` on the result count (v1.3.2); detail-modal focus-trap + focus restore
   (returns to the invoking card, survives the async stats/tracklist re-render); roving
