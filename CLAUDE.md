@@ -29,7 +29,7 @@ vanilla renderer on Cloudflare Pages.
 | `supabase/functions/` | **The real backend** — 8 Edge Functions (connect-discogs, callback, finalize-connect, disconnect-discogs, delete-account, import-collection, enrich-release, live-stats) + `_shared/discogs.ts`. Deployed directly, not via git — see `DEPLOY.md`. |
 | `supabase/migrations/` | `0001_init` … `0011_profiles_display` (0002 username unique · 0003 OAuth state + link RPC · 0004 import watermark · 0005 collection→releases FK · 0006 audit hardening · 0007 profiles guard trigger · 0008 pending_enrichment RPC + display_name drop · 0009 pending links + finalize/unlink/delete RPCs · 0010 gone_at + refresh + seed_releases merge · 0011 profile fields: display_name/avatar_url synced one-way from Clerk each boot, bio/location/collecting_since/link1+link2 DB-owned, all CHECK-constrained, own-row-private until social) |
 | `build/` | Legacy single-user data builders (`refresh_collection.py` now manual-dispatch only; `seed_catalog.py` was the one-shot Phase 0 seed) |
-| `docs/roadmap.md` | Shipped versions (through v1.2.0) and what's next |
+| `docs/roadmap.md` | Shipped versions (through v1.3.4) and what's next |
 | `docs/multi-user-spec.md` | The multi-user DESIGN (period doc — see its as-built note; the shipped system diverges where the plans say so) |
 | `docs/phase-*.md`, `phase-1-cold-audit.md` | Period records of the build: phase 0/1 plans, stage A–D plans, cold audit, phase-2 account + catalog-refresh plans. Never edited retroactively. |
 | `DEPLOY.md` | Operations reference: all three deploy surfaces, secrets, cache policy, verification, rollback |
@@ -87,7 +87,7 @@ cd "…/Projects/Lane's Record Collection/traxwax-clone"
 git add -A && git commit -m "…" && git pull --rebase origin main && git push
 ```
 
-## Multi-user — SHIPPED (v1.0.0 launched 2026-08-29; current v1.2.0)
+## Multi-user — SHIPPED (v1.0.0 launched 2026-08-29; current v1.3.4)
 
 Supabase project `traxwax` (ref `sfipqknrbvamwwahwxnl`) holds **six tables**: `profiles`,
 `collection_items`, `releases`, `discogs_credentials`, `discogs_oauth_state` (handshake
