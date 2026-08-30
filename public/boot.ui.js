@@ -290,7 +290,7 @@ function accountNav(active, o) {
     'background:var(--panel); padding:18px 0">' +
     '<div style="display:flex; align-items:center; gap:12px; padding:0 18px 18px; ' +
       'border-bottom:1px solid var(--hair); margin-bottom:12px">' +
-      avatar(o.profile.avatar_url, 40) +
+      '<span id="tw-acct-nav-avatar">' + avatar(o.profile.avatar_url, 40) + '</span>' +
       '<div style="display:flex; flex-direction:column; gap:2px; min-width:0">' +
         '<span style="' + COND + '; font-size:18px; font-weight:700; line-height:1; ' +
           'color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' +
@@ -457,8 +457,12 @@ export function bindAccountPage(root, deps) {
     msg('Uploading photo…');
     try {
       const url = await deps.onUploadPhoto(f);
+      // Refresh BOTH avatars on the page — the form slot AND the nav header (the "top" one).
+      // Before, only the slot updated, so the nav avatar showed the old photo until reload.
       const slot = $('tw-prof-avatar-slot');
       if (slot) slot.innerHTML = avatar(url, 72);
+      const nav = $('tw-acct-nav-avatar');
+      if (nav) nav.innerHTML = avatar(url, 40);
       msg('Photo updated.');
     } catch (e) { msg('Photo upload failed (' + ((e && e.message) || e) + ').'); }
   });

@@ -13,6 +13,17 @@ _Nothing yet._
 
 ---
 
+## [1.3.4] — 2026-08-30
+
+### Fixed
+- **Profile photo now updates in place.** After uploading a new photo on the account page,
+  the nav-header avatar (the "top" one) kept showing the old image until a full reload — the
+  upload succeeded and the "Photo updated." status fired, but only the form's avatar refreshed.
+  Both avatars now update the moment the upload completes. (Found during the W0.3 Profiles V5
+  E2E confirmation; the upload itself always round-tripped correctly to Clerk.)
+
+---
+
 ## [1.3.3] — 2026-08-30
 
 Accessibility polish (social-roadmap **W0.4**) — the keyboard and screen-reader debt owed

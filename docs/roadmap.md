@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.3.3`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.3.4`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -121,6 +121,12 @@ so no filter is lost to keyboard users. (`aria-live` on the result count shipped
 the modal cover already used `cover_image`, verified.) `app.js` only — no schema/RLS/Edge
 change. Follow-up noted: `inert`/`aria-hidden` the background behind the open modal for
 screen-reader browse mode (pre-existing; not in this patch).
+
+### v1.3.4 — Profile photo updates in place
+
+Bug fix from the W0.3 Profiles V5 E2E confirmation: after a photo upload, the account
+nav-header avatar kept the old image until a full reload (only the form avatar refreshed).
+Both now update on upload. The upload itself always persisted correctly to Clerk.
 
 ---
 
