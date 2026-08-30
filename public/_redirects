@@ -36,3 +36,9 @@
 /account   /app/  200
 /account/* /app/  200
 
+# Wave 1: the invite-accept route /i/<code>. Same rewrite mechanics as /account — serve the SPA
+# shell (/app/, trailing slash) with the URL preserved so boot.js reads /i/<code> and runs
+# acceptInvite(). Outside /api/* (which _routes.json pins to Functions).
+/i         /app/  200
+/i/*       /app/  200
+

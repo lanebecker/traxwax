@@ -13,9 +13,11 @@ that keep documentation and hygiene current. This is a SEQUENCING document — e
 still gets its own implementation plan at the junior-engineer bar, twice audited, before a
 line of its code executes. Nothing here overrides that.
 
-Current shipped version: **v1.3.4**. **Wave 0 is complete (2026-08-30)** — see the status
-tags in §3; the only open threads are non-blocking (the W0.2b letter is insurance sent in
-parallel, and Tommy's organic name-sync check). The design-surfaces pass (v1.3.2) rebuilt the
+Current shipped version: **v1.4.0** — **Wave 1 SHIPPED (2026-08-30)**: friends, consented crates,
+invite links, read-only friend views with server-side price suppression (see §4 + `docs/wave-1-plan.md`,
+twice-audited; DB adversarially audited, one advisor leak caught + fixed in 0013). **Wave 0 is
+complete** — see the status tags in §3; its only open threads are non-blocking (the W0.2b letter is
+insurance sent in parallel, and Tommy's organic name-sync check). The design-surfaces pass (v1.3.2) rebuilt the
 whole non-crate UI into one shell system (landing, auth chrome, nine system states, the account
 page as a route, the empty crate) and carries **deliberate reserved space for every wave below**;
 the map from wave → design element is in each wave's **▸ Design (ready now)** note, sourced from
@@ -240,7 +242,17 @@ Prerequisites that block everything, none of them features:
   landing `.tw-land-slab` (public-crates slot — W5). The landing hero was captured
   2026-08-29 → `public/screenshots/crate-hero.jpg` (2560×1840, JPEG; also the OG card).
 
-## 4. Wave 1 — Friends & consented crates → **v1.4.0**
+## 4. Wave 1 — Friends & consented crates → **v1.4.0** — ✅ SHIPPED 2026-08-30
+
+**As-built note:** shipped as specified, with two audit-driven divergences recorded in
+`docs/wave-1-plan.md`: (1) the friend-authorization choke point `can_view_crate` lives in a
+non-exposed `private` schema (0013) after the security advisor flagged the `public` version as a
+probeable RPC; (2) `live-stats` price suppression is best-effort UX (release price/stats are
+global data) — the real confidentiality boundary is the `collection_items` friend-read RLS.
+Friend-profile display fields are served via the `get_crate_owner` projection RPC, not a row
+policy (RLS can't hide columns). Invite model: single-use codes (reusable-link fallback tracked
+in issue #10). The original wave spec follows.
+
 
 The consent wall, the friendship graph, and the first time anyone sees anyone else's
 records. Deliberately friends-only: no public crates, no discovery — the current user
