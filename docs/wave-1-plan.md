@@ -1,8 +1,9 @@
 # Wave 1 — Friends & Consented Crates → v1.4.0 (implementation plan)
 
-**Status:** REV 2 — verification-passed (rev 1 → REVISE: 1 CRITICAL + 6 MAJOR + 8 MINOR, all
-folded; audit record at the bottom). A second narrow pass over the rework is recommended before
-execution. No code executes until that converges.
+**Status:** REV 2 — TWICE-AUDITED, CONVERGED. Pass 1 (verification-pass): REVISE — 1 CRITICAL +
+6 MAJOR + 8 MINOR, all folded. Pass 2 (narrow, over the rework): CONVERGED — no CRITICAL/MAJOR,
+one MINOR line-citation drift, folded. Cleared to execute (DB-first, break-glass; per-change
+remediation-audits still apply at build time). Audit record at the bottom.
 **Target release:** v1.4.0. **Depends on:** v1.3.4 (current head), migration **0011** (latest).
 **Written:** 2026-08-30, from a full current-state recon of the repo.
 
@@ -866,13 +867,14 @@ const IS_OWN = () => !window.TraxWaxViewer || window.TraxWaxViewer.isOwn !== fal
 **5c. Price cell — friend crate only; DO NOT touch the own crate (rev1-M6/M10).** In DB mode the
 own crate shows NO price cell (`SETTINGS.showPrices` is false; per-record price is Restricted,
 modal-only), and adding one would be an unrequested design change to Lane's own crate (L5). So:
-- **Card** (recon `app.js:245`, `${showP?\`<span …>${r.priceLabel}</span>\`:''}`): render the
+- **Card** (recon `app.js:259`, `${showP?\`<span …>${r.priceLabel}</span>\`:''}`): render the
   existing own-crate cell when `IS_OWN()`, and the SEE-ON-DISCOGS cell only on a friend crate:
   ```js
   ${IS_OWN() ? (showP ? `<span style="…">${r.priceLabel}</span>` : '') : priceCellHtml(r, false)}
   ```
-- **Modal "LOWEST SALE" cell** (recon `app.js:608-611`, the single accent cell rendering
-  `${priceLabel}` where `priceLabel = st.price!=null ? money(st.price) : '—'`): keep `priceLabel`
+- **Modal "LOWEST SALE" cell** (recon: `priceLabel` defined `app.js:590`, rendered in the accent
+  cell at `app.js:635`, inside the modal container at 608-611) rendering
+  `${priceLabel}` where `priceLabel = st.price!=null ? money(st.price) : '—'`: keep `priceLabel`
   for the owner; on a friend crate show the link instead (there is NO separate cell — rev1-M6):
   ```js
   ${IS_OWN() ? priceLabel : `<a href="https://www.discogs.com/release/${encodeURIComponent(rec.id)}" rel="noopener" style="color:var(--on-accent); text-decoration:underline">SEE ON DISCOGS →</a>`}
@@ -888,6 +890,12 @@ crate.
 
 **5e. No own-only modal actions exist in Wave 1** (SELL THIS is Wave 4; ADD TO WANTLIST is Wave 2).
 No change.
+
+**5f. Third price render — the LEDGER "expensive end" panel** (recon `app.js:457`, another
+`${r.priceLabel}`). No change needed: on a friend crate every `price` is `null`, so `v.priciest`
+is empty and the panel shows its existing graceful fallback text — identical to the own crate's
+DB-mode behavior today (prices are already null in DB mode). No `$` leak, no regression. Left as-is
+deliberately; noted so a future editor doesn't "fix" it.
 
 ---
 
@@ -1009,7 +1017,17 @@ byte-identically.
 
 ## Audit record — rev 1 → rev 2 (2026-08-30)
 
-Independent verification-pass (no-context agent, target = this document). Verdict REVISE. All
+**Pass 2 (narrow, over the rework only): CONVERGED.** No CRITICAL/MAJOR. Verified sound: the Task 2
+cache-order fix (403 + suppression provably run before the `index.ts:110` cache read; `suppressPrice`
+in scope at all three returns; `admin` client available; only the 409-not-connected return precedes
+it), the Task 3d inline mapping/pagination/select matching `installCrateProviders` verbatim, the
+`crate_visibility` trace into `accountPageHtml`, the three-site section normalization, the toggle
+re-render (real `toggle()` returns a single `<button>` root with `id`/`role=switch`/`aria-checked`),
+the app.js substitutions, and the Task 1 grants. One MINOR folded: Task 5c line citations corrected
+(card cell 245→259; modal `priceLabel` 590/rendered 635), plus a 5f note that the LEDGER
+"expensive end" price render (app.js:457) is null-safe on a friend crate.
+
+**Pass 1 (verification-pass): REVISE.** Independent no-context agent, target = this document. All
 findings folded into rev 2; kept here (struck where the fix lands) so a killed finding is not
 re-discovered from scratch next round.
 
