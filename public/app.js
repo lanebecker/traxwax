@@ -149,6 +149,20 @@ const state = {
 };
 let _searchDebounce = null;   // issue #5: pending debounced render, if any
 
+/* ── A11y: modal focus management + roving grid focus (W0.4) ──────────────────
+   app.js is deliberately dependency-free (boot.js dynamically imports it; it cannot
+   import boot.ui.js), and render() rebuilds #app wholesale on every async stats/tracklist
+   load — which is why the modal reuses trapFocus's *selector convention* via a re-render-safe
+   controller here rather than calling boot.ui.js's trapFocus (whose one-shot capture of the
+   invoker + focus-first cannot survive the rebuild). Keep FOCUSABLE_SEL in sync with the SEL
+   in boot.ui.js trapFocus(). */
+const FOCUSABLE_SEL = 'a[href], button:not([disabled]), input:not([disabled]), select, ' +
+  'textarea, summary, [tabindex]:not([tabindex="-1"])';
+const GRID_KEYS = new Set(['ArrowRight','ArrowLeft','ArrowUp','ArrowDown','Home','End']);
+let _modalInvokerId = null;   // the record id whose card opened the modal; focus returns here on close
+let _gridFocusId = null;      // the record id of the roving grid cell that holds tabindex=0
+let _modalFocusKey = null;    // identity of the in-modal control focused just before a re-render (see render())
+
 /* ── Theme (persisted; respects prefers-color-scheme on first visit) ────────── */
 function initTheme(){
   let t; try { t = localStorage.getItem('tw_theme'); } catch(e){}
@@ -226,17 +240,17 @@ function sortBtn(id,label){
 /* ── Card ──────────────────────────────────────────────────────────────────── */
 function card(r){
   const showP = SETTINGS.showPrices;
-  return `<div style="min-width:0; background:var(--panel); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow); display:flex; flex-direction:column">
+  return `<div class="tw-card" style="min-width:0; background:var(--panel); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow); display:flex; flex-direction:column">
     <div style="position:relative; padding:6px 6px 0">
-      <button data-act="open" data-arg="${r.id}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
+      <button data-act="open" data-arg="${r.id}" class="tw-cell" tabindex="-1" aria-haspopup="dialog" aria-label="Open ${esc(r.artist)} — ${esc(r.title)}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
         <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
       </button>
       ${r.isNew?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
     </div>
     <div style="min-width:0; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
-      <button class="tw-artist" data-act="artist" data-arg="${esc(r.artist)}" style="text-align:left; padding:0; border:0; background:transparent; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</button>
-      <button class="tw-title" data-act="open" data-arg="${r.id}" style="text-align:left; padding:0; border:0; background:transparent; font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.02; color:var(--ink); text-wrap:pretty">${esc(r.title)}</button>
-      <button data-act="color" data-arg="${esc(r.vinylShort)}" style="display:flex; align-items:center; gap:6px; margin-top:1px; padding:0; border:0; background:transparent; text-align:left">
+      <button class="tw-artist" data-act="artist" data-arg="${esc(r.artist)}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</button>
+      <button class="tw-title" data-act="open" data-arg="${r.id}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.02; color:var(--ink); text-wrap:pretty">${esc(r.title)}</button>
+      <button data-act="color" data-arg="${esc(r.vinylShort)}" tabindex="-1" style="display:flex; align-items:center; gap:6px; margin-top:1px; padding:0; border:0; background:transparent; text-align:left">
         <span style="width:9px; height:9px; flex:none; border:1.5px solid var(--line); background:${r.swatch}"></span>
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.vinylShort)}</span>
       </button>
@@ -540,6 +554,13 @@ function render(){
   const _ae=document.activeElement;
   const _wasSearch=!!(_ae && _ae.id==='tw-search');
   const _caret=_wasSearch ? _ae.selectionStart : null;
+  // W0.4: if focus is inside the open modal, remember WHICH control (by act+arg, or href for
+  // links) so _syncModalFocus can put it back after the innerHTML swap wipes activeElement to
+  // <body>. Without this, every async stats/tracklist re-render yanked focus back to ✕.
+  _modalFocusKey = null;
+  if (state.detailId && _ae && _ae.closest && _ae.closest('.tw-modal-ov')) {
+    _modalFocusKey = { act:_ae.getAttribute('data-act'), arg:_ae.getAttribute('data-arg'), href:_ae.getAttribute('href') };
+  }
   app.innerHTML=html;
   if(_wasSearch && !state.detailId){
     const si=document.getElementById('tw-search');
@@ -549,6 +570,10 @@ function render(){
       si.setSelectionRange(p, p);
     }
   }
+  // A11y (W0.4): re-establish roving tabindex, then modal focus. Roving first so the modal's
+  // focus-restore target (the invoking cover cell) is tabbable when we hand focus back to it.
+  _syncGridRoving();
+  _syncModalFocus();
 }
 
 /* ── Detail modal ──────────────────────────────────────────────────────────── */
@@ -582,12 +607,12 @@ function modalHtml(){
   const haveWant = (st.have!=null && st.want!=null) ? (st.have.toLocaleString()+' / '+st.want.toLocaleString()) : '—';
 
   return `<div data-act="closeDetail" class="tw-modal-ov" style="position:fixed; inset:0; background:rgba(10,10,12,.62); display:flex; align-items:flex-start; justify-content:center; padding:60px 20px; overflow:auto; z-index:50">
-    <div data-act="stop" style="position:relative; width:840px; max-width:100%; background:var(--panel); border:1.5px solid var(--line); box-shadow:8px 8px 0 rgba(0,0,0,.4)">
+    <div data-act="stop" role="dialog" aria-modal="true" aria-labelledby="tw-modal-title" style="position:relative; width:840px; max-width:100%; background:var(--panel); border:1.5px solid var(--line); box-shadow:8px 8px 0 rgba(0,0,0,.4)">
       <div class="tw-modal-head" style="display:flex; gap:22px; padding:22px 24px 20px; border-bottom:2px solid var(--line)">
         <div role="img" aria-label="${esc(d.coverAlt)}" class="tw-modal-cover" style="width:190px; height:190px; flex:none; border:1.5px solid var(--line); background:var(--skel); background-image:${d.coverBg}; background-size:cover; background-position:center">${d.coverPlaceholder}</div>
         <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:8px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint)">${esc(rec.artist)}</span>
-          <span style="font-family:'Barlow Condensed',sans-serif; font-size:38px; font-weight:700; line-height:1; text-wrap:pretty">${esc(rec.title)}</span>
+          <span id="tw-modal-title" style="font-family:'Barlow Condensed',sans-serif; font-size:38px; font-weight:700; line-height:1; text-wrap:pretty">${esc(rec.title)}</span>
           <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted)">${esc(subLine)}</span>
           <div style="display:flex; align-items:center; gap:8px; margin-top:2px">
             <span style="display:flex; align-items:center; gap:7px; border:1.5px solid var(--line); padding:4px 9px">
@@ -637,8 +662,116 @@ function modalHtml(){
   </div>`;
 }
 
+/* ── A11y controllers (W0.4) ──────────────────────────────────────────────────
+   All three run after every render() so they survive the wholesale #app rebuild. */
+
+/* Roving grid: exactly one crate cover cell carries tabindex=0 (the grid is a single tab
+   stop); the rest are -1. Never focuses anything — that would steal focus on the debounced
+   search render. Focus only moves on an explicit arrow key, in onKeydown. */
+function _syncGridRoving(){
+  if (state.view!=='crate') return;
+  const cells = Array.from(document.querySelectorAll('.tw-grid .tw-cell'));
+  if (!cells.length) return;
+  let idx = cells.findIndex(c=>Number(c.dataset.arg)===_gridFocusId);
+  if (idx<0) idx=0;
+  // The cover cells are the roving set (one tab stop, arrow-navigated). The ACTIVE card's
+  // secondary controls (artist / title / color filter) become Tab-reachable so keyboard users
+  // can dive into that card's actions (Tab-into-cell pattern); every other card keeps them out
+  // of the tab order. Without this the artist/color filters would be keyboard-inaccessible.
+  cells.forEach((c,i)=>{
+    const active = (i===idx);
+    c.tabIndex = active?0:-1;
+    const cardEl = c.closest('.tw-card');
+    if (cardEl) cardEl.querySelectorAll('.tw-artist, .tw-title, [data-act="color"]')
+      .forEach(b=>{ b.tabIndex = active?0:-1; });
+  });
+  _gridFocusId = Number(cells[idx].dataset.arg);
+}
+
+/* Modal focus: on open, pull focus into the dialog (once — only when it isn't already
+   inside, so async re-renders don't yank it back); on close, return focus to the invoking
+   cover cell. Tab-cycling lives in onKeydown. */
+function _syncModalFocus(){
+  const ov = document.querySelector('.tw-modal-ov');
+  if (state.detailId && ov){
+    const panel = ov.querySelector('[data-act="stop"]');
+    if (!panel || panel.contains(document.activeElement)) return;
+    // Restore the control the user was on before the rebuild (MAJOR fix); on a fresh open
+    // _modalFocusKey is null, so we fall to the first focusable (the ✕ close button).
+    let target = null;
+    const k = _modalFocusKey;
+    if (k){
+      const list = Array.from(panel.querySelectorAll(FOCUSABLE_SEL));
+      target = list.find(n =>
+        (k.act && n.getAttribute('data-act')===k.act && (n.getAttribute('data-arg')||null)===(k.arg||null)) ||
+        (!k.act && k.href && n.getAttribute('href')===k.href)) || null;
+    }
+    if (!target) target = panel.querySelector(FOCUSABLE_SEL);
+    (target||panel).focus();
+  } else if (!state.detailId && _modalInvokerId!=null){
+    // On close, return focus to the invoking card; if it was filtered out of the DOM while the
+    // modal was open (e.g. an in-modal genre chip), fall back to the grid, then search (MINOR fix).
+    let back = document.querySelector('[data-act="open"][data-arg="'+_modalInvokerId+'"]');
+    if (!back) back = document.querySelector('.tw-grid .tw-cell') || document.getElementById('tw-search');
+    if (back) back.focus();
+    _modalInvokerId=null;
+  }
+}
+
+/* Column count for up/down grid navigation: how many cells share the first row's offsetTop,
+   with a computed-style fallback. (In a no-layout env like jsdom every offsetTop is 0, so
+   this collapses to a single row; left/right stay correct regardless.) */
+function _gridColumns(cells){
+  if (cells.length<2) return 1;
+  const top0 = cells[0].offsetTop;
+  let n=0; for (const c of cells){ if (c.offsetTop===top0) n++; else break; }
+  if (n>0 && n<cells.length) return n;
+  const grid = cells[0].parentElement;
+  const tpl = grid && getComputedStyle(grid).gridTemplateColumns;
+  if (tpl && tpl!=='none'){ const cnt = tpl.trim().split(/\s+/).length; if (cnt>0) return cnt; }
+  return n>0 ? n : 1;
+}
+
+function onKeydown(e){
+  // Modal open: Escape closes; Tab cycles within the dialog.
+  if (state.detailId){
+    if (e.key==='Escape'){ state.detailId=null; render(); return; }
+    if (e.key==='Tab'){
+      const ov = document.querySelector('.tw-modal-ov'); if(!ov) return;
+      const panel = ov.querySelector('[data-act="stop"]'); if(!panel) return;
+      const list = Array.from(panel.querySelectorAll(FOCUSABLE_SEL));
+      if(!list.length) return;
+      const i = list.indexOf(document.activeElement);
+      if (e.shiftKey && i<=0){ e.preventDefault(); list[list.length-1].focus(); }
+      else if (!e.shiftKey && i===list.length-1){ e.preventDefault(); list[0].focus(); }
+    }
+    return;
+  }
+  // Roving grid (crate view only), when focus is on a grid cover cell.
+  if (state.view==='crate' && GRID_KEYS.has(e.key)){
+    const ae = document.activeElement;
+    if (!ae || !ae.classList || !ae.classList.contains('tw-cell')) return;
+    const cells = Array.from(document.querySelectorAll('.tw-grid .tw-cell'));
+    const i = cells.indexOf(ae); if(i<0) return;
+    const cols = _gridColumns(cells);
+    let j=i;
+    switch(e.key){
+      case 'ArrowRight': j=Math.min(i+1, cells.length-1); break;
+      case 'ArrowLeft':  j=Math.max(i-1, 0); break;
+      case 'ArrowDown':  j=Math.min(i+cols, cells.length-1); break;
+      case 'ArrowUp':    j=Math.max(i-cols, 0); break;
+      case 'Home':       j=0; break;
+      case 'End':        j=cells.length-1; break;
+    }
+    e.preventDefault();   // swallow arrows/Home/End so the page doesn't also scroll
+    if (j!==i){ _gridFocusId=Number(cells[j].dataset.arg); _syncGridRoving(); cells[j].focus(); }  // _syncGridRoving moves the tabbable secondaries to the new card too
+  }
+}
+
 async function openDetail(id){
   state.detailId=id;
+  _modalInvokerId=id;   // focus returns to this card's cover cell when the modal closes (W0.4)
+  _gridFocusId=id;      // keep the roving grid's active cell in step with what was opened
   const rec=RECORDS.find(r=>r.id===id);
   if(rec){
     const c=_relCache[id];
@@ -785,7 +918,7 @@ async function bootCrate(){
   }
   document.addEventListener('click', onClick);
   document.addEventListener('input', onInput);
-  window.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.detailId){ state.detailId=null; render(); } });
+  window.addEventListener('keydown', onKeydown);   // W0.4: Escape + modal Tab-cycle + roving grid arrows
   render();
   if (DB_MODE()) {
     window.TraxWaxStats().then(v=>{ if(v && v.value){ state.headerValue=v.value; render(); } });
