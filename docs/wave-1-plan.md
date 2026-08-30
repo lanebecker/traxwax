@@ -355,6 +355,18 @@ revoke all on function public.delete_account(text) from public, anon, authentica
 grant execute on function public.delete_account(text) to service_role;
 ```
 
+**⚠ APPLIED + AMENDED BY 0013 (2026-08-30).** 0012 applied clean and its state matrix passed, but
+the security advisor flagged that `public.can_view_crate` — taking arbitrary `(viewer, owner)` —
+was callable at `/rest/v1/rpc/can_view_crate` by any signed-in user, letting them probe the
+friendship graph. **Migration `0013_friends_private_fn.sql` moves the function to a `private`
+schema** (not PostgREST-exposed), repoints the `collection_items` policy + `get_crate_owner` to
+`private.can_view_crate`, and drops the public version. The RLS policy still works (verified: the
+querying role needs EXECUTE, which is granted in `private`; a friend read returns the row under the
+real `authenticated` role). `live-stats` (Task 2) authorizes **inline** rather than via the RPC,
+since `private.*` isn't reachable through PostgREST. The five browser RPCs stay public+authenticated
+by design (each self-identifies via `auth.jwt()` and acts only as the caller — the advisor's WARN on
+them is expected and accepted).
+
 **Why browser-callable RPCs here (not Edge Functions like finalize):** invites carry no secrets
 (no token decryption), so they don't need the service-role Edge wrapper. They are `SECURITY
 DEFINER` and self-identify via `auth.jwt()->>'sub'`, so a client cannot act as another user. This
@@ -424,18 +436,28 @@ if (kind === 'release' && owner) {
   const isOwnCrate = !!me?.discogs_username
     && me.discogs_username.toLowerCase() === owner.toLowerCase();
   if (!isOwnCrate) {
+    // Authorize INLINE — the choke-point function lives in the `private` schema (migration 0013,
+    // to keep it off PostgREST /rpc), so `admin.rpc('can_view_crate')` is NOT reachable. Do the
+    // same check with service-role reads (service_role bypasses RLS on both tables): owner shares
+    // with friends AND a friendship row (viewer -> owner) exists.
     const { data: ownerRow } = await admin
-      .from('profiles').select('user_id').ilike('discogs_username', owner).maybeSingle();
-    const { data: allowed } = ownerRow
-      ? await admin.rpc('can_view_crate', { p_viewer: userId, p_owner: ownerRow.user_id })
-      : { data: false };
+      .from('profiles').select('user_id, crate_visibility').ilike('discogs_username', owner).maybeSingle();
+    let allowed = false;
+    if (ownerRow && ownerRow.crate_visibility === 'friends') {
+      const { data: fr } = await admin
+        .from('friendships').select('user_id')
+        .eq('user_id', userId).eq('friend_id', ownerRow.user_id).maybeSingle();
+      allowed = !!fr;
+    }
     if (!allowed) return json({ error: 'forbidden' }, 403);   // authz gate — runs BEFORE cache
     suppressPrice = true;
   }
 }
 ```
 `admin` is the existing service-role client (recon confirms it at `index.ts:101-104`, used for the
-credentials read). `can_view_crate` is granted to `service_role` in migration 0012 (Task 1).
+credentials read). The inline check mirrors `private.can_view_crate` exactly (owner
+`crate_visibility='friends'` AND a `friendships` row `viewer -> owner`); it does NOT call the RPC
+because 0013 moved the function into the non-exposed `private` schema.
 
 **2c. Suppress on EVERY return — the cached one and both fresh ones.** Change the cache early
 return (line 111) and wrap the two `release`-branch `return json(out)` sites:
