@@ -58,6 +58,15 @@ wave→version map stable (`docs/social-roadmap.md` W0.5).
 ### Fixed
 - The disconnect and delete buttons are genuinely `disabled` when not yet armed/confirmed,
   not the old `opacity:.45` that was still clickable.
+- **Landing tape** now pins the whole poster to the background at its four corners — the app's
+  treatment (top strips on the red bar, bottom strips hanging off the footer) — instead of the
+  two mid-poster placements that didn't read. (The hero's `overflow:hidden`, which had also
+  been clipping the old tape, is gone; `overflow-x:clip` on the outer landing guards side-scroll.)
+- **Landing accessibility pass** (`/impeccable audit`): the required footer Discogs link is
+  now `--bg` + underline (15:1, was 3.99:1 accent-on-black); the three-up kickers use a
+  theme-aware accent mix that clears AA on the dark band (4.8:1 / 6.0:1); the below-fold hero
+  is `loading="lazy"`; the top-bar CTA holds a 44px touch target on phones; and the section
+  ledes/headlines are real `<h2>`s for screen-reader structure.
 
 ### Notes
 - **Landing hero captured** (`public/screenshots/crate-hero.jpg`, 2560×1840): a light-theme
@@ -70,8 +79,14 @@ wave→version map stable (`docs/social-roadmap.md` W0.5).
   position slab goes grey, and the footer goes black — all through the theme-flipping
   `--ink`/`--bar`/`--bg` tokens so both light and dark stay legible (one fix: the three-up
   note uses a `color-mix` muted, since a raw `--muted` would render light-on-light on the
-  band's inverted dark-theme value). The hero's blank cover tiles become a real block of
-  covers cropped from a lower section of the crate (`public/screenshots/hero-covers.jpg`).
+  band's inverted dark-theme value). The hero cover slot holds the finished cover mosaic
+  exported from the design comp (`public/screenshots/hero-mosaic.jpg`).
+- **Landing header + copy** (Lane): the wordmark is now app-sized and **breaks the frame** —
+  straddling the bar/hero seam, half on the red bar and half on the white hero, left-aligned
+  over the hero copy — with the sign-in / sign-up actions pulled in to align with the hero
+  content below. The hero headline is **"Dig your own crate."** (accent second line), sized to
+  fill the copy column; the sub-line and the three "file by…" notes are tightened to one line
+  each, and "Free · your data stays yours · no marketplace" now sits under the CTA button.
 - `public/_redirects` + `public/_headers` gained the `/account` route; `_routes.json`
   unchanged. **Verify a hard cold-load of `/account/discogs` post-deploy** — a Cloudflare
   rewrite is the one thing that can't be tested locally.
