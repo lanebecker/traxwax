@@ -424,40 +424,29 @@ const owner = typeof body.owner === 'string' ? body.owner.trim() : '';
 ```
 
 **2b. Authorization + suppression decision — place BEFORE `cacheKey`/`cacheGet` (before line 109),
-for the `kind:'release'` case only.** After `userId` is known and the request is validated:
+for the `kind:'release'` case only.** Delegate the whole decision to ONE `service_role`-only DB
+function, `crate_view_decision` (migration **0014**), which resolves the owner username LITERALLY
+(`lower()=lower()`, matching `get_crate_owner`) and reuses `private.can_view_crate`. This replaced
+an earlier inline version that used `.ilike(owner)` — a LIKE-pattern match on client input that
+mis-matched usernames containing `_`/`%` (audit of #12, finding A). `crate_view_decision` is
+`service_role`-only (revoked from `authenticated`/`anon`), so it is never a probeable RPC.
 ```ts
-// Price is suppressed on anyone else's crate (terms rule); Restricted stats reach only an
-// AUTHORIZED viewer. The SERVER decides — the client cannot claim a crate is its own.
-// `owner` is the Discogs username of the crate being viewed (empty => own crate => price ok).
 let suppressPrice = false;
 if (kind === 'release' && owner) {
-  const { data: me } = await admin
-    .from('profiles').select('discogs_username').eq('user_id', userId).single();
-  const isOwnCrate = !!me?.discogs_username
-    && me.discogs_username.toLowerCase() === owner.toLowerCase();
-  if (!isOwnCrate) {
-    // Authorize INLINE — the choke-point function lives in the `private` schema (migration 0013,
-    // to keep it off PostgREST /rpc), so `admin.rpc('can_view_crate')` is NOT reachable. Do the
-    // same check with service-role reads (service_role bypasses RLS on both tables): owner shares
-    // with friends AND a friendship row (viewer -> owner) exists.
-    const { data: ownerRow } = await admin
-      .from('profiles').select('user_id, crate_visibility').ilike('discogs_username', owner).maybeSingle();
-    let allowed = false;
-    if (ownerRow && ownerRow.crate_visibility === 'friends') {
-      const { data: fr } = await admin
-        .from('friendships').select('user_id')
-        .eq('user_id', userId).eq('friend_id', ownerRow.user_id).maybeSingle();
-      allowed = !!fr;
-    }
-    if (!allowed) return json({ error: 'forbidden' }, 403);   // authz gate — runs BEFORE cache
-    suppressPrice = true;
-  }
+  const { data: decision, error: decErr } = await admin.rpc('crate_view_decision',
+    { p_viewer: userId, p_owner_username: owner });
+  if (decErr || decision == null) return json({ error: 'unexpected' }, 500);   // fail closed
+  if (decision === 'allowed') suppressPrice = true;                            // consented friend
+  else if (decision !== 'own') return json({ error: 'forbidden' }, 403);       // 'denied' | 'no_owner'
 }
 ```
-`admin` is the existing service-role client (recon confirms it at `index.ts:101-104`, used for the
-credentials read). The inline check mirrors `private.can_view_crate` exactly (owner
-`crate_visibility='friends'` AND a `friendships` row `viewer -> owner`); it does NOT call the RPC
-because 0013 moved the function into the non-exposed `private` schema.
+`admin` is the existing service-role client (recon `index.ts:101-104`). **Honest scoping (audit of
+#12, finding B):** because release `price`/community stats are GLOBAL per-release data (any
+connected user can already fetch them for their own crate), this suppression is **best-effort UX**
+for the friend-view context, not a confidentiality boundary. The real boundary — *which release IDs
+sit in whose crate* — is the `collection_items` RLS via `private.can_view_crate` (0013), which is
+intact. A client that omits `owner` gets the global price (as it does for its own crate); the
+friend-crate UI never renders a number regardless (`priceCellHtml`, Task 5).
 
 **2c. Suppress on EVERY return — the cached one and both fresh ones.** Change the cache early
 return (line 111) and wrap the two `release`-branch `return json(out)` sites:

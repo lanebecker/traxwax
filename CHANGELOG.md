@@ -13,6 +13,33 @@ _Nothing yet._
 
 ---
 
+## [1.4.0] — 2026-08-30
+
+**Friends & shared crates** (social roadmap Wave 1). You can now share your crate with friends you
+invite, and browse theirs — read-only, and never with prices. Sharing is off by default.
+
+### Added
+- **Consent + friends, in ACCOUNT.** A SHARING toggle ("Friends can see my crate", private by
+  default, per-dataset) and a FRIENDS section: create a single-use invite link, see your friends,
+  and remove one (removal is instant and mutual).
+- **Invite links** — `/i/<code>`. A single-use, 14-day code; only its hash is stored. The link
+  survives sign-up/sign-in, so a brand-new friend can accept it.
+- **Read-only friend crates** — visit `/app/<friend>` to browse a consenting friend's shelf: their
+  covers, titles, and record detail, with their name on the shelf. No prices anywhere (each price
+  cell links to Discogs instead); no RE-SYNC, no account controls, no estimated value.
+- **Privacy:** a crate that doesn't exist and one that simply hasn't been shared with you render
+  identically — the app never confirms whether a username exists.
+
+### Backend (migrations 0012–0014, `live-stats`)
+- `friendships` + `friend_invites` tables, `profiles.crate_visibility`, friend-readable RLS on
+  `collection_items`, and browser-callable RPCs (`create/accept/remove` invite, `list_friends`,
+  `get_crate_owner`). `delete_account` extended to remove friendship + invite rows.
+- The friend-authorization choke point (`can_view_crate`) lives in a non-exposed `private` schema;
+  `live-stats` suppresses price server-side for a friend's crate via a `service_role`-only decision
+  function. All three DB changes were adversarially audited.
+
+---
+
 ## [1.3.4] — 2026-08-30
 
 ### Fixed

@@ -86,7 +86,7 @@ async function handle(req: Request): Promise<Response> {
   const encKey = Deno.env.get('DISCOGS_TOKEN_ENC_KEY');
   if (!consumerKey || !consumerSecret || !encKey) return json({ error: 'not_configured' }, 500);
 
-  let body: { kind?: unknown; id?: unknown };
+  let body: { kind?: unknown; id?: unknown; owner?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'bad_request' }, 400); }
   const kind = body.kind;
   if (kind !== 'value' && kind !== 'release') return json({ error: 'bad_request' }, 400);
@@ -94,6 +94,9 @@ async function handle(req: Request): Promise<Response> {
   if (kind === 'release' && (!Number.isInteger(releaseId) || releaseId < 1)) {
     return json({ error: 'bad_request' }, 400);
   }
+  // Wave 1: the Discogs username of the crate being viewed (empty => own crate). The SERVER
+  // decides price suppression from this; a client cannot claim a crate is its own.
+  const owner = typeof body.owner === 'string' ? body.owner.trim() : '';
 
   // Audit #4: the caller must be Discogs-CONNECTED before being served even cached
   // Restricted data -- a Clerk-only user has not accepted the Discogs data relationship.
@@ -106,9 +109,27 @@ async function handle(req: Request): Promise<Response> {
     .select('oauth_token, oauth_token_secret').eq('user_id', userId).maybeSingle();
   if (!cred) return json({ error: 'not_connected' }, 409);
 
+  // Wave 1 price suppression + friend-view authorization — MUST run before the cache read below
+  // (the release cache key is global and holds a priced payload). Delegated to ONE service_role-
+  // only DB function (migration 0014) that resolves the owner username LITERALLY and reuses
+  // private.can_view_crate, so this endpoint never duplicates or pattern-matches (audit #12-A).
+  // NOTE: price/community stats here are GLOBAL per-release data, so this suppression is
+  // best-effort UX for the friend-view context, NOT a confidentiality boundary — that boundary is
+  // the collection_items RLS (which release IDs are in whose crate), enforced by
+  // private.can_view_crate (0013). A client omitting `owner` gets the (global) price, as it does
+  // for its own crate today; the friend-crate UI never renders a number (priceCellHtml).
+  let suppressPrice = false;
+  if (kind === 'release' && owner) {
+    const { data: decision, error: decErr } = await admin.rpc('crate_view_decision',
+      { p_viewer: userId, p_owner_username: owner });
+    if (decErr || decision == null) return json({ error: 'unexpected' }, 500);   // fail closed
+    if (decision === 'allowed') suppressPrice = true;                            // consented friend
+    else if (decision !== 'own') return json({ error: 'forbidden' }, 403);       // 'denied' | 'no_owner'
+  }
+
   const cacheKey = kind === 'value' ? `value:${userId}` : `release:${releaseId}`;
   const cached = cacheGet(cacheKey);
-  if (cached) return json(cached);
+  if (cached) return json(suppressPrice ? { ...(cached as Record<string, unknown>), price: null } : cached);
 
   let userToken: string, userSecret: string;
   try {
@@ -174,6 +195,6 @@ async function handle(req: Request): Promise<Response> {
     have: (comm.have as number | null) ?? null,
     want: (comm.want as number | null) ?? null,
   };
-  cachePut(cacheKey, out);
-  return json(out);
+  cachePut(cacheKey, out);   // cache the FULL priced payload (global key); suppress only on return
+  return json(suppressPrice ? { ...out, price: null } : out);
 }

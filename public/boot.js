@@ -162,7 +162,7 @@ async function ensureProfile(userId) {
     .from('profiles')
     .upsert(row, { onConflict: 'user_id', ignoreDuplicates: false })
     .select('user_id, discogs_username, import_status, last_import_at, ' +
-      'display_name, avatar_url, bio, location, collecting_since, link1, link2')
+      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility')
     .single();
   if (error) throw new Error('profile upsert failed: ' + error.message);
   return data;
@@ -265,7 +265,81 @@ function ownerInfo(profile) {
     // Phase 2 profiles: the header avatar button + modal read these.
     displayName: profile.display_name || '',
     avatarUrl: profile.avatar_url || '',
+    isOwn: true,   // Wave 1: app.js IS_OWN() branch — the owner's own crate
   };
+}
+
+/* Wave 1: providers for a READ-ONLY friend crate. `owner` is the display projection from
+   get_crate_owner. Reads the friend's collection via the collection_select_friends RLS policy —
+   paginated + inline-mapped EXACTLY like installCrateProviders (only .eq('user_id', ...) differs).
+   Deliberately installs NO TraxWaxRefresh / TraxWaxAccount (nothing to re-sync, no account of
+   theirs), and the stats call carries `owner` so live-stats suppresses price server-side. */
+function installFriendCrateProviders(owner) {
+  const fnCall = async (path, payload) => {
+    const token = await window.Clerk.session.getToken();
+    const r = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) return null;
+    return r.json().catch(() => null);
+  };
+
+  window.TraxWaxViewer = { isOwn: false, ownerUserId: owner.user_id, ownerProfile: owner };
+  window.TraxWaxOwner = {
+    ownerLine: (owner.display_name || owner.discogs_username) + '’s shelf',
+    lastSyncedAt: null,
+    displayName: owner.display_name || '',
+    avatarUrl: owner.avatar_url || '',
+    isOwn: false,
+    ownerUsername: owner.discogs_username,
+  };
+
+  window.TraxWaxData = async () => {
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('collection_items')
+        .select('release_id, added, rating, vinyl, ' +
+          'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
+        .eq('user_id', owner.user_id)
+        .order('id', { ascending: true })
+        .range(from, from + 999);
+      if (error) throw new Error('friend collection query failed: ' + error.message);
+      for (const it of data ?? []) {
+        const rel = it.releases || {};
+        rows.push({
+          id: it.release_id,
+          artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
+          label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
+          vinyl: it.vinyl || '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
+          added: it.added || '', rating: it.rating || 0,
+          price: null, crating: null, crcount: null, have: null, want: null,
+        });
+      }
+      if (!data || data.length < 1000) break;
+    }
+    return rows;
+  };
+
+  window.TraxWaxReleaseData = async (id) => {
+    const { data, error } = await supabase
+      .from('releases').select('tracks, country, released, videos')
+      .eq('release_id', id).maybeSingle();
+    if (error || !data || data.tracks == null) return null;
+    return { tracks: data.tracks || [], country: data.country || '',
+      released: data.released || '', videos: data.videos || [] };
+  };
+
+  // Per-release stats under the VIEWER's own token; price suppressed server-side via `owner`.
+  window.TraxWaxStats = async (id) =>
+    id == null ? {} : fnCall('live-stats', { kind: 'release', id, owner: owner.discogs_username });
+  // No TraxWaxRefresh / TraxWaxAccount — read-only friend crate.
 }
 
 /* Import pipeline, restructured by the Phase 1 cold audit (findings #9-#14): the import
@@ -479,9 +553,72 @@ async function renderAccount(profile, section) {
     onResync: async () => { const ok = await runImport(); if (ok) window.location.reload(); },
     onDisconnect: async () => { await _pipeCall('disconnect-discogs', {}); window.location.href = '/app'; },
     onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); await window.Clerk.signOut(); },
+    // ── Wave 1: SHARING + FRIENDS ──
+    onSetVisibility: async (v) => {
+      const { error } = await supabase.from('profiles')
+        .update({ crate_visibility: v }).eq('user_id', window.Clerk.user.id);
+      if (error) throw new Error(error.message);
+    },
+    onListFriends: async () => {
+      const { data, error } = await supabase.rpc('list_friends');
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    onCreateInvite: async () => {
+      // Random URL-safe code; only its SHA-256 hash is stored. Return the shareable link.
+      const bytes = crypto.getRandomValues(new Uint8Array(18));
+      const code = btoa(String.fromCharCode(...bytes))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const { data, error } = await supabase.rpc('create_friend_invite',
+        { p_code_hash: await sha256hex(code) });
+      if (error) throw new Error(error.message);
+      if (!data || data.status !== 'ok') throw new Error((data && data.status) || 'invite_failed');
+      return location.origin + '/i/' + code;
+    },
+    onRemoveFriend: async (friendId) => {
+      const { error } = await supabase.rpc('remove_friend', { p_friend_id: friendId });
+      if (error) throw new Error(error.message);
+    },
   });
   const release = UI.trapFocus(el, null);   // no Escape handler -- it's a page, not a modal
   window.addEventListener('popstate', release, { once: true });
+}
+
+/* Wave 1: SHA-256 hex of a string. Invite codes are hashed client-side — the plaintext code
+   lives only in the /i/<code> link the inviter shares; only the hash is ever stored. */
+async function sha256hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/* Wave 1: consume an invite code (atomic in accept_friend_invite), create the mutual
+   friendship, then show a result card that routes the user onward. */
+async function acceptInvite(code) {
+  let res;
+  try {
+    const { data, error } = await supabase.rpc('accept_friend_invite',
+      { p_code_hash: await sha256hex(code) });
+    if (error) throw error;
+    res = data || {};
+  } catch (e) { res = { status: 'error', message: (e && e.message) || String(e) }; }
+
+  if (res.status === 'ok') {
+    const who = res.friend_username ? UI.esc('@' + res.friend_username) : 'your friend';
+    notice('You’re connected', 'You and ' + who + ' can now see each other’s crates.', false, {
+      kicker: 'FRIENDS',
+      actions: UI.btnLink('GO TO YOUR CRATE', '/app', { variant: 'primary' }),
+    });
+  } else {
+    const msg = {
+      invalid_or_expired: 'That invite link is invalid or has expired. Ask your friend for a fresh one.',
+      own_invite: 'That’s your own invite link — share it with a friend instead.',
+      no_auth: 'Please sign in first, then open the link again.',
+    }[res.status] || 'Something went wrong accepting that invite.';
+    notice('Invite couldn’t be used', msg, false, {
+      kicker: 'FRIENDS',
+      actions: UI.btnLink('GO TO YOUR CRATE', '/app', { variant: 'secondary' }),
+    });
+  }
 }
 
 /* S2 / S3: TraxWax chrome, stock card. Our state card supplies the wordmark + kicker +
@@ -533,14 +670,33 @@ async function render() {
   clearAuthMount();
   const profile = await ensureProfile(window.Clerk.user.id);
 
+  // Wave 1: consume an invite code stashed at boot() (from an /i/<code> link, possibly opened
+  // while signed out and carried across sign-in). Runs once the user is signed in.
+  let _inviteCode = null;
+  try { _inviteCode = sessionStorage.getItem('tw_invite_code'); } catch (e) {}
+  if (_inviteCode) {
+    try { sessionStorage.removeItem('tw_invite_code'); } catch (e) {}
+    await acceptInvite(_inviteCode);
+    return;
+  }
+
   // S13–S16: the account surface lives at /account and /account/discogs, OUTSIDE the
   // /app/<username> grammar — no reserved-word carve-out, no collision (surfaces spec §6,
   // Lane's decision 2026-08-29). Reached only when signed in; the isSignedIn guard above
   // has already sent a signed-out visitor to the sign-in card. Branch here, before the
   // onboarding/connect gates, so /account is always a place you can land.
   if (segments[0] && segments[0].toLowerCase() === 'account') {
-    const sub = segments[1] ? segments[1].toLowerCase() : 'profile';
-    await renderAccount(profile, sub === 'discogs' ? 'discogs' : 'profile');
+    const valid = ['profile', 'sharing', 'friends', 'discogs'];   // Wave 1: sharing/friends live
+    const raw = segments[1] ? segments[1].toLowerCase() : 'profile';
+    await renderAccount(profile, valid.includes(raw) ? raw : 'profile');
+    return;
+  }
+
+  // Wave 1: the invite-accept route /i/<code>. Reached only when signed in (the guard above sent
+  // a signed-out visitor to sign-in, preserving the URL so the code survives). acceptInvite
+  // renders its own result card, then routes the user onward.
+  if (segments[0] && segments[0].toLowerCase() === 'i' && segments[1]) {
+    await acceptInvite(decodeURIComponent(segments[1]));
     return;
   }
 
@@ -711,6 +867,20 @@ async function render() {
   }
 
   if (routeUsername.toLowerCase() !== profile.discogs_username.toLowerCase()) {
+    // Wave 1: is this a friend's shared crate? get_crate_owner returns 'no_crate' for BOTH
+    // "no such user" AND "exists but not shared with you", so this branch never confirms a
+    // username's existence. On authorization it mounts the crate READ-ONLY and returns.
+    let friendOwner = null;
+    try {
+      const { data } = await supabase.rpc('get_crate_owner', { p_username: routeUsername });
+      if (data && data.status === 'ok') friendOwner = data.owner;
+    } catch (e) { friendOwner = null; }
+    if (friendOwner) {
+      installFriendCrateProviders(friendOwner);
+      await import('/app.js');
+      window.TraxWaxBootCrate();
+      return;
+    }
     // S10 — PRIVACY-CRITICAL. Grey rule (not accent): this is not an error and must not
     // alarm someone who mistyped a URL. In Wave 1 this SAME render must serve both "no such
     // user" and "exists but hasn't shared with you" — UI.COPY.noCrate is written to be true
@@ -766,6 +936,7 @@ async function render() {
   }
 
   // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
+  window.TraxWaxViewer = { isOwn: true, ownerUserId: null, ownerProfile: null };
   installCrateProviders(profile);
   await import('/app.js');
   window.TraxWaxBootCrate();
@@ -800,6 +971,20 @@ async function boot() {
       history.replaceState(null, '', window.location.pathname + window.location.search);
     }
   } catch (e) { /* sessionStorage unavailable → the verify handler reports no_pending */ }
+
+  // Wave 1: an invite link /i/<code> is often opened by a signed-OUT visitor (a NEW friend).
+  // Clerk's sign-in/up flow navigates to /app and would discard the path code, so — exactly like
+  // the finalize code above — stash it and strip the URL to /app BEFORE Clerk loads. render()
+  // consumes it once the user is signed in, so the invite survives the whole auth round-trip.
+  try {
+    // Normalize trailing slashes first, exactly like the route parser in render() (so /i/abc/
+    // and /i/abc behave identically — the code must not carry a stray slash into the hash).
+    const im = window.location.pathname.replace(/\/+$/, '').match(/^\/i\/(.+)$/);
+    if (im) {
+      sessionStorage.setItem('tw_invite_code', decodeURIComponent(im[1]));
+      history.replaceState(null, '', '/app');
+    }
+  } catch (e) { /* sessionStorage unavailable → the in-URL /i branch in render() still handles it */ }
 
   await clerkReady();
   await window.Clerk.load({

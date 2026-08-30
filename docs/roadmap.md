@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.3.4`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.4.0`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -127,6 +127,15 @@ screen-reader browse mode (pre-existing; not in this patch).
 Bug fix from the W0.3 Profiles V5 E2E confirmation: after a photo upload, the account
 nav-header avatar kept the old image until a full reload (only the form avatar refreshed).
 Both now update on upload. The upload itself always persisted correctly to Clerk.
+
+### v1.4.0 — Friends & shared crates (social roadmap Wave 1)
+
+The consent wall, the friendship graph, and the first cross-user crate views. Opt-in
+(default private), single-use invite links (`/i/<code>`), read-only friend crates with
+server-side price suppression, and instant mutual revocation. Backend: migrations 0012–0014
+(friendships, invites, `crate_visibility`, friend-read RLS, `private.can_view_crate`,
+`crate_view_decision`) + `live-stats` suppression. Every DB change and the frontend were
+adversarially audited. Plan + audit record: `docs/wave-1-plan.md`. Issues #11–#15.
 
 ---
 

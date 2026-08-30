@@ -16,6 +16,11 @@ const SETTINGS = {
   ownerLine: "Lane's shelf · filed by whim",
 };
 
+/* Wave 1: the crate renders READ-ONLY when viewing a friend's shelf. boot.js installs
+   window.TraxWaxViewer = { isOwn:false, ... } for a friend crate; absent or isOwn===true means
+   the owner's own crate (also baked/local-dev mode). */
+const IS_OWN = () => !window.TraxWaxViewer || window.TraxWaxViewer.isOwn !== false;
+
 /* Issue #6 (dead code sweep): the client `api` helper (live value + per-record price) is
    gone. Its two endpoints (/api/value, /api/price) were deleted in cold-audit #24 —
    Restricted Data now flows only through the authenticated live-stats Edge Function — so
@@ -256,7 +261,7 @@ function card(r){
       </button>
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:6px; border-top:1.5px solid var(--line); padding-top:6px; margin-top:2px">
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase">${esc(r.year)} · ${esc(r.style1)}</span>
-        ${showP?`<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`:''}
+        ${IS_OWN()?(showP?`<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`:''):priceCellHtml(r,false)}
       </div>
     </div>
   </div>`;
@@ -489,13 +494,13 @@ function render(){
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
           <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} IN CRATE</span>
           <span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount} COLORED</span>
-          <span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>
+          ${IS_OWN()?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
-        ${DB_MODE()?`<button data-act="resync" title="${esc(_lastSyncedLabel())}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${state._resyncing?'SYNCING…':'RE-SYNC'}</button>`:''}
+        ${DB_MODE() && IS_OWN() && window.TraxWaxRefresh?`<button data-act="resync" title="${esc(_lastSyncedLabel())}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${state._resyncing?'SYNCING…':'RE-SYNC'}</button>`:''}
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
       </div>
-      ${DB_MODE()?(()=>{const o=window.TraxWaxOwner||{};const av=o.avatarUrl||'';
+      ${DB_MODE() && IS_OWN()?(()=>{const o=window.TraxWaxOwner||{};const av=o.avatarUrl||'';
         const icon='<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"/><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"/></svg>';
         // Floats ABOVE the white controls bar in the true upper-right corner (Lane,
         // 2026-08-29) — absolutely positioned like the tape decorations, which are
@@ -632,7 +637,7 @@ function modalHtml(){
             </span>
             <span style="flex:1; padding:7px 10px; display:flex; flex-direction:column; gap:1px; background:var(--accent); color:var(--on-accent)">
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; opacity:.82">LOWEST SALE</span>
-              <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700">${priceLabel}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700">${IS_OWN()?priceLabel:`<a href="https://www.discogs.com/release/${encodeURIComponent(rec.id)}" target="_blank" rel="noopener" style="color:var(--on-accent); text-decoration:underline">SEE ON DISCOGS →</a>`}</span>
             </span>
           </div>
         </div>

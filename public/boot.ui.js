@@ -251,8 +251,8 @@ export function trapFocus(container, onEscape) {
    }  */
 const NAV = [
   { id: 'profile', label: 'PROFILE' },
-  { id: 'sharing', label: 'SHARING', soon: true },   // ▸ Wave 1
-  { id: 'friends', label: 'FRIENDS', soon: true },   // ▸ Wave 1
+  { id: 'sharing', label: 'SHARING' },   // ▸ Wave 1 — live
+  { id: 'friends', label: 'FRIENDS' },   // ▸ Wave 1 — live
   { id: 'discogs', label: 'DISCOGS' },
   { id: 'danger', label: 'DANGER ZONE', danger: true, target: 'discogs' },
 ];
@@ -413,8 +413,86 @@ function statCell(label, value) {
       'color:var(--ink)">' + esc(value) + '</span></div>';
 }
 
+/* ── Wave 1: SHARING ── one consent toggle for crate visibility (per-dataset; this wave adds
+   the crate only). Reads the saved value from o.profile.crate_visibility (ensureProfile now
+   selects it). Bare helper names — this is inside boot.ui.js; `UI` is boot.js's import alias. */
+function sharingSection(o) {
+  const vis = (o.profile && o.profile.crate_visibility) || 'private';
+  return '' +
+  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:26px">' +
+    sectionHead('SHARING', 'Who can see your crate',
+      'Your crate is private by default. Turn this on to let friends you’ve added browse it. ' +
+      'Prices never appear on anyone else’s crate. You can turn this off any time.') +
+    '<div id="tw-share-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
+      'line-height:1.6; color:var(--accent); min-height:0"></div>' +
+    '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
+      'border:1.5px solid var(--hair); padding:16px">' +
+      '<div style="display:flex; flex-direction:column; gap:3px">' +
+        '<span style="' + COND + '; font-size:18px; font-weight:700; color:var(--ink)">Friends can see my crate</span>' +
+        '<span style="' + MONO + '; font-size:10px; color:var(--faint)">Only people you’ve added as friends</span>' +
+      '</div>' +
+      toggle({ id: 'tw-vis-toggle', on: vis === 'friends', label: 'Friends can see my crate' }) +
+    '</div>' +
+  '</div>';
+}
+
+/* ── Wave 1: FRIENDS ── create an invite link + list current friends (remove = instant
+   revocation both directions). Empty state via emptyState(). */
+function friendsSection(o) {
+  return '' +
+  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
+    sectionHead('FRIENDS', 'People who can see your crate', '') +
+    '<div id="tw-friends-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
+      'line-height:1.6; color:var(--accent); min-height:0"></div>' +
+    '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
+      '<button id="tw-invite-btn" style="' + btnStyle('primary') + '">CREATE AN INVITE LINK</button>' +
+      '<input id="tw-invite-link" readonly style="' + MONO + '; font-size:11px; padding:8px 10px; ' +
+        'flex:1; min-width:220px; border:1.5px solid var(--line); background:var(--panel); ' +
+        'color:var(--ink); display:none">' +
+    '</div>' +
+    '<div id="tw-friends-list"></div>' +
+  '</div>';
+}
+
+/* Populate #tw-friends-list from deps.onListFriends(). Reused on first render and after a
+   removal. emptyState() for the no-friends case. */
+async function renderFriendsList(root, deps) {
+  const host = root.querySelector('#tw-friends-list');
+  if (!host) return;
+  let friends = [];
+  try { friends = await deps.onListFriends(); } catch (e) { host.innerHTML = ''; return; }
+  if (!friends.length) {
+    host.innerHTML = emptyState({
+      kicker: 'NO FRIENDS YET',
+      headline: 'Invite someone to compare crates',
+      body: 'Create an invite link above and send it to a friend. Once they accept, you’ll each be ' +
+        'able to browse the other’s shelf.',
+    });
+    return;
+  }
+  host.innerHTML = friends.map((f) =>
+    '<div style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--hair)">' +
+      avatar(f.avatar_url, 40) +
+      '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">' +
+        '<span style="' + COND + '; font-size:16px; font-weight:700; color:var(--ink)">' +
+          esc(f.display_name || f.discogs_username || 'Friend') + '</span>' +
+        '<a href="/app/' + encodeURIComponent(f.discogs_username || '') + '" style="' + MONO +
+          '; font-size:10px; letter-spacing:.06em; color:var(--accent); text-decoration:none">VIEW CRATE →</a>' +
+      '</div>' +
+      '<button data-remove-friend="' + esc(f.user_id) + '" style="' + btnStyle('secondary') +
+        '; font-size:10px">REMOVE</button>' +
+    '</div>').join('');
+  host.querySelectorAll('[data-remove-friend]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try { await deps.onRemoveFriend(btn.getAttribute('data-remove-friend')); await renderFriendsList(root, deps); }
+      catch (e) { btn.disabled = false; }
+    });
+  });
+}
+
 export function accountPageHtml(o) {
-  const section = o.section === 'discogs' ? 'discogs' : 'profile';
+  const section = ['discogs', 'sharing', 'friends'].includes(o.section) ? o.section : 'profile';
   return '' +
   '<div style="max-width:1040px; margin:0 auto; background:var(--panel); ' +
     'border:1.5px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">' +
@@ -438,7 +516,10 @@ export function accountPageHtml(o) {
     '</div>' +
     '<div class="tw-acct-body" style="display:grid; grid-template-columns:236px minmax(0,1fr)">' +
       accountNav(section, o) +
-      (section === 'discogs' ? discogsSection(o) : profileSection(o)) +
+      (section === 'discogs' ? discogsSection(o)
+        : section === 'sharing' ? sharingSection(o)
+        : section === 'friends' ? friendsSection(o)
+        : profileSection(o)) +
     '</div>' +
   '</div>';
 }
@@ -541,6 +622,43 @@ export function bindAccountPage(root, deps) {
         msg('Deletion failed (' + ((e && e.message) || e) + '). Try again.');
       }
     });
+  }
+
+  // ── Wave 1: SHARING toggle ── re-render on change (toggle() sets inline styles, no class),
+  // so the wiring is a named fn that re-binds the replacement node.
+  function wireVisToggle() {
+    const vt = root.querySelector('#tw-vis-toggle');
+    if (!vt) return;
+    vt.addEventListener('click', async () => {
+      const now = vt.getAttribute('aria-checked') === 'true';
+      const next = now ? 'private' : 'friends';
+      const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
+      try {
+        await deps.onSetVisibility(next);
+        const holder = document.createElement('div');
+        holder.innerHTML = toggle({ id: 'tw-vis-toggle', on: next === 'friends', label: 'Friends can see my crate' });
+        vt.replaceWith(holder.firstElementChild);
+        wireVisToggle();   // the replacement node has no listener yet
+        smsg(next === 'friends' ? 'Friends can now see your crate.' : 'Your crate is private again.');
+      } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
+    });
+  }
+  wireVisToggle();
+
+  // ── Wave 1: FRIENDS ── invite-link button + friend list.
+  const inviteBtn = $('tw-invite-btn');
+  if (inviteBtn) {
+    const fmsg = (t) => { const el = $('tw-friends-msg'); if (el) el.textContent = t || ''; };
+    inviteBtn.addEventListener('click', async () => {
+      fmsg('Creating a link…');
+      try {
+        const link = await deps.onCreateInvite();
+        const box = $('tw-invite-link');
+        if (box) { box.style.display = ''; box.value = link; box.focus(); box.select(); }
+        fmsg('Copy this link and send it to your friend. It works once and expires in 14 days.');
+      } catch (e) { fmsg('Couldn’t create a link: ' + ((e && e.message) || e)); }
+    });
+    renderFriendsList(root, deps);
   }
 }
 
