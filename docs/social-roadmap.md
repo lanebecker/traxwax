@@ -197,13 +197,18 @@ Prerequisites that block everything, none of them features:
   custom Clerk domain (the img.clerk.com hypothesis), modal fields persist, photo upload
   round-trips. Plus Tommy's name appearing in his profile row on his next visit — the
   first organic test of the sync.
-- **W0.4 (optional, if the runway-clearing feels thin) — Accessibility polish.**
-  **`aria-live` on the result count SHIPPED in v1.3.2** (the design pass took the one free
-  win). **Still owed:** detail-modal focus-trap + focus restore, roving grid focus,
-  `cover_image` modal cover. `trapFocus(container, onEscape)` now exists in `boot.ui.js`
-  (wired on the account page) and is the tool for the modal too — reuse it, don't re-author.
-  Owed since v0.5.0 planning; friends browsing each other's crates makes keyboard/screen-
-  reader quality more visible, not less.
+- **W0.4 — Accessibility polish. SHIPPED v1.3.3 (2026-08-30).** All four line items done:
+  `aria-live` on the result count (v1.3.2); detail-modal focus-trap + focus restore
+  (returns to the invoking card, survives the async stats/tracklist re-render); roving
+  grid focus (single tab stop, arrows + Home/End across covers, **Tab-into-cell** so the
+  focused card's artist/title/color controls stay keyboard-reachable — the "full roving"
+  model would have stranded those filters, a WCAG 2.1.1 fail caught in remediation-audit);
+  and the `cover_image` modal cover (already satisfied by `deco()`, verified). `app.js`
+  only. **NOTE:** the modal reuses `trapFocus`'s *selector convention* via a re-render-safe
+  controller in `app.js` rather than calling `boot.ui.js`'s `trapFocus` directly — app.js is
+  dependency-free and `render()` rebuilds the DOM wholesale, which `trapFocus`'s one-shot
+  capture cannot survive. Known follow-up: `inert`/`aria-hidden` the background behind the
+  open modal (pre-existing; deferred).
 - **W0.5 — The design-surfaces pass. SHIPPED v1.3.2 (2026-08-29).** The nine bare system
   states, the auth chrome, the landing page, and the account surface were rebuilt into one
   shell system. Full spec `docs/design-surfaces-spec.md` (read its as-built note); surface →

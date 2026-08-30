@@ -140,8 +140,9 @@ full result set.
 `year · label · country`, vinyl pill, added date, and a three-cell strip (rating / have-want /
 **lowest sale**, the last one filled accent). Body: tracklist left, `Filed under` style chips +
 label + `VIEW ON DISCOGS` / `▶ LISTEN` right. Closes on ✕, backdrop click, and Esc.
-**To do in implementation:** focus-trap the modal, restore focus to the invoking card on close,
-and load `cover_image` (not the 150px `thumb`) for the modal cover.
+**Implemented (v1.3.3, W0.4):** the modal is a `role="dialog"`/`aria-modal` dialog with a
+focus trap, focus restore to the invoking card on close, and it already loads `cover_image`
+(not the 150px `thumb`) via `deco()`.
 
 ### States
 - **Loading** — shimmering skeleton cards in the grid, same geometry. No progress bar, no
@@ -160,8 +161,9 @@ Verified in the kit: all text clears WCAG AA 4.5:1 in both themes. Keep it that 
   images so an unresolved URL never fires a request). Use real `alt` if you switch to `<img>`.
 - Every filterable string is a real `<button>`; focus ring is `2px solid var(--accent)` at 2px
   offset via `:focus-visible`.
-- Still to do: modal focus trap, arrow-key roving focus across the grid, `aria-live` on the
-  results count.
+- Shipped v1.3.3 (W0.4): modal focus trap + restore, arrow-key roving focus across the grid
+  (single tab stop, Tab-into-cell so the focused card's controls stay reachable), and
+  `aria-live` on the results count (the last shipped in v1.3.2).
 
 ---
 

@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.3.2`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.3.3`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -110,17 +110,25 @@ Carries reserved space for every social wave. Spec: `docs/design-surfaces-spec.m
 surface→file map: `docs/design-screen-map.md`. (Cut as a patch by decision, keeping the
 social-roadmap wave→version map stable.)
 
+### v1.3.3 — Accessibility polish (W0.4)
+
+The keyboard/screen-reader debt owed since v0.5.0 planning, cleared. The detail modal is now
+a proper dialog (`role="dialog"` + `aria-modal` + `aria-labelledby`) with a focus trap that
+returns focus to the invoking card on close and survives the async stats/tracklist re-render.
+The crate grid is a single tab stop with **Tab-into-cell roving**: arrow keys (+ Home/End)
+move between covers, and the focused card's artist/title/color controls become Tab-reachable
+so no filter is lost to keyboard users. (`aria-live` on the result count shipped in v1.3.2;
+the modal cover already used `cover_image`, verified.) `app.js` only — no schema/RLS/Edge
+change. Follow-up noted: `inert`/`aria-hidden` the background behind the open modal for
+screen-reader browse mode (pre-existing; not in this patch).
+
 ---
 
 ## Next
 
-### Accessibility & polish
-
-- Modal focus-trap + restore focus to the invoking card on close (`trapFocus` now exists
-  in `boot.ui.js` — reuse it)
-- Roving arrow-key focus across the grid
-- ~~`aria-live` on the result count~~ — **shipped in v1.3.2**
-- Modal cover uses `cover_image` (not the 150px `thumb`)
+The standalone accessibility backlog is cleared. What's next is the social roadmap —
+`docs/social-roadmap.md`, Wave 1 (friends & consented crates → v1.4.0) onward. Interstitial
+polish items get filed as they arise.
 
 ---
 

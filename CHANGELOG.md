@@ -13,6 +13,30 @@ _Nothing yet._
 
 ---
 
+## [1.3.3] — 2026-08-30
+
+Accessibility polish (social-roadmap **W0.4**) — the keyboard and screen-reader debt owed
+since v0.5.0 planning, cleared. `app.js` only; no schema, RLS, or Edge-function change.
+
+### Added
+- **The detail modal is a real dialog** — `role="dialog"`, `aria-modal="true"`, and
+  `aria-labelledby` pointing at the title. Opening it moves focus into the dialog; **Tab and
+  Shift-Tab cycle within it**; Escape closes; on close, focus returns to the card that opened
+  it. The trap **survives the async stats/tracklist re-render** — focus is no longer thrown
+  back to the close button when live data lands.
+- **Roving keyboard focus across the crate grid (Tab-into-cell).** The grid is now a single
+  tab stop: **arrow keys and Home/End** move between record covers. The **focused** card's
+  artist / title / color controls become Tab-reachable, so keyboard users keep every filter
+  (arrows to pick a record, Tab to dive into its actions) without walking thousands of buttons.
+
+### Notes
+- `aria-live` on the result count shipped in v1.3.2; the modal cover already served the ~600px
+  `cover_image` (not the 150px `thumb`), verified here — both W0.4 line items already satisfied.
+- Known follow-up (pre-existing, not in this patch): mark the background `inert` / `aria-hidden`
+  while the modal is open, for screen-reader browse-mode isolation.
+
+---
+
 ## [1.3.2] — 2026-08-29
 
 The **design-surfaces pass** (Claude Design Kit v2). The crate was designed; nothing around

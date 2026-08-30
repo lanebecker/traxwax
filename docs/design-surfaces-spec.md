@@ -6,8 +6,9 @@
 >    SPA shell, and `boot.js` branches on `segments[0] === 'account'`.
 > 2. **Accessibility scope was held to this spec** plus one free win — `aria-live` on the
 >    crate's result count. The detail-modal focus trap, roving grid focus, and `cover_image`
->    modal cover remain roadmap item W0.4 (they are NOT done here). `trapFocus` IS wired on
->    the account page, as specified.
+>    modal cover were **W0.4, since SHIPPED in v1.3.3** (see §7 checklist + the CHANGELOG).
+>    `trapFocus` IS wired on the account page, as specified; the modal uses a re-render-safe
+>    controller in `app.js` sharing `trapFocus`'s selector (rationale in `app.js` + W0.4 note).
 >
 > Everything else shipped as written. Screen→file map: `docs/design-screen-map.md`.
 > Companion crate spec: `docs/design-crate-spec.md`.
@@ -344,13 +345,16 @@ Requirements introduced by this pass:
 - Focus ring stays `2px solid var(--accent)` at 2px offset via the existing
   `*:focus-visible` rule.
 
-Standing debts this pass makes *more* visible (from `docs/roadmap.md`, owed since v0.5.0) —
-use `trapFocus` for the detail modal too:
+Standing debts this pass made *more* visible (owed since v0.5.0) — **all SHIPPED in v1.3.3
+(W0.4)**:
 
-1. Detail-modal focus trap + restore focus to the invoking card.
-2. `aria-live` on the crate's result count.
-3. Roving arrow-key focus across the grid.
-4. Modal cover from `cover_image`, not the 150px `thumb`.
+1. ~~Detail-modal focus trap + restore focus to the invoking card.~~ Shipped — plus a real
+   `role="dialog"`/`aria-modal`/`aria-labelledby`, and the trap survives async re-renders.
+2. ~~`aria-live` on the crate's result count.~~ Shipped v1.3.2.
+3. ~~Roving arrow-key focus across the grid.~~ Shipped — single tab stop, arrows + Home/End,
+   **Tab-into-cell** so the focused card's artist/title/color controls stay keyboard-reachable.
+4. ~~Modal cover from `cover_image`, not the 150px `thumb`.~~ Already satisfied by `deco()`,
+   verified.
 
 ---
 
