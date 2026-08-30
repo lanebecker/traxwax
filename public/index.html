@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TraxWax — your record collection, filed properly</title>
-<meta name="description" content="Connect Discogs and get a crate you can actually browse — by style, by color, by the year you were obsessed.">
+<meta name="description" content="Connect Discogs and get a crate you can actually browse — by style, by color, by the year you became obsessed.">
 <meta property="og:title" content="TraxWax">
 <meta property="og:description" content="You own records. Now find them.">
 <meta property="og:type" content="website">
@@ -31,7 +31,6 @@
 
     <!-- ── Bar ─────────────────────────────────────────────────────────────── -->
     <div class="tw-land-bar">
-      <div class="tw-wordmark tw-wordmark-sm">TRAXWAX</div>
       <div class="tw-land-bar-r">
         <a class="tw-land-signin" href="/app">SIGN IN</a>
         <a class="tw-btn tw-btn-primary tw-btn-sm" href="/app?mode=signup">CREATE AN ACCOUNT</a>
@@ -40,28 +39,27 @@
 
     <!-- ── Hero ────────────────────────────────────────────────────────────── -->
     <div class="tw-land-hero">
-      <span class="tw-tape tw-tape-a" aria-hidden="true"></span>
-      <span class="tw-tape tw-tape-b" aria-hidden="true"></span>
+      <!-- The wordmark breaks the frame: it straddles the bar/hero seam, left-aligned with
+           the copy below it. Big (app-size). -->
+      <div class="tw-land-wordmark">TRAXWAX</div>
       <div class="tw-land-hero-grid">
         <div class="tw-land-hero-copy">
           <div class="tw-land-eyebrow-wrap">
             <span class="tw-land-eyebrow">FOR PEOPLE WITH TOO MUCH VINYL</span>
-            <h1 class="tw-land-h1">YOU OWN RECORDS,<br><span>NOW FIND THEM.</span></h1>
+            <h1 class="tw-land-h1">DIG YOUR<br><span>OWN CRATE.</span></h1>
           </div>
           <p class="tw-land-sub">Connect Discogs and get a crate you can actually browse — by
-            style, by color, by the year you were obsessed. Everything you already own, finally
-            sorted the way you think about it.</p>
+            style, by color, by the year you became obsessed.</p>
           <div class="tw-land-cta">
             <a class="tw-btn tw-btn-primary tw-btn-lg" href="/app?mode=signup">OPEN YOUR CRATE</a>
             <span class="tw-land-cta-note">Free · your data stays yours · no marketplace</span>
           </div>
         </div>
-        <!-- A block of real covers cropped from the live crate (a lower section than the
-             proof-shot hero, so it's a different set of records). Decorative → aria-hidden;
-             onerror degrades to a framed skeleton if the file 404s. -->
-        <div class="tw-land-covers" aria-hidden="true">
-          <img src="/screenshots/hero-covers.jpg" alt=""
-               onerror="this.onerror=null;this.removeAttribute('src');this.style.cssText='display:block;width:100%;aspect-ratio:.68;background:var(--skel);border:1.5px solid var(--line)'">
+        <!-- The finished cover mosaic exported from the design comp. Decorative → aria-hidden;
+             onerror degrades to a --skel block if it 404s. -->
+        <div class="tw-land-mosaic" aria-hidden="true">
+          <img src="/screenshots/hero-mosaic.jpg" alt=""
+               onerror="this.onerror=null;this.removeAttribute('src');this.style.cssText='display:block;width:100%;aspect-ratio:.746;background:var(--skel)'">
         </div>
       </div>
     </div>
@@ -70,21 +68,19 @@
     <div class="tw-land-three">
       <div>
         <span class="tw-land-kick">FILE BY STYLE</span>
-        <span class="tw-land-lede">Post-punk, on pink, from 2019</span>
-        <span class="tw-land-note">Stack as many filters as you like. Nothing here cancels
-          anything else out.</span>
+        <h2 class="tw-land-lede">Post-punk, on pink, from 2019</h2>
+        <span class="tw-land-note">Stack as many filters as you like.</span>
       </div>
       <div>
         <span class="tw-land-kick">FILE BY COLOR</span>
-        <span class="tw-land-lede">We speak variant</span>
+        <h2 class="tw-land-lede">We speak variant</h2>
         <span class="tw-land-note">Neon Flamingo Translucent is a color. &ldquo;Fifth
-          Pressing&rdquo; is not, and we won&rsquo;t pretend otherwise.</span>
+          Pressing&rdquo; is not.</span>
       </div>
       <div>
         <span class="tw-land-kick">FILE BY REGRET</span>
-        <span class="tw-land-lede">The damage, itemized</span>
-        <span class="tw-land-note">What it&rsquo;s worth, what you bought this month, and the
-          five records you&rsquo;d rather not discuss.</span>
+        <h2 class="tw-land-lede">The damage, itemized</h2>
+        <span class="tw-land-note">What you bought this month, and what it&rsquo;s worth.</span>
       </div>
     </div>
 
@@ -92,16 +88,14 @@
     <div class="tw-land-proof">
       <div class="tw-land-proof-head">
         <span class="tw-land-kick">THE CRATE</span>
-        <span class="tw-land-proof-h">One shelf, catalogued past the point of reason</span>
+        <h2 class="tw-land-proof-h">One shelf, catalogued past the point of reason</h2>
       </div>
       <div class="tw-land-shot">
-        <span class="tw-tape tw-tape-c" aria-hidden="true"></span>
-        <span class="tw-tape tw-tape-d" aria-hidden="true"></span>
         <!-- crate-hero.jpg: captured 2026-08-29 from lanebecker's live crate (spec §11 —
              covers loaded, JUST IN badges, varied wax), cropped to the design's 2560×1840
              landscape band and encoded JPEG q88 (~800KB vs ~4MB PNG; it doubles as the OG
              card). The onerror still degrades to a framed skeleton if the file ever 404s. -->
-        <img src="/screenshots/crate-hero.jpg" width="2560" height="1840"
+        <img src="/screenshots/crate-hero.jpg" width="2560" height="1840" loading="lazy"
              onerror="this.onerror=null;this.removeAttribute('src');this.style.cssText='display:block;width:100%;height:auto;min-height:340px;background:var(--skel);border:1.5px solid var(--line);box-shadow:8px 8px 0 rgba(0,0,0,.16)'"
              alt="The TraxWax crate: a grid of album covers with style filters above them">
       </div>
@@ -111,8 +105,8 @@
          ▸ ROADMAP: this full-bleed dark band is the Wave 5 slot (public crates, DNA card,
          OG preview). A row of shared-crate cards drops in here without touching the hero. -->
     <div class="tw-land-slab">
-      <div class="tw-land-slab-h">No marketplace. No feed. No algorithm with opinions about
-        your taste.</div>
+      <h2 class="tw-land-slab-h">No marketplace. No feed. No algorithm with opinions about
+        your taste.</h2>
       <div class="tw-land-slab-list">READS YOUR DISCOGS COLLECTION<br>PRICES STAY BETWEEN YOU
         AND DISCOGS<br>DISCONNECT ANY TIME — IT TAKES ONE CLICK</div>
     </div>
@@ -123,6 +117,13 @@
       This application uses Discogs' API but is not affiliated with, sponsored or endorsed by
       Discogs. "Discogs" is a trademark of Zink Media, LLC.
     </div>
+
+    <!-- Four corner tapes fixing the whole poster to the background (app treatment):
+         top strips on the red bar, bottom strips hanging off the footer onto the page. -->
+    <span class="tw-tape tw-tape-a" aria-hidden="true"></span>
+    <span class="tw-tape tw-tape-b" aria-hidden="true"></span>
+    <span class="tw-tape tw-tape-c" aria-hidden="true"></span>
+    <span class="tw-tape tw-tape-d" aria-hidden="true"></span>
 
   </div>
 </div>
