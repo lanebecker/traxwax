@@ -512,7 +512,6 @@ function render(){
           ${IS_OWN()?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
-        ${DB_MODE() && IS_OWN() && window.TraxWaxRefresh?`<button data-act="resync" title="${esc(_lastSyncedLabel())}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${state._resyncing?'SYNCING…':'RE-SYNC'}</button>`:''}
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
       </div>
       ${DB_MODE() && IS_OWN()?(()=>{const o=window.TraxWaxOwner||{};const av=o.avatarUrl||'';
@@ -879,10 +878,6 @@ function onInput(e){
 }
 
 /* ── Re-sync (DB mode) ─────────────────────────────────────────────────────── */
-function _lastSyncedLabel(){
-  const at = window.TraxWaxOwner && window.TraxWaxOwner.lastSyncedAt;
-  return at ? ('Last synced ' + new Date(at).toLocaleString()) : 'Refresh from Discogs';
-}
 async function _resync(){
   if(state._resyncing || !DB_MODE() || !window.TraxWaxRefresh) return;
   state._resyncing = true; render();

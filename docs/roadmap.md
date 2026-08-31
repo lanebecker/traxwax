@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.4.2`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.4.3`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -153,6 +153,17 @@ shelf or counts); and re-opening an already-accepted invite now reports "Already
 and guards a missing profile). **Added:** two-step REMOVE friend, a friend-crate indicator strip
 with a back link, an invite COPY button + "Works once · expires in 14 days," and a sign-out row.
 Frontend + one migration; the batch was twice adversarially audited (remediation-audit).
+
+### v1.4.3 — Friends surface redesign (Design Kit v2)
+
+The Friends account page rebuilt for legibility: one flat column → an intro block plus three
+labeled sections (VISIBILITY / INVITE A FRIEND / YOUR FRIENDS · N, live count), each a mono label
++ hairline rule over one ink-bordered container, in the order the user acts on them. Consistent
+container borders, a single-structure friend row (name-link + handle + status + VIEW CRATE →),
+transparent last-row divider, and a hairline empty state. A reusable `sectionLabel()` helper is now
+available for future settings sections. Also removed the RE-SYNC button from the crate header (it's
+mirrored in account → Discogs). Frontend only, all existing tokens; jsdom-verified (56 checks) with
+a static render preview. Spec: `Design/traxwax-friends-redesign/FRIENDS-SPEC.md`. Issue #21.
 
 ---
 

@@ -13,6 +13,28 @@ _Nothing yet._
 
 ---
 
+## [1.4.3] — 2026-08-30
+
+Friends account surface redesigned for legibility (Design Kit v2). Frontend only.
+
+### Changed
+- **Friends page is now three labeled sections** instead of one flat column — **VISIBILITY**,
+  **INVITE A FRIEND**, and **YOUR FRIENDS · N** (live count), each a mono label + hairline rule over
+  one ink-bordered container, in the order you act on them. The visibility card's sub-line reads
+  "… · currently ON/OFF"; the friends list sits in a single container with a transparent divider on
+  the last row; the no-friends state is a hairline box, not an empty ink container. Friend rows keep
+  the username beside the name and the name-line link to the crate (v1.4.2), alongside the VIEW
+  CRATE → tag. Composes from existing tokens — no new tokens, type, or components. A reusable
+  `sectionLabel()` helper is in place for future settings sections.
+
+### Removed
+- The **RE-SYNC button in the main crate header** — it's mirrored on the account → Discogs page,
+  a more appropriate home. (Dead `_lastSyncedLabel()` helper removed.)
+
+Closes #21.
+
+---
+
 ## [1.4.2] — 2026-08-30
 
 Friends UX polish + two data-correctness fixes.
