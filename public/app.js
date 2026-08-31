@@ -275,15 +275,22 @@ function sortBtn(id,label){
 const WANT_BTN_STYLE = "width:100%; margin-top:6px; font-family:'IBM Plex Mono',monospace; font-size:10px; " +
   "letter-spacing:.06em; padding:6px 8px; border:1.5px solid var(--line); background:var(--panel); " +
   "color:var(--ink); text-align:center; cursor:pointer";
-function wantControlHtml(r){
+// In the modal, match the sibling action buttons (VIEW ON DISCOGS / LISTEN) exactly — 10.5px type and
+// 7px 10px padding — so the three line up in height and size (#29, Lane live report v1.6.0). No width:100%:
+// the action column is a stretch flexbox, so the button sizes to full width like the <a> links beside it.
+const WANT_BTN_STYLE_MODAL = "font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; " +
+  "padding:7px 10px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); " +
+  "text-align:center; cursor:pointer";
+function wantControlHtml(r, inModal){
+  const st = inModal ? WANT_BTN_STYLE_MODAL : WANT_BTN_STYLE;
   if (state.view==='wantlist'){
-    return `<button data-act="wantRemove" data-arg="${r.id}" style="${WANT_BTN_STYLE}">✕ REMOVE FROM WANTLIST</button>`;
+    return `<button data-act="wantRemove" data-arg="${r.id}" style="${st}">✕ REMOVE FROM WANTLIST</button>`;
   }
   const ctx = window.__twMatchCtx;
   if (!IS_OWN() && ctx){
     if (ctx.viewerHas && ctx.viewerHas.has(r.id)) return '';   // you own this release — no want action
     const wanted = ctx.viewerWants && ctx.viewerWants.has(r.id);
-    return `<button data-act="want" data-want="${wanted?'remove':'add'}" data-arg="${r.id}" style="${WANT_BTN_STYLE}">${wanted?'✕ REMOVE FROM WANTLIST':'＋ ADD TO WANTLIST'}</button>`;
+    return `<button data-act="want" data-want="${wanted?'remove':'add'}" data-arg="${r.id}" style="${st}">${wanted?'✕ REMOVE FROM WANTLIST':'＋ ADD TO WANTLIST'}</button>`;
   }
   return '';
 }
@@ -745,7 +752,7 @@ function modalHtml(){
             <span style="font-family:'Archivo',sans-serif; font-size:13px">${esc(rec.label||'—')}</span>
           </div>
           <div style="display:flex; flex-direction:column; gap:7px; margin-top:auto">
-            ${wantControlHtml(rec)}
+            ${wantControlHtml(rec, true)}
             <a href="https://www.discogs.com/release/${rec.id}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); color:var(--ink); text-align:center">VIEW ON DISCOGS ↗</a>
             <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(rec.artist+' '+rec.title)}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); background:var(--accent); color:var(--on-accent); text-align:center">▶ LISTEN</a>
           </div>
