@@ -52,6 +52,17 @@ GitHub Actions holds an independent copy of `DISCOGS_TOKEN` for the retired-from
 `refresh-collection.yml` (manual `workflow_dispatch` only; regenerates the dev fixture).
 Rotation touches both plus the other consumers — see `../DISCOGS-CREDENTIALS.md`.
 
+**Analytics (Umami Cloud, since v1.4.7).** Cookieless, no-PII, no consent banner — a `<script>`
+tag in both entry-point heads (`public/index.html`, `public/app/index.html`). No server, no
+Supabase involvement, nothing in the CSP path (there is no CSP). The `data-website-id` is **not
+a secret** (it's public in the HTML) — it lives in the repo, one value in both files; to rotate
+or set it, replace `REPLACE_WITH_UMAMI_WEBSITE_ID` in both and push. Config choices, all
+one-liners: `data-domains="traxwax.com"` (preview/localhost don't report), `data-do-not-track`
+(honors the browser DNT signal — drop it for fuller numbers), and a `data-before-send` guard
+(`twUmamiBeforeSend`) that masks the `/app/<username>` path segment so no Discogs handle leaves
+the app. **Rule: event props are actions/counts only — never a username, price, or any Restricted
+Discogs field.** Custom events wired so far: `import_completed` (boot.js), `view_change` (app.js).
+
 ## Surface 2 — Supabase Edge Functions
 
 Project `sfipqknrbvamwwahwxnl` (`https://sfipqknrbvamwwahwxnl.supabase.co`). **Eight

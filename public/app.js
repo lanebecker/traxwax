@@ -845,6 +845,11 @@ async function _loadStats(rec){
   } catch(e) { /* stats are decoration; the modal stands without them */ }
 }
 
+/* Analytics: fire-and-forget custom event to Umami if the tracker loaded. Guarded so it's a
+   no-op when analytics is absent (blocked, DNT, or no website-id yet). Send ACTIONS and COUNTS
+   only — never record identities, prices, or any Restricted Discogs data. */
+function track(name, data){ try { if (window.umami) window.umami.track(name, data); } catch(e){} }
+
 /* ── Events (delegation) ───────────────────────────────────────────────────── */
 function onClick(e){
   const t=e.target.closest('[data-act]'); if(!t) return;
@@ -857,7 +862,7 @@ function onClick(e){
     case 'theme': setTheme(state.theme==='dark'?'light':'dark'); render(); break;
     case 'resync': _resync(); break;
     case 'account': if(window.TraxWaxAccount) window.TraxWaxAccount(); break;
-    case 'view': state.view=arg; render(); break;
+    case 'view': state.view=arg; track('view_change', { view: arg }); render(); break;
     case 'sort': state.sort=arg; render(); break;
     case 'dir': state.dir*=-1; render(); break;
     case 'genre': toggleGenre(arg); render(); break;
