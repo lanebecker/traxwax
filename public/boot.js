@@ -278,6 +278,12 @@ function installCrateProviders(profile) {
     return ok;
   };
 
+  // Wave 2 B2: the first Discogs write — add/remove one release on the caller's own wantlist, then the
+  // Edge fn mirrors it into wantlist_items (and seeds the release server-side if the catalog lacks it).
+  // Single call, no page loop; errors throw with .status for the caller to surface.
+  window.TraxWaxSetWant = async (releaseId, action) =>
+    _pipeCall('wantlist-write', { release_id: releaseId, action });
+
   window.TraxWaxOwner = ownerInfo(profile);
 
   // The account surface is a ROUTE now (S13–S16), not a modal. app.js's header avatar
@@ -322,6 +328,12 @@ function installFriendCrateProviders(owner) {
   };
 
   window.TraxWaxViewer = { isOwn: false, ownerUserId: owner.user_id, ownerProfile: owner };
+
+  // Wave 2 B2: add/remove on the VIEWER's own wantlist from a friend's crate (writes the viewer's
+  // wantlist regardless of whose crate is shown). Uses module _pipeCall so errors throw (the friend
+  // installer's fnCall above swallows them, which would strand the optimistic UI).
+  window.TraxWaxSetWant = async (releaseId, action) =>
+    _pipeCall('wantlist-write', { release_id: releaseId, action });
   window.TraxWaxOwner = {
     ownerLine: (owner.display_name || owner.discogs_username) + '’s shelf',
     lastSyncedAt: null,
@@ -531,6 +543,23 @@ let _lastImportPage = 0, _lastImportPages = 1, _lastImportPct = 0, _importedItem
 /* Analytics: guarded no-op when Umami is absent. Actions/counts only — never a username,
    price, or any Restricted Discogs field (mirror of app.js's track()). */
 function track(name, data){ try { if (window.umami) window.umami.track(name, data); } catch(e){} }
+// #26: one guarded entry point for the background wantlist sync. Every collection import "owes" a
+// wantlist sync (runImport sets the flag below); this consumes the flag at most once at a time,
+// imports the user's OWN wantlist, THEN drains enrichment (sequential — the concurrent insert used to
+// trip the enrich stall guard, #26/finding-3). The flag clears only on a clean import, so a failed or
+// reload-interrupted import leaves it owed for the next trigger to retry. Owner-scoped: wantlistImportLoop
+// runs under the signed-in user's own token, so it is safe to call on any signed-in load (see render()).
+let _wlSyncing = false;
+function _wlOwed() { try { return sessionStorage.getItem('tw_wantlist_due') === '1'; } catch (e) { return false; } }
+function triggerWantlistSync() {
+  if (!_wlOwed() || _wlSyncing) return;
+  _wlSyncing = true;
+  wantlistImportLoop()
+    .then(() => { try { sessionStorage.removeItem('tw_wantlist_due'); } catch (e) {} })
+    .catch((e) => console.warn('wantlist import stopped:', e))
+    .finally(() => { _wlSyncing = false; backgroundEnrich(); });
+}
+
 async function runImport() {
   const setProgress = (page, pages, items) => {
     _lastImportPage = page; _lastImportPages = pages; _importedItems = items;
@@ -583,7 +612,13 @@ async function runImport() {
     track('import_failed', { reason, page: _lastImportPage });
     return false;
   }
-  backgroundEnrich();
+  // #26: any successful collection import owes a wantlist sync (covers ALL runImport callers — in-crate
+  // RE-SYNC via TraxWaxRefresh, account RE-SYNC via onResync, and the first-import paths in render()).
+  // triggerWantlistSync imports the wantlist THEN drains enrichment (one sequential drain — replaces the
+  // bare backgroundEnrich() that used to race the wantlist insert). A caller that reloads (account
+  // onResync) kills the in-flight sync; the flag persists and render()'s early consumer re-fires it.
+  try { sessionStorage.setItem('tw_wantlist_due', '1'); } catch (e) {}
+  triggerWantlistSync();
   track('import_completed', { items: _importedItems });   // a count, not which records
   return true;
 }
@@ -789,6 +824,12 @@ async function render() {
     await acceptInvite(_inviteCode);
     return;
   }
+
+  // #26: a prior collection import may have left a wantlist sync owed but unfinished — most often a
+  // RE-SYNC from /account, which reloads onto /account (not the own-crate consumer far below). Consume
+  // it here on ANY signed-in load, before routing, so the account-page RE-SYNC path no longer defers to
+  // the next /app visit. Guarded + flag-gated: a no-op on a normal load where nothing is owed.
+  triggerWantlistSync();
 
   // S13–S16: the account surface lives at /account and /account/discogs, OUTSIDE the
   // /app/<username> grammar — no reserved-word carve-out, no collision (surfaces spec §6,
@@ -1046,7 +1087,9 @@ async function render() {
         .eq('user_id', profile.user_id);   // own rows only (v1.4.2)
       if (cntErr) { showError(new Error('collection count failed: ' + cntErr.message)); return; }
       if ((count ?? 0) > 0) {
-        backgroundEnrich();                // items landed earlier; drain quietly
+        if (!_wlOwed()) backgroundEnrich();  // #26: items landed earlier; drain quietly — but when a wantlist
+                                             // sync is owed (it is, on this first-connect path), triggerWantlistSync
+                                             // below owns the drain so it runs AFTER the wantlist insert (no stall-guard race)
       } else {
         const ok = await runImport();      // first import
         if (!ok) return;
@@ -1054,20 +1097,17 @@ async function render() {
     }
   } else if (profile.import_status === 'running') {
     backgroundHeal();                      // interrupted re-sync: heal silently
-  } else {
-    backgroundEnrich();                    // audit #11: sweep up any pending leftovers
+  } else if (!_wlOwed()) {
+    backgroundEnrich();                    // audit #11: sweep up any pending leftovers. #26: skip when a
+                                           // wantlist sync is owed (e.g. an account RE-SYNC the user navigated
+                                           // away from) — the early consumer's triggerWantlistSync owns that drain.
   }
 
-  // Wave 2 Stage A: a just-completed collection RE-SYNC set this flag; import the wantlist silently
-  // (deferred to here so it survives the RE-SYNC reload), THEN drain enrichment (which now discovers
-  // wanted releases). Owner-crate path only — never a friend crate. Fire-and-forget: never blocks render.
-  let _wlDue = false;
-  try { _wlDue = sessionStorage.getItem('tw_wantlist_due') === '1'; } catch (e) {}
-  if (_wlDue) {
-    try { sessionStorage.removeItem('tw_wantlist_due'); } catch (e) {}
-    wantlistImportLoop().then(() => backgroundEnrich())
-      .catch((e) => console.warn('wantlist import stopped:', e));
-  }
+  // Wave 2 Stage A/#26: catch the first-connect wantlist import on the own-crate path — specifically the
+  // count>0 sub-path above (items already present, no runImport call, so nothing else fired the sync).
+  // render()'s early consumer ran before the first-connect flag (set in the block above) existed, so this
+  // is where that case lands. Guarded + idempotent: a no-op if a sync from runImport is already in flight.
+  triggerWantlistSync();
 
   // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
   window.TraxWaxViewer = { isOwn: true, ownerUserId: null, ownerProfile: null };
