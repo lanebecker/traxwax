@@ -13,6 +13,32 @@ _Nothing yet._
 
 ---
 
+## [1.4.10] — 2026-08-31
+
+Wave 2 Stage A (backend): the wantlist data path. **No user-facing surface** — the match matrix,
+WANT/HAVE badges, THE WANTLIST view, and ADD-TO-WANTLIST are Stage B (the v1.5.0 cut). Backend + frontend.
+
+### Added
+- **`wantlist_items` table** (migration `0017`) — a user's Discogs wantlist, same Restricted posture as
+  `collection_items` (own-token import, own-read RLS, deleted on disconnect/deletion). Friend-read RLS
+  deferred to Stage B.
+- **Wantlist import** — `import-collection` gains a `kind: collection|wantlist` param (shared
+  auth/decrypt/watermark/seed/sweep; only the Discogs endpoint, target table, and row mapping differ).
+  Runs silently in the background after a RE-SYNC, so the crate still renders as fast as today.
+- **Client-driven adaptive rate-limit pacing** — the wantlist import reads Discogs'
+  `X-Discogs-Ratelimit-Remaining` and backs off before 429s (wantlist import ~doubles per-sync load on a
+  shared-IP budget); the existing 30s 429-retry stays as the backstop.
+
+### Changed
+- **`pending_enrichment` work-discovery now covers owned ∪ wanted** releases, and the enrich boot gate
+  closes on `owned + wanted === 0` (was `owned === 0`) — so a wantlist-only user's wanted releases get
+  enriched instead of skipped. Verified: no double-count for a release both owned and wanted.
+- `import_status` (the collection boot-gate signal) is written **only by the collection pass** — the
+  background wantlist pass sweeps on its watermark and never touches it (found in the Stage A audit).
+- `unlink_discogs_account` + `delete_account` also delete wantlist rows (Wave 1 friendship/invite deletes preserved).
+
+---
+
 ## [1.4.9] — 2026-08-30
 
 Wave 1 backend hardening — clears the remaining items in #16, #17, #18. DB migration (`0016`) + frontend.

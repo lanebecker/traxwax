@@ -71,8 +71,8 @@ async function handle(req: Request): Promise<Response> {
   const encKey = Deno.env.get('DISCOGS_TOKEN_ENC_KEY');
   if (!consumerKey || !consumerSecret || !encKey) return json({ error: 'not_configured' }, 500);
 
-  // ── Input: { page, started_at? } ─────────────────────────────────────────────
-  let body: { page?: unknown; started_at?: unknown };
+  // ── Input: { page, started_at?, kind? } ──────────────────────────────────────
+  let body: { page?: unknown; started_at?: unknown; kind?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'bad_request' }, 400); }
   const page = Number(body.page);
   // 500-page cap = 50,000 items. A collection beyond it cannot finish and would loop;
@@ -80,11 +80,43 @@ async function handle(req: Request): Promise<Response> {
   if (!Number.isInteger(page) || page < 1 || page > 500) {
     return json({ error: 'bad_request' }, 400);
   }
+  // Wave 2 Stage A: one function, two kinds. Default preserves today's collection behavior.
+  const kind = body.kind === 'wantlist' ? 'wantlist' : 'collection';
 
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
+
+  // Wave 2 Stage A: only endpoint / list-key / table / conflict / row-mapping differ by kind;
+  // auth, decrypt, watermark, seed, and sweep are shared. userId is the verified Clerk sub.
+  const KIND = kind === 'wantlist'
+    ? {
+        path: (u: string) => `https://api.discogs.com/users/${encodeURIComponent(u)}/wants`,
+        listKey: 'wants',
+        table: 'wantlist_items',
+        conflict: 'user_id,release_id',
+        needsInstanceId: false,
+        mapItem: (r: Record<string, unknown>, releaseId: number): Record<string, unknown> => ({
+          user_id: userId, release_id: releaseId,
+          added: typeof r.date_added === 'string' ? r.date_added.slice(0, 10) : null,
+        }),
+      }
+    : {
+        path: (u: string) => `https://api.discogs.com/users/${encodeURIComponent(u)}/collection/folders/0/releases`,
+        listKey: 'releases',
+        table: 'collection_items',
+        conflict: 'user_id,instance_id',
+        needsInstanceId: true,
+        mapItem: (r: Record<string, unknown>, releaseId: number): Record<string, unknown> => ({
+          user_id: userId, release_id: releaseId,
+          instance_id: Number(r.instance_id),
+          folder: r.folder_id != null ? String(r.folder_id) : '',
+          rating: Number(r.rating ?? 0) || 0,
+          added: typeof r.date_added === 'string' ? r.date_added.slice(0, 10) : null,
+          vinyl: ((r.basic_information as Record<string, unknown>)?.formats as Array<{ text?: string }>)?.[0]?.text ?? '',
+        }),
+      };
 
   // ── The caller's own credentials + username ─────────────────────────────────
   const { data: prof } = await admin.from('profiles')
@@ -101,7 +133,12 @@ async function handle(req: Request): Promise<Response> {
     // Non-retryable: the stored credential is unreadable. Surface as error state; the
     // frontend renders a dead-end for import_status='error' instead of retrying.
     console.error('credential decrypt failed:', (e as Error).message);
-    await admin.from('profiles').update({ import_status: 'error' }).eq('user_id', userId);
+    // Wave 2 Stage A: import_status is the COLLECTION boot-gate signal; only the collection pass
+    // owns it. A background wantlist decrypt failure fails silently (its .catch logs) rather than
+    // stranding import_status='error' and showing the collection "paused" card.
+    if (kind === 'collection') {
+      await admin.from('profiles').update({ import_status: 'error' }).eq('user_id', userId);
+    }
     return json({ error: 'credentials_unreadable' }, 500);
   }
 
@@ -115,11 +152,15 @@ async function handle(req: Request): Promise<Response> {
       return json({ error: 'store_failed' }, 500);
     }
     startedAt = dbNow as string;
-    const { error: runErr } = await admin.from('profiles')
-      .update({ import_status: 'running' }).eq('user_id', userId);
-    if (runErr) {
-      console.error('running-state update failed:', runErr.message);
-      return json({ error: 'store_failed' }, 500);
+    // Wave 2 Stage A: only the collection pass writes import_status (the boot gate). A stray
+    // 'running' from the background wantlist pass would trigger a spurious backgroundHeal on reload.
+    if (kind === 'collection') {
+      const { error: runErr } = await admin.from('profiles')
+        .update({ import_status: 'running' }).eq('user_id', userId);
+      if (runErr) {
+        console.error('running-state update failed:', runErr.message);
+        return json({ error: 'store_failed' }, 500);
+      }
     }
   } else {
     const s = typeof body.started_at === 'string' ? Date.parse(body.started_at) : NaN;
@@ -145,8 +186,8 @@ async function handle(req: Request): Promise<Response> {
   //    means a DELETION on Discogs mid-import shifts later pages up and can skip one item,
   //    which the final sweep then removes until the next re-import. Rare and self-limiting;
   //    accepted. Additions mid-import are safe (they land on page 1 of the NEXT run). ──
-  const pageUrl = `https://api.discogs.com/users/${encodeURIComponent(prof.discogs_username)}` +
-    `/collection/folders/0/releases?page=${page}&per_page=100&sort=added&sort_order=desc`;
+  const pageUrl = `${KIND.path(prof.discogs_username)}` +
+    `?page=${page}&per_page=100&sort=added&sort_order=desc`;
   const res = await fetch(pageUrl, {
     headers: {
       'User-Agent': DISCOGS_UA,
@@ -161,19 +202,26 @@ async function handle(req: Request): Promise<Response> {
     },
   });
   if (!res.ok) {
-    console.error('collection page failed, status', res.status);
+    console.error(kind + ' page failed, status', res.status);
     return json({ error: 'discogs_failed', status: res.status }, 502);
   }
+  // Wave 2 Stage A: adaptive pacing — the client widens its inter-page gap when this is low.
+  // An ABSENT header is UNKNOWN budget (→ null → normal pacing), not 0 (which Number(null) yields
+  // and would force max backoff every page). NaN → Number.isFinite false → rate_remaining: null.
+  const _rrHeader = res.headers.get('X-Discogs-Ratelimit-Remaining');
+  const rateRemaining = _rrHeader == null ? NaN : Number(_rrHeader);
   let d: {
     pagination?: { pages?: number; items?: number };
     releases?: Array<Record<string, unknown>>;
+    wants?: Array<Record<string, unknown>>;
   };
   try { d = JSON.parse(await res.text()); }
-  catch { console.error('collection page non-JSON body'); return json({ error: 'discogs_failed' }, 502); }
+  catch { console.error(kind + ' page non-JSON body'); return json({ error: 'discogs_failed' }, 502); }
 
   const pages = Number(d.pagination?.pages ?? 1);
   const totalItems = Number(d.pagination?.items ?? 0);
-  const entries = Array.isArray(d.releases) ? d.releases : [];
+  const listRaw = (d as Record<string, unknown>)[KIND.listKey];
+  const entries = Array.isArray(listRaw) ? listRaw as Array<Record<string, unknown>> : [];
 
   // ── Map rows. A missing instance_id is a HARD error: silently importing null
   //    instance keys would collapse rows into one under the unique constraint. ──
@@ -189,23 +237,15 @@ async function handle(req: Request): Promise<Response> {
     const bi = (r.basic_information ?? {}) as Bi;
     const releaseId = Number(r.id ?? bi.id);
     const instanceId = Number(r.instance_id);
-    if (!Number.isInteger(instanceId) || !Number.isInteger(releaseId)) {
-      console.error('entry missing instance_id/release id; field names:',
+    if (!Number.isInteger(releaseId) || (KIND.needsInstanceId && !Number.isInteger(instanceId))) {
+      console.error('entry missing release/instance id; kind', kind, 'fields:',
         Object.keys(r as object).join(','));
       return json({ error: 'unexpected_shape' }, 502);
     }
-    // Field defaults mirror build/refresh_collection.py exactly: '' not null for the
-    // string fields, and rating 0 stays 0 -- so backfilled and imported rows are
-    // indistinguishable to Stage D. updated_at is ABSENT: the trigger stamps it.
-    items.push({
-      user_id: userId,
-      release_id: releaseId,
-      instance_id: instanceId,
-      folder: r.folder_id != null ? String(r.folder_id) : '',
-      rating: Number(r.rating ?? 0) || 0,
-      added: typeof r.date_added === 'string' ? r.date_added.slice(0, 10) : null,
-      vinyl: bi.formats?.[0]?.text ?? '',
-    });
+    // Row mapping is per-kind (collection carries instance_id/folder/rating/vinyl — defaults
+    // mirror build/refresh_collection.py; wantlist carries user_id/release_id/added). The seeds
+    // below are IDENTICAL for both, built from basic_information. updated_at: the trigger stamps it.
+    items.push(KIND.mapItem(r, releaseId));
     if (!seeds.has(releaseId)) {
       seeds.set(releaseId, {
         release_id: releaseId,
@@ -237,10 +277,10 @@ async function handle(req: Request): Promise<Response> {
       console.error('release seed failed:', seedErr.message);
       return json({ error: 'store_failed' }, 500);
     }
-    const { error: itemErr } = await admin.from('collection_items')
-      .upsert(items, { onConflict: 'user_id,instance_id' });
+    const { error: itemErr } = await admin.from(KIND.table)
+      .upsert(items, { onConflict: KIND.conflict });
     if (itemErr) {
-      console.error('collection upsert failed:', itemErr.message);
+      console.error(KIND.table + ' upsert failed:', itemErr.message);
       return json({ error: 'store_failed' }, 500);
     }
   }
@@ -249,15 +289,18 @@ async function handle(req: Request): Promise<Response> {
   //    enrich-release owns it, so an interrupted enrichment resumes on next load. ──
   const done = page >= pages;
   if (done) {
-    const { error: sweepErr } = await admin.from('collection_items')
+    const { error: sweepErr } = await admin.from(KIND.table)
       .delete().eq('user_id', userId).lt('updated_at', startedAt);
-    if (sweepErr) console.error('stale sweep failed:', sweepErr.message);
-    const { error: idleErr } = await admin.from('profiles')
-      .update({ import_status: 'idle' }).eq('user_id', userId);
-    if (idleErr) console.error('idle-state update failed:', idleErr.message);
+    if (sweepErr) console.error(KIND.table + ' stale sweep failed:', sweepErr.message);
+    if (kind === 'collection') {   // collection owns import_status; wantlist sweeps on the watermark only
+      const { error: idleErr } = await admin.from('profiles')
+        .update({ import_status: 'idle' }).eq('user_id', userId);
+      if (idleErr) console.error('idle-state update failed:', idleErr.message);
+    }
     // Both failures are log-only: last_import_at is still null, so the pipeline re-runs
     // idempotently on next load and gets another chance.
   }
 
-  return json({ page, pages, items: totalItems, started_at: startedAt, done });
+  return json({ page, pages, items: totalItems, started_at: startedAt, done,
+    rate_remaining: Number.isFinite(rateRemaining) ? rateRemaining : null, kind });
 }

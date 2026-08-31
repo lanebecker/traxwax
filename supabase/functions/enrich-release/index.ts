@@ -101,13 +101,14 @@ async function handle(req: Request): Promise<Response> {
     p_user_id: userId, p_limit: BUDGET });
   if (wErr) { console.error('pending_enrichment failed:', wErr.message); return json({ error: 'store_failed' }, 500); }
   const ownedCount = Number(work?.owned ?? 0);
+  const wantedCount = Number(work?.wanted ?? 0);   // Wave 2 Stage A: wantlist-only users have owned=0
   const totalPending = Number(work?.total ?? 0);
   const newIds: number[] = Array.isArray(work?.pending) ? work.pending.map(Number) : [];
   const refreshTotal = Number(work?.refresh_total ?? 0);
   const refreshIds: number[] = Array.isArray(work?.refresh) ? work.refresh.map(Number) : [];
 
-  if (ownedCount === 0) {
-    // A legitimately empty collection is a completed import. Close the gate.
+  if (ownedCount === 0 && wantedCount === 0) {
+    // Neither collection nor wantlist: a legitimately empty import. Close the gate. (Wave 2 Stage A)
     const { error: emptyErr } = await admin.from('profiles')
       .update({ last_import_at: new Date().toISOString() }).eq('user_id', userId);
     if (emptyErr) console.error('last_import_at (empty) failed:', emptyErr.message);
