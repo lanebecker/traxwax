@@ -164,6 +164,13 @@ const THIS_MONTH = _tmNow.getFullYear() + '-' + String(_tmNow.getMonth() + 1).pa
 
 /* ── State ─────────────────────────────────────────────────────────────────── */
 let RECORDS = [];
+let WANTLIST_RECORDS = null;   // Wave 2 B1: null = not loaded/failed; [] = loaded-empty. Lazy-loaded on THE WANTLIST tab.
+// Wave 2 B1: resolve a record by id from whichever dataset the current view renders — the WANTLIST tab
+// draws from WANTLIST_RECORDS, so the detail modal must look there too (else a wantlist card is a dead click).
+function recordById(id){
+  const src=(state.view==='wantlist' && Array.isArray(WANTLIST_RECORDS)) ? WANTLIST_RECORDS : RECORDS;
+  return src.find(r=>r.id===id);
+}
 const state = {
   theme:'light', view:'crate', query:'', genres:[], coloredOnly:false,
   artist:null, color:null, sort:'added', dir:-1, detailId:null, headerValue:null,
@@ -198,9 +205,11 @@ function setTheme(t, persist=true){
 /* ── Derivations (mirror the kit's matches/sorted/deco) ─────────────────────── */
 function matches(r){
   const s=state;
-  if(s.coloredOnly && !isColored(r.vinyl)) return false;
+  // Wave 2 B1: the wantlist has no vinyl variant (every row vinyl:''), so the colored/color facets are
+  // meaningless there and would zero the whole tab — skip them on the wantlist view.
+  if(s.coloredOnly && s.view!=='wantlist' && !isColored(r.vinyl)) return false;
   if(s.artist && r.artist!==s.artist) return false;
-  if(s.color && shortVinyl(r.vinyl)!==s.color) return false;
+  if(s.color && s.view!=='wantlist' && shortVinyl(r.vinyl)!==s.color) return false;
   if(s.genres.length && !s.genres.some(g=>r.styles.includes(g)||r.genres.includes(g))) return false;
   if(s.query){
     const q=s.query.toLowerCase();
@@ -267,6 +276,7 @@ function card(r){
         <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
       </button>
       ${r.isNew?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
+      ${badgesHtml(badgesFor(r, window.__twMatchCtx || null))}
     </div>
     <div style="min-width:0; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
       <button class="tw-artist" data-act="artist" data-arg="${esc(r.artist)}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</button>
@@ -375,7 +385,9 @@ function priceCellHtml(rec, isOwn){
 function computeVals(){
   const s=state;
   if(SETTINGS.accent) document.documentElement.style.setProperty('--accent', SETTINGS.accent);
-  const all=RECORDS;
+  // Wave 2 B1: THE WANTLIST tab draws ONLY from the wantlist dataset — never fall back to RECORDS here
+  // (a null/failed load shows an empty wantlist, not the collection; MAJOR-2). Every other view uses RECORDS.
+  const all=(state.view==='wantlist') ? (Array.isArray(WANTLIST_RECORDS) ? WANTLIST_RECORDS : []) : RECORDS;
   const filtered=sorted(all.filter(matches));
   const visible=filtered.map(deco);
 
@@ -426,7 +438,7 @@ function computeVals(){
 function render(){
   const v=computeVals(); const s=state;
   const hasFilters=v.active.length>0;
-  const showGrid=s.view==='crate' && v.filtered.length>0;
+  const showGrid=(s.view==='crate' || s.view==='wantlist') && v.filtered.length>0;   // Wave 2 B1: the wantlist reuses the card grid
   const showTimeline=s.view==='timeline' && v.filtered.length>0;
   const showStats=s.view==='ledger' && v.filtered.length>0;
   const showEmpty=v.filtered.length===0;
@@ -525,7 +537,9 @@ function render(){
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
           <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} IN CRATE</span>
           <span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount} COLORED</span>
-          ${IS_OWN()?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
+          ${(IS_OWN() && s.view!=='wantlist')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
+          ${(!IS_OWN() && window.__twMatchCounts && window.__twMatchCounts.you_want_they_have != null)?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">YOU WANT ${window.__twMatchCounts.you_want_they_have} THEY HAVE</span>`:''}
+          ${(!IS_OWN() && window.__twMatchCounts && window.__twMatchCounts.they_want_you_have != null)?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">THEY WANT ${window.__twMatchCounts.they_want_you_have} YOU HAVE</span>`:''}
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
@@ -551,7 +565,7 @@ function render(){
     </div>
 
     <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
-      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}
+      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${(IS_OWN() && DB_MODE())?tab('wantlist','THE WANTLIST'):''}
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
         <span role="status" aria-live="polite" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
@@ -613,7 +627,7 @@ function render(){
 
 /* ── Detail modal ──────────────────────────────────────────────────────────── */
 function modalHtml(){
-  const rec=RECORDS.find(r=>r.id===state.detailId);
+  const rec=recordById(state.detailId);
   if(!rec) return '';
   const d=deco(rec);
   const rel=rec._rel;  // tracklist/country/videos from the baked release file (or live fallback), via _loadRelease
@@ -704,7 +718,7 @@ function modalHtml(){
    stop); the rest are -1. Never focuses anything — that would steal focus on the debounced
    search render. Focus only moves on an explicit arrow key, in onKeydown. */
 function _syncGridRoving(){
-  if (state.view!=='crate') return;
+  if (state.view!=='crate' && state.view!=='wantlist') return;   // Wave 2 B1: the wantlist grid is keyboard-navigable too
   const cells = Array.from(document.querySelectorAll('.tw-grid .tw-cell'));
   if (!cells.length) return;
   let idx = cells.findIndex(c=>Number(c.dataset.arg)===_gridFocusId);
@@ -783,7 +797,7 @@ function onKeydown(e){
     return;
   }
   // Roving grid (crate view only), when focus is on a grid cover cell.
-  if (state.view==='crate' && GRID_KEYS.has(e.key)){
+  if ((state.view==='crate' || state.view==='wantlist') && GRID_KEYS.has(e.key)){
     const ae = document.activeElement;
     if (!ae || !ae.classList || !ae.classList.contains('tw-cell')) return;
     const cells = Array.from(document.querySelectorAll('.tw-grid .tw-cell'));
@@ -807,7 +821,7 @@ async function openDetail(id){
   state.detailId=id;
   _modalInvokerId=id;   // focus returns to this card's cover cell when the modal closes (W0.4)
   _gridFocusId=id;      // keep the roving grid's active cell in step with what was opened
-  const rec=RECORDS.find(r=>r.id===id);
+  const rec=recordById(id);
   if(rec){
     const c=_relCache[id];
     if(c && (Date.now()-(c.ts||0))<REL_TTL_MS){ rec._rel=c.d; rec._relErr=false; }   // instant from cache
@@ -862,7 +876,18 @@ function onClick(e){
     case 'theme': setTheme(state.theme==='dark'?'light':'dark'); render(); break;
     case 'resync': _resync(); break;
     case 'account': if(window.TraxWaxAccount) window.TraxWaxAccount(); break;
-    case 'view': state.view=arg; track('view_change', { view: arg }); render(); break;
+    case 'view':
+      state.view=arg;
+      track('view_change', { view: arg });
+      // Wave 2 B1: lazy-load THE WANTLIST dataset on first switch. WANTLIST_RECORDS: null=not loaded,
+      // []=loaded (guards re-entry while the async load is in flight; [] shows an empty grid, not RECORDS).
+      if (arg==='wantlist' && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
+        WANTLIST_RECORDS=[];
+        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; render(); })
+          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; });
+      }
+      render();
+      break;
     case 'sort': state.sort=arg; render(); break;
     case 'dir': state.dir*=-1; render(); break;
     case 'genre': track('filter_used', { kind: 'genre' }); toggleGenre(arg); render(); break;
@@ -871,7 +896,7 @@ function onClick(e){
     case 'artist': state.artist=arg; state.detailId=null; render(); break;
     case 'color': track('filter_used', { kind: 'color' }); state.color=arg; state.detailId=null; render(); break;
     case 'open': track('record_opened', { source: state.view }); openDetail(Number(arg)); break;
-    case 'retryDetail': { const r=RECORDS.find(x=>x.id===state.detailId); if(r){ r._relErr=false; render(); _loadRelease(r); } break; }
+    case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; render(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
     case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; render(); break;
@@ -928,6 +953,7 @@ async function _resync(){
 const DB_MODE = () => !!window.TraxWaxData;
 
 async function bootCrate(){
+  WANTLIST_RECORDS=null; state.view='crate';   // Wave 2 B1: fresh dataset + default view per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
   initTheme();
   if (window.TraxWaxOwner && window.TraxWaxOwner.ownerLine) {
     SETTINGS.ownerLine = window.TraxWaxOwner.ownerLine;
@@ -937,6 +963,13 @@ async function bootCrate(){
   try{
     if (DB_MODE()) {
       RECORDS = await window.TraxWaxData();
+      // Wave 2 B1: reset first (defensive) so a stale friend ctx never renders badges on the own crate;
+      // then, on a FRIEND crate only, load the viewer's own wants/haves (badges) + the match counts (stat).
+      window.__twMatchCtx = null; window.__twMatchCounts = null;
+      if (!IS_OWN() && window.TraxWaxMatchCtx) {
+        try { window.__twMatchCtx = await window.TraxWaxMatchCtx(); } catch (e) { window.__twMatchCtx = null; }
+        try { window.__twMatchCounts = await window.TraxWaxMatchCounts(); } catch (e) { window.__twMatchCounts = null; }
+      }
     } else {
       // ABSOLUTE path, deliberately. A relative './collection.json' resolves against the
       // page URL, so on /app/<username> it became /app/collection.json -- served as the

@@ -13,6 +13,46 @@ _Nothing yet._
 
 ---
 
+## [1.5.0] — 2026-08-31
+
+Wave 2 Stage B1 — **Wantlists & the match matrix become visible.** The read path: the friend match
+matrix, WANT/HAVE badges, THE WANTLIST view, and an independent wantlist-visibility toggle. (ADD TO
+WANTLIST — the first Discogs write — is Stage B2.) Migrations `0018`+`0019` + frontend; no Edge Function changes.
+
+### Added
+- **THE WANTLIST view** — a 4th crate tab (own crate) showing your Discogs wantlist as browsable cards,
+  reusing the full filter/sort machinery.
+- **Match matrix on a friend's crate** — WANT/HAVE badges (`ON YOUR WANTLIST` / `YOU OWN THIS`) on their
+  records, and a MATCHES header stat (`YOU WANT n THEY HAVE · THEY WANT n YOU HAVE`), via a new
+  consent-gated `crate_match` RPC.
+- **Independent wantlist-visibility toggle** — share your wantlist with friends separately from your crate
+  (`wantlist_visibility` + `private.can_view_wantlist` + a friend-read RLS policy on `wantlist_items`).
+- **First-connect wantlist import** — a new user's wantlist imports on first connect, not only on RE-SYNC
+  (Stage A follow-up).
+
+### Security
+- `crate_match` returns uniform nulls for no-such-user / own / not-shared — no existence or friendship
+  probe — and gates the two match directions independently (crate consent for you-want-they-have; wantlist
+  consent for they-want-you-have). The viewer's own wants/haves that feed the badges are read scoped to the
+  viewer (`.eq('user_id', …)`), never through the friend-read RLS. All verified against the live DB.
+
+### Fixed (end-of-phase cold audit, pre-release)
+- **THE WANTLIST tab rendered a blank body** — the `showGrid` render gate had no `wantlist` branch. It now
+  renders the card grid, is keyboard-navigable (roving tabindex + arrow keys), and hides the `EST.`
+  collection-value cell.
+- **`crate_match` over-counted** when a collection held multiple instances of the same release (a JOIN
+  multiplied by instance count) — switched to an EXISTS semi-join (migration `0019`). Verified: duplicate
+  instances now count once.
+- **The colored-wax facet no longer zeroes the wantlist** (wantlist rows carry no vinyl variant).
+
+### Known follow-ups (tracked)
+- Wantlist import-trigger robustness (the in-crate RE-SYNC path, account-reload timing, and the
+  concurrent enrich-drain stall guard on first connect) — self-healing across visits; filed for a fix.
+- THE WANTLIST tab's empty-state copy, header cell labels, and inert facet chips still speak in "collection"
+  terms, plus badge aria association — a UX/a11y polish pass.
+
+---
+
 ## [1.4.10] — 2026-08-31
 
 Wave 2 Stage A (backend): the wantlist data path. **No user-facing surface** — the match matrix,

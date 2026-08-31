@@ -162,7 +162,7 @@ async function ensureProfile(userId) {
     .from('profiles')
     .upsert(row, { onConflict: 'user_id', ignoreDuplicates: false })
     .select('user_id, discogs_username, import_status, last_import_at, ' +
-      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility')
+      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility, wantlist_visibility')
     .single();
   if (error) throw new Error('profile upsert failed: ' + error.message);
   return data;
@@ -212,6 +212,34 @@ function installCrateProviders(profile) {
           label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
           vinyl: it.vinyl || '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
           added: it.added || '', rating: it.rating || 0,
+          price: null, crating: null, crcount: null, have: null, want: null,
+        });
+      }
+      if (!data || data.length < 1000) break;
+    }
+    return rows;
+  };
+
+  // Wave 2 B1: THE WANTLIST tab data — own wantlist ⋈ releases, scoped to the owner (own-select RLS).
+  window.TraxWaxWantlistData = async () => {
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('wantlist_items')
+        .select('release_id, added, ' +
+          'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
+        .eq('user_id', profile.user_id)
+        .order('id', { ascending: true })
+        .range(from, from + 999);
+      if (error) throw new Error('wantlist query failed: ' + error.message);
+      for (const it of data ?? []) {
+        const rel = it.releases || {};
+        rows.push({
+          id: it.release_id,
+          artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
+          label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
+          vinyl: '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
+          added: it.added || '', rating: 0,
           price: null, crating: null, crcount: null, have: null, want: null,
         });
       }
@@ -328,6 +356,27 @@ function installFriendCrateProviders(owner) {
       if (!data || data.length < 1000) break;
     }
     return rows;
+  };
+
+  // Wave 2 B1: the VIEWER's own wants + haves as id Sets — the badges match these against the friend's
+  // displayed records (own data, no consent gate). MUST scope to the viewer; owner.user_id is the FRIEND.
+  window.TraxWaxMatchCtx = async () => {
+    const me = window.Clerk.user.id;
+    const [w, c] = await Promise.all([
+      supabase.from('wantlist_items').select('release_id').eq('user_id', me),
+      supabase.from('collection_items').select('release_id').eq('user_id', me),
+    ]);
+    if (w.error || c.error) throw new Error('match ctx failed');
+    return {
+      viewerWants: new Set((w.data ?? []).map((r) => r.release_id)),
+      viewerHas:   new Set((c.data ?? []).map((r) => r.release_id)),
+    };
+  };
+  // MATCHES stat counts (consent-gated server-side; nulls when the owner has not shared that direction).
+  window.TraxWaxMatchCounts = async () => {
+    const { data, error } = await supabase.rpc('crate_match', { p_owner_username: owner.discogs_username });
+    if (error) return null;
+    return data;
   };
 
   window.TraxWaxReleaseData = async (id) => {
@@ -598,6 +647,11 @@ async function renderAccount(profile, section) {
     onSetVisibility: async (v) => {
       const { error } = await supabase.from('profiles')
         .update({ crate_visibility: v }).eq('user_id', window.Clerk.user.id);
+      if (error) throw new Error(error.message);
+    },
+    onSetWantlistVisibility: async (v) => {   // Wave 2 B1: independent wantlist consent
+      const { error } = await supabase.from('profiles')
+        .update({ wantlist_visibility: v }).eq('user_id', window.Clerk.user.id);
       if (error) throw new Error(error.message);
     },
     onListFriends: async () => {
@@ -982,6 +1036,7 @@ async function render() {
   //    the re-link RPC deletes items on a username change (migration 0006), which is
   //    what makes "items exist" mean "the CURRENT account's items". ──
   if (!profile.last_import_at) {
+    try { sessionStorage.setItem('tw_wantlist_due', '1'); } catch (e) {}   // Wave 2 B1: first-connect wantlist import (read by the own-crate flag-check below)
     if (profile.import_status === 'running') {
       const ok = await runImport();        // resume an interrupted first import
       if (!ok) return;                     // runImport rendered the error state itself

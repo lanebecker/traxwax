@@ -432,6 +432,7 @@ function statCell(label, value) {
 function friendsSection(o) {
   const vis = (o.profile && o.profile.crate_visibility) || 'private';
   const on = vis === 'friends';
+  const wlOn = ((o.profile && o.profile.wantlist_visibility) || 'private') === 'friends';   // Wave 2 B1
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
     // Intro: eyebrow + title + one full-width description line (no max-width clamp).
@@ -459,6 +460,17 @@ function friendsSection(o) {
           'Only people you’ve added as friends · currently ' + (on ? 'ON' : 'OFF') + '</span>' +
       '</div>' +
       toggle({ id: 'tw-vis-toggle', on, label: 'Friends can see my crate' }) +
+    '</div>' +
+    // Wave 2 B1: a SECOND, independent toggle — wantlist visibility. border-top:0 butts it to the crate one.
+    '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
+      'border:1.5px solid var(--line); border-top:0; padding:16px 18px">' +
+      '<div style="display:flex; flex-direction:column; gap:3px">' +
+        '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; ' +
+          'color:var(--ink)">Friends can see my wantlist</span>' +
+        '<span id="tw-wlvis-sub" style="' + MONO + '; font-size:10.5px; color:var(--muted)">' +
+          'Independent of your crate · currently ' + (wlOn ? 'ON' : 'OFF') + '</span>' +
+      '</div>' +
+      toggle({ id: 'tw-wlvis-toggle', on: wlOn, label: 'Friends can see my wantlist' }) +
     '</div>' +
 
     // ── Section 2: INVITE A FRIEND — the link tool, boxed with its caption.
@@ -734,7 +746,28 @@ export function bindAccountPage(root, deps) {
       } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
     });
   }
+  // Wave 2 B1: the wantlist-visibility toggle — mirrors wireVisToggle against #tw-wlvis-toggle.
+  function wireWlVisToggle() {
+    const vt = root.querySelector('#tw-wlvis-toggle');
+    if (!vt) return;
+    vt.addEventListener('click', async () => {
+      const now = vt.getAttribute('aria-checked') === 'true';
+      const next = now ? 'private' : 'friends';
+      const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
+      try {
+        await deps.onSetWantlistVisibility(next);
+        const holder = document.createElement('div');
+        holder.innerHTML = toggle({ id: 'tw-wlvis-toggle', on: next === 'friends', label: 'Friends can see my wantlist' });
+        vt.replaceWith(holder.firstElementChild);
+        wireWlVisToggle();
+        const sub = $('tw-wlvis-sub');
+        if (sub) sub.textContent = 'Independent of your crate · currently ' + (next === 'friends' ? 'ON' : 'OFF');
+        smsg(next === 'friends' ? 'Friends can now see your wantlist.' : 'Your wantlist is private again.');
+      } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
+    });
+  }
   wireVisToggle();
+  wireWlVisToggle();
 
   // ── Wave 1: FRIENDS ── invite-link button + friend list.
   const inviteBtn = $('tw-invite-btn');
