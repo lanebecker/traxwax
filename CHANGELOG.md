@@ -13,6 +13,17 @@ _Nothing yet._
 
 ---
 
+## [1.6.2] — 2026-08-31
+
+### Fixed
+- **Wantlist button really lines up with its neighbors now (#29)** — v1.6.1 matched the CSS values but
+  the modal button stayed shorter and smaller, because a native `<button>` on macOS renders with the
+  system control appearance and clamps its font size and height regardless of the CSS. Adding
+  `appearance:none` (+ `-webkit-appearance:none`) lets it honor the styles, so it matches VIEW ON DISCOGS
+  / LISTEN. Applied to the card want-button as well.
+
+---
+
 ## [1.6.1] — 2026-08-31
 
 ### Fixed
