@@ -18,16 +18,18 @@
      Auto-pageviews would otherwise ship identifying/capability tokens to a third party:
        · /app/<discogs-username>  → owner/friend handle           (masked here)
        · /i/<invite-code>         → a friend-invite capability token (masked here)
-       · ?connect=… query · #twcode=… fragment → stripped by data-exclude-search/hash
-     Mask the path segments (url AND internal referrer) before send; the funnel (/ , /app)
-     stays intact. Restricted Discogs data never reaches analytics regardless — custom events
-     carry actions/counts only, never record identities. */
+       · ?connect=… query · #twcode=… fragment → stripped HERE (both url + referrer) and, for the
+         url, again by data-exclude-search/hash on the tag (belt-and-suspenders; the tag attrs are
+         not relied on for the referrer field).
+     Applied to url AND internal referrer, so the funnel (/ , /app) stays intact. Restricted
+     Discogs data never reaches analytics regardless — custom events carry actions/counts only. */
   window.twUmamiBeforeSend = function (type, payload) {
     try {
       var mask = function (u) {
-        return typeof u === 'string'
-          ? u.replace(/\/app\/[^/?#]+/g, '/app/:user').replace(/\/i\/[^/?#]+/g, '/i/:code')
-          : u;
+        if (typeof u !== 'string') return u;
+        return u.replace(/[?#].*$/, '')                     // drop query + fragment (?connect, #twcode)
+                .replace(/\/app\/[^/?#]+/g, '/app/:user')   // owner/friend handle
+                .replace(/\/i\/[^/?#]+/g, '/i/:code');       // invite capability token
       };
       if (payload) {
         if (payload.url) payload.url = mask(payload.url);
