@@ -35,6 +35,9 @@ Friends UX polish + two data-correctness fixes.
   "Viewing <name>'s crate" with a "← Back to your crate" link.
 - **Invite "COPY" button** + a plain lifetime line: "Works once · expires in 14 days."
 - **Sign-out** row in the account navigation.
+- **Friend rows show the username** next to the display name ("Tommy Perkins (tommyp)"), and the whole
+  name line is now the link to their crate (the separate "VIEW CRATE →" is folded in). A friend who
+  isn't sharing stays plain text with the "Not sharing right now" note — no dead link.
 
 ---
 
