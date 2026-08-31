@@ -469,18 +469,33 @@ async function renderFriendsList(root, deps) {
   }
   host.innerHTML = friends.map((f) =>
     (() => {
-      const name = esc(f.display_name || f.discogs_username || 'Friend');
-      // VIEW CRATE only when they're currently sharing with friends; otherwise a muted note
-      // (the link would just hit the "no crate here" page).
-      const crateLink = f.crate_visibility === 'friends'
-        ? '<a href="/app/' + encodeURIComponent(f.discogs_username || '') + '" style="' + MONO +
-          '; font-size:10px; letter-spacing:.06em; color:var(--accent); text-decoration:none">VIEW CRATE →</a>'
-        : '<span style="' + MONO + '; font-size:10px; letter-spacing:.06em; color:var(--faint)">Not sharing right now</span>';
+      const uname = f.discogs_username || '';
+      const dname = f.display_name || uname || 'Friend';
+      const name = esc(dname);                                 // plain text, for the REMOVE aria-label
+      const sharing = f.crate_visibility === 'friends';
+      // Show the username beside the name so a friend is identifiable and findable —
+      // "Tommy Perkins (tommyp)". Skip the parens when name and username are the same.
+      const nameHtml = name +
+        (uname && uname.toLowerCase() !== dname.toLowerCase()
+          ? ' <span style="' + MONO + '; font-size:12px; font-weight:400; color:var(--faint)">(' +
+            esc(uname) + ')</span>'
+          : '');
+      // Sharing: the whole name+username line is the link to their crate (with a → cue). Not sharing:
+      // plain text + a muted note — a link would just hit the "no crate here" page (the v1.4.1 guard).
+      const nameLine = sharing
+        ? '<a href="/app/' + encodeURIComponent(uname) + '" style="' + COND +
+          '; font-size:16px; font-weight:700; color:var(--ink); text-decoration:none">' + nameHtml +
+          ' <span style="color:var(--accent); font-weight:400">→</span></a>'
+        : '<span style="' + COND + '; font-size:16px; font-weight:700; color:var(--ink)">' + nameHtml + '</span>';
+      const subline = sharing
+        ? ''
+        : '<span style="' + MONO + '; font-size:10px; letter-spacing:.06em; color:var(--faint)">' +
+          'Not sharing right now</span>';
       return '<div style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--hair)">' +
         avatar(f.avatar_url, 40) +
         '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">' +
-          '<span style="' + COND + '; font-size:16px; font-weight:700; color:var(--ink)">' + name + '</span>' +
-          crateLink +
+          nameLine +
+          subline +
         '</div>' +
         '<button data-remove-friend="' + esc(f.user_id) + '" aria-label="Remove ' + name + '" style="' +
           btnStyle('secondary') + '; font-size:10px">REMOVE</button>' +
