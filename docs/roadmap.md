@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.4.3`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.4.4`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -164,6 +164,14 @@ transparent last-row divider, and a hairline empty state. A reusable `sectionLab
 available for future settings sections. Also removed the RE-SYNC button from the crate header (it's
 mirrored in account → Discogs). Frontend only, all existing tokens; jsdom-verified (56 checks) with
 a static render preview. Spec: `Design/traxwax-friends-redesign/FRIENDS-SPEC.md`. Issue #21.
+
+### v1.4.4 — Sign-in card restyle
+
+Fixed the Clerk sign-in / sign-up card, which had drifted into stray rings, a glossy gradient
+button, and misaligned boxes as Clerk's DOM changed under the mount-time `appearance` object. The
+flat TraxWax frame now lives in a token-based `.cl-*` CSS block in `styles.css` (so it follows
+light/dark live), with `boot.clerk.js` trimmed to the variables + `display` rules the appearance
+actually honors. Diagnosed and validated live against the real Clerk DOM in both themes. Issue #22.
 
 ---
 
