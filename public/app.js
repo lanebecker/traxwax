@@ -267,16 +267,42 @@ function sortBtn(id,label){
   return `<button data-act="sort" data-arg="${id}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:5px 9px; border:0; border-right:1px solid var(--hair); background:${on?'var(--ink)':'var(--panel)'}; color:${on?'var(--panel)':'var(--muted)'}">${label}</button>`;
 }
 
+/* Wave 2 B2: the ADD/REMOVE want control. Rendered on: every WANTLIST-tab card/modal (remove); and, on
+   a friend's crate, un-owned records (add/remove toggle). Same function feeds card() and modalHtml().
+   card() runs only in the crate/wantlist grids, so a friend's timeline/ledger show no card-level control
+   — but their DETAIL MODAL will show the toggle (still the viewer's own write; deliberate, and useful).
+   Returns '' on the own collection crate/timeline/ledger and their modals (IS_OWN() && view!=='wantlist'). */
+const WANT_BTN_STYLE = "width:100%; margin-top:6px; font-family:'IBM Plex Mono',monospace; font-size:10px; " +
+  "letter-spacing:.06em; padding:6px 8px; border:1.5px solid var(--line); background:var(--panel); " +
+  "color:var(--ink); text-align:center; cursor:pointer";
+function wantControlHtml(r){
+  if (state.view==='wantlist'){
+    return `<button data-act="wantRemove" data-arg="${r.id}" style="${WANT_BTN_STYLE}">✕ REMOVE FROM WANTLIST</button>`;
+  }
+  const ctx = window.__twMatchCtx;
+  if (!IS_OWN() && ctx){
+    if (ctx.viewerHas && ctx.viewerHas.has(r.id)) return '';   // you own this release — no want action
+    const wanted = ctx.viewerWants && ctx.viewerWants.has(r.id);
+    return `<button data-act="want" data-want="${wanted?'remove':'add'}" data-arg="${r.id}" style="${WANT_BTN_STYLE}">${wanted?'✕ REMOVE FROM WANTLIST':'＋ ADD TO WANTLIST'}</button>`;
+  }
+  return '';
+}
+
 /* ── Card ──────────────────────────────────────────────────────────────────── */
 function card(r){
   const showP = SETTINGS.showPrices;
+  // #27: compute badges once — the same list drives the visual badge AND the card's accessible name, so a
+  // screen reader announces "ON YOUR WANTLIST" / "YOU OWN THIS" as part of the card rather than as a
+  // detached span after it. Badge labels are static strings (no user data), safe to inline in the label.
+  const _badges = badgesFor(r, window.__twMatchCtx || null);
+  const _badgeAria = _badges.length ? ' (' + _badges.map(b => b.label).join(', ') + ')' : '';
   return `<div class="tw-card" style="min-width:0; background:var(--panel); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow); display:flex; flex-direction:column">
     <div style="position:relative; padding:6px 6px 0">
-      <button data-act="open" data-arg="${r.id}" class="tw-cell" tabindex="-1" aria-haspopup="dialog" aria-label="Open ${esc(r.artist)} — ${esc(r.title)}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
+      <button data-act="open" data-arg="${r.id}" class="tw-cell" tabindex="-1" aria-haspopup="dialog" aria-label="Open ${esc(r.artist)} — ${esc(r.title)}${_badgeAria}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
         <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
       </button>
       ${r.isNew?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
-      ${badgesHtml(badgesFor(r, window.__twMatchCtx || null))}
+      ${badgesHtml(_badges)}
     </div>
     <div style="min-width:0; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
       <button class="tw-artist" data-act="artist" data-arg="${esc(r.artist)}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</button>
@@ -289,6 +315,7 @@ function card(r){
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase">${esc(r.year)} · ${esc(r.style1)}</span>
         ${IS_OWN()?(showP?`<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`:''):priceCellHtml(r,false)}
       </div>
+      ${wantControlHtml(r)}
     </div>
   </div>`;
 }
@@ -308,18 +335,34 @@ function emptyCrateHtml(){
   // Wave 1 (v1.4.1): a friend's empty crate must not speak in the owner's voice or offer
   // ADD/RE-SYNC (which are no-ops for a friend). Branch on IS_OWN().
   const own = IS_OWN();
+  // #27: the wantlist tab is own-only — give the empty state its own voice instead of the crate's
+  // ("ADD RECORDS / RE-SYNC" implied the collection). RE-SYNC now pulls the wantlist too (#26), so it
+  // is the right action here. Discogs has no per-release "add to wantlist" landing, so we point at the
+  // user's own wantlist page.
+  const isWant = own && state.view === 'wantlist';
   const who = (window.TraxWaxOwner && window.TraxWaxOwner.displayName) || 'This collector';
-  const body = own
-    ? 'Your Discogs collection came back empty. Add a few records over there and re-sync — ' +
-      'they’ll be filed here within the minute.'
-    : esc(who) + ' hasn’t filed any records here yet.';
-  const actions = own
+  const eyebrow = isWant ? 'AN EMPTY WANTLIST' : 'AN EMPTY CRATE';
+  const heading = isWant ? 'Nothing on the wantlist yet' : 'Nothing on the shelf yet';
+  const body = isWant
+    ? 'Your Discogs wantlist is empty. Star a few records over on Discogs and re-sync — they’ll show up ' +
+      'here, cross-checked against every crate you can see.'
+    : own
+      ? 'Your Discogs collection came back empty. Add a few records over there and re-sync — ' +
+        'they’ll be filed here within the minute.'
+      : esc(who) + ' hasn’t filed any records here yet.';
+  const actions = isWant
     ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
-        '<a href="https://www.discogs.com" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
-          'ADD RECORDS ON DISCOGS</a>' +
+        '<a href="https://www.discogs.com/wantlist" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
+          'BUILD YOUR WANTLIST ON DISCOGS</a>' +
         '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
       '</div>'
-    : '';
+    : own
+      ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
+          '<a href="https://www.discogs.com" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
+            'ADD RECORDS ON DISCOGS</a>' +
+          '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
+        '</div>'
+      : '';
   return '' +
   '<div style="padding:70px 40px 76px; display:flex; flex-direction:column; align-items:center; ' +
     'gap:18px; text-align:center">' +
@@ -332,9 +375,9 @@ function emptyCrateHtml(){
     '</div>' +
     '<div style="display:flex; flex-direction:column; gap:8px; align-items:center">' +
       '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
-        'color:var(--accent)">AN EMPTY CRATE</span>' +
+        'color:var(--accent)">' + eyebrow + '</span>' +
       '<span class="tw-empty-h" style="' + COND + '; font-size:38px; font-weight:700; ' +
-        'line-height:1; color:var(--ink)">Nothing on the shelf yet</span>' +
+        'line-height:1; color:var(--ink)">' + heading + '</span>' +
       '<span style="' + BODY + '; font-size:13.5px; line-height:1.7; color:var(--muted); ' +
         'max-width:48ch">' + body + '</span>' +
     '</div>' +
@@ -402,9 +445,9 @@ function computeVals(){
 
   const active=[];
   s.genres.forEach(g=>active.push({kind:'STYLE',value:g}));
-  if(s.coloredOnly) active.push({kind:'WAX',value:'Colored only'});
+  if(s.coloredOnly && s.view!=='wantlist') active.push({kind:'WAX',value:'Colored only'});   // #27: matches() ignores wax on wantlist — don't show an inert chip
   if(s.artist) active.push({kind:'ARTIST',value:s.artist});
-  if(s.color) active.push({kind:'COLOR',value:s.color});
+  if(s.color && s.view!=='wantlist') active.push({kind:'COLOR',value:s.color});               // #27: ditto for the color facet
   if(s.query) active.push({kind:'SEARCH',value:s.query});
 
   const groups={};
@@ -535,8 +578,8 @@ function render(){
       </div>
       <div class="tw-headR" style="display:flex; align-items:center; gap:10px">
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
-          <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} IN CRATE</span>
-          <span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount} COLORED</span>
+          <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} ${s.view==='wantlist'?'ON WANTLIST':'IN CRATE'}</span>
+          ${s.view!=='wantlist'?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount} COLORED</span>`:''}
           ${(IS_OWN() && s.view!=='wantlist')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
           ${(!IS_OWN() && window.__twMatchCounts && window.__twMatchCounts.you_want_they_have != null)?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">YOU WANT ${window.__twMatchCounts.you_want_they_have} THEY HAVE</span>`:''}
           ${(!IS_OWN() && window.__twMatchCounts && window.__twMatchCounts.they_want_you_have != null)?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">THEY WANT ${window.__twMatchCounts.they_want_you_have} YOU HAVE</span>`:''}
@@ -702,6 +745,7 @@ function modalHtml(){
             <span style="font-family:'Archivo',sans-serif; font-size:13px">${esc(rec.label||'—')}</span>
           </div>
           <div style="display:flex; flex-direction:column; gap:7px; margin-top:auto">
+            ${wantControlHtml(rec)}
             <a href="https://www.discogs.com/release/${rec.id}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); color:var(--ink); text-align:center">VIEW ON DISCOGS ↗</a>
             <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(rec.artist+' '+rec.title)}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); background:var(--accent); color:var(--on-accent); text-align:center">▶ LISTEN</a>
           </div>
@@ -864,6 +908,105 @@ async function _loadStats(rec){
    only — never record identities, prices, or any Restricted Discogs data. */
 function track(name, data){ try { if (window.umami) window.umami.track(name, data); } catch(e){} }
 
+/* Wave 2 B2 — wantlist write handlers. In-flight guard per release id so a double-tap or an
+   overlapping card+modal click can't fire two writes for the same record. */
+const _wantInflight = new Set();
+
+/* Friend-crate toggle: optimistically flip the viewer's want membership (drives both the badge and the
+   button label), then reconcile the MATCHES stat from the server. Revert everything on failure. The Edge
+   fn seeds the release server-side if needed, so no seed is sent from here. */
+async function toggleWant(id, action){
+  if (!window.TraxWaxSetWant || _wantInflight.has(id)) return;
+  const ctx = window.__twMatchCtx;
+  const hasCtx = !IS_OWN() && ctx && ctx.viewerWants;
+  _wantInflight.add(id);
+  if (hasCtx){ if (action==='add') ctx.viewerWants.add(id); else ctx.viewerWants.delete(id); }
+  render();
+  try {
+    await window.TraxWaxSetWant(id, action);
+    track(action==='add'?'wantlist_add':'wantlist_remove', { source: state.view });
+    if (hasCtx && window.TraxWaxMatchCounts){
+      // TraxWaxMatchCounts RETURNS null on a crate_match error (doesn't throw) — guard so a transient
+      // RPC failure can't blank the MATCHES stat bar; keep the prior counts until a good refetch.
+      try { const mc = await window.TraxWaxMatchCounts(); if (mc) window.__twMatchCounts = mc; } catch(e){}
+      render();
+    }
+  } catch(e){
+    if (hasCtx){ if (action==='add') ctx.viewerWants.delete(id); else ctx.viewerWants.add(id); }
+    render();
+    showToast(e && e.status===409 ? 'Connect Discogs to change your wantlist'
+                                  : 'Couldn’t update your wantlist — try again', null, null);
+  } finally { _wantInflight.delete(id); }
+}
+
+/* WANTLIST-tab remove: optimistically drop the row (card vanishes), fire the Discogs DELETE, and offer
+   an UNDO toast that re-adds. Revert the row on failure. */
+async function removeWant(id){
+  if (!window.TraxWaxSetWant || _wantInflight.has(id) || !Array.isArray(WANTLIST_RECORDS)) return;
+  const idx = WANTLIST_RECORDS.findIndex(x=>x.id===id);
+  if (idx<0) return;
+  const row = WANTLIST_RECORDS[idx];
+  const wasOpen = state.detailId===id;
+  _wantInflight.add(id);
+  WANTLIST_RECORDS.splice(idx,1);
+  if (wasOpen) state.detailId=null;
+  render();
+  try {
+    await window.TraxWaxSetWant(id, 'remove');
+    track('wantlist_remove', { source: 'wantlist' });
+    showToast('Removed from your wantlist', 'UNDO', ()=>_undoRemoveWant(id, row, idx));
+  } catch(e){
+    WANTLIST_RECORDS.splice(Math.min(idx, WANTLIST_RECORDS.length), 0, row);
+    if (wasOpen) state.detailId=id;   // restore the modal we optimistically closed
+    render();
+    showToast('Couldn’t remove — try again', null, null);
+  } finally { _wantInflight.delete(id); }
+}
+
+/* UNDO for a wantlist-tab remove: re-add on Discogs and restore the card at its old position. NOTE: the
+   re-added row's `added` becomes today (Discogs stamps a fresh date_added on re-add and the mirror follows)
+   — the original add-date is not preserved. Accepted: a re-added want is legitimately "added now". */
+async function _undoRemoveWant(id, row, idx){
+  if (_wantInflight.has(id) || !Array.isArray(WANTLIST_RECORDS)) return;
+  _wantInflight.add(id);
+  try {
+    await window.TraxWaxSetWant(id, 'add');
+    if (!WANTLIST_RECORDS.some(x=>x.id===id)) WANTLIST_RECORDS.splice(Math.min(idx, WANTLIST_RECORDS.length), 0, row);
+    track('wantlist_add', { source: 'undo' });
+    render();
+  } catch(e){ showToast('Couldn’t undo — try again', null, null); }
+  finally { _wantInflight.delete(id); }
+}
+
+/* Minimal toast: one at a time, auto-dismiss 6s, optional single action. No dependencies; theme-aware. */
+let _toastTimer=null;
+function showToast(msg, actionLabel, onAction){
+  let el=document.getElementById('tw-toast');
+  if(!el){
+    el=document.createElement('div'); el.id='tw-toast';
+    el.style.cssText="position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:9999; "+
+      "display:flex; align-items:center; gap:14px; max-width:calc(100vw - 32px); padding:11px 16px; "+
+      "background:#16171a; color:#fff; border:1.5px solid var(--accent); box-shadow:4px 4px 0 rgba(0,0,0,.28); "+
+      "font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.03em";
+    document.body.appendChild(el);
+  }
+  clearTimeout(_toastTimer);
+  el.innerHTML='';
+  const span=document.createElement('span'); span.textContent=msg; el.appendChild(span);
+  if(actionLabel && onAction){
+    const b=document.createElement('button');
+    b.textContent=actionLabel;
+    b.style.cssText="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; "+
+      "font-weight:700; padding:4px 10px; border:1.5px solid var(--accent); background:var(--accent); "+
+      "color:var(--on-accent); cursor:pointer";
+    b.addEventListener('click', ()=>{ _dismissToast(); onAction(); });
+    el.appendChild(b);
+  }
+  el.style.display='flex';
+  _toastTimer=setTimeout(_dismissToast, 6000);
+}
+function _dismissToast(){ const el=document.getElementById('tw-toast'); if(el) el.style.display='none'; clearTimeout(_toastTimer); }
+
 /* ── Events (delegation) ───────────────────────────────────────────────────── */
 function onClick(e){
   const t=e.target.closest('[data-act]'); if(!t) return;
@@ -901,6 +1044,8 @@ function onClick(e){
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
     case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; render(); break;
     case 'closeDetail': state.detailId=null; render(); break;
+    case 'want': toggleWant(Number(arg), t.dataset.want==='remove'?'remove':'add'); break;
+    case 'wantRemove': removeWant(Number(arg)); break;
     case 'stop': e.stopPropagation(); break;
   }
 }

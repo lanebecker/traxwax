@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.live-stats]
 verify_jwt = false
+
+[functions.wantlist-write]
+verify_jwt = false

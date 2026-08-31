@@ -13,6 +13,51 @@ _Nothing yet._
 
 ---
 
+## [1.6.0] — 2026-08-31
+
+Wave 2 Stage B2 — **ADD / REMOVE to wantlist: the first Discogs write.** TraxWax can now mutate your
+Discogs account (wantlist only). This completes **Wave 2 — Wantlists & the match matrix.** New Edge
+Function `wantlist-write` + frontend; no migration.
+
+### Added
+- **Add to wantlist from a friend's crate** — an ＋ ADD TO WANTLIST control on records you don't already
+  own (card + detail modal) writes the release to your Discogs wantlist and mirrors it locally; the
+  WANT/HAVE badge, the MATCHES stat, and your WANTLIST tab all update live.
+- **Remove from wantlist**, two ways — the same control flips to ✕ REMOVE on a friend's crate (a toggle),
+  and every card on your WANTLIST tab has an inline ✕ REMOVE with an UNDO toast.
+
+### Security
+- `wantlist-write` verifies the Clerk token itself, scopes every read/write to that user, and writes to
+  Discogs **first** (mirroring into `wantlist_items` only on success). The add path seeds the shared
+  catalog **server-authoritatively** — it never accepts client-supplied catalog content (which
+  `seed_releases` would merge over the shared rows every user sees). Hardened by an independent
+  pre-build verification pass (caught + designed out a client-seed catalog-defacement hole) and a
+  post-build adversarial audit to convergence.
+
+---
+
+## [1.5.1] — 2026-08-31
+
+Wave 2 Stage B1 follow-ups — the two cold-audit trackers (#26, #27). Frontend only; no migrations,
+no Edge Function changes.
+
+### Fixed
+- **Wantlist import now fires on every RE-SYNC path (#26)** — an in-crate RE-SYNC never triggered a
+  wantlist re-import, and an account-page RE-SYNC deferred it to the next crate visit. A single guarded
+  `triggerWantlistSync()` now runs after any collection import (in-crate, account, first connect) and is
+  also consumed early on any signed-in load, so the account-RE-SYNC path no longer waits for a later
+  visit. The wantlist import and the enrichment drain are now sequential, so the wantlist insert can no
+  longer trip the enrich stall guard.
+
+### Changed
+- **THE WANTLIST tab polish (#27)** — the empty state speaks in the wantlist's own voice (no more
+  collection-voiced "ADD RECORDS / RE-SYNC" implying the crate); the header reads `N ON WANTLIST` and
+  drops the always-zero COLORED cell; the colored-wax and color facet chips no longer appear as inert
+  filters on the wantlist (matching what actually filters there); and WANT/HAVE badge state is folded
+  into each card's accessible name so a screen reader announces it as part of the card.
+
+---
+
 ## [1.5.0] — 2026-08-31
 
 Wave 2 Stage B1 — **Wantlists & the match matrix become visible.** The read path: the friend match
