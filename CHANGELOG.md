@@ -13,6 +13,25 @@ _Nothing yet._
 
 ---
 
+## [1.4.4] — 2026-08-30
+
+Fixed the Clerk sign-in / sign-up card, which had drifted into a mess of stray rings, a glossy
+gradient button, and misaligned boxes. Frontend only.
+
+### Fixed
+- **Sign-in card restyled to the flat TraxWax look.** Clerk's current build outlines every control
+  with a box-shadow *ring* (not a border) and wraps the card in a drop-shadowed `.cl-cardBox` — none
+  of which the mount-time `appearance` object overrode (its color/font/radius and `display` rules
+  apply; its `border`/`box-shadow` rules silently lose to Clerk's own). Moved the flat frame — killed
+  rings, flat accent button with the TraxWax offset shadow, no card shadow, hairline divider, hidden
+  "last used" badge — into a `.cl-*` CSS block in `styles.css` that also follows light/dark **live**
+  via tokens (the mount-time appearance couldn't). Simplified `boot.clerk.js` to just the palette/type
+  variables and the header/footer `display:none` the appearance actually honors.
+
+Closes #22.
+
+---
+
 ## [1.4.3] — 2026-08-30
 
 Friends account surface redesigned for legibility (Design Kit v2). Frontend only.

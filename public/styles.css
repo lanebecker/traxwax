@@ -387,3 +387,28 @@ input::placeholder { color:var(--faint); }
 .tw-badge-you  { background:var(--accent); color:var(--on-accent); }
 .tw-badge-both { background:var(--ink);    color:var(--bg); }
 .tw-badge-else { background:var(--panel);  color:var(--ink); border:1.5px solid var(--line); padding:2px 6px; }
+
+/* ── Clerk sign-in / sign-up card (S2 / S3) ────────────────────────────────────
+   Clerk's current build outlines every control with a box-shadow RING (not a
+   border), ships a glossy primary button, and wraps the whole card in a
+   drop-shadowed .cl-cardBox — none of which the mount-time `appearance` object
+   overrides (its color/font/radius/display DO apply; its border/box-shadow do
+   not, losing to Clerk's own ring rules). We own the frame (stateCard), so these
+   rules flatten Clerk's controls to the TraxWax look and follow the theme live
+   via tokens. cl-* are Clerk's stable public class hooks. */
+.cl-cardBox, .cl-card {
+  box-shadow:none !important; border:none !important; background:transparent !important;
+}
+.cl-socialButtonsBlockButton,
+.cl-formFieldInput {
+  box-shadow:none !important; border:1.5px solid var(--line) !important; border-radius:0 !important;
+}
+.cl-dividerLine { background:var(--hair) !important; }
+.cl-formButtonPrimary {
+  box-shadow:3px 3px 0 var(--line) !important; background:var(--accent) !important;
+  background-image:none !important; border:1.5px solid var(--line) !important;
+  border-radius:0 !important; color:var(--on-accent) !important;
+}
+.cl-formButtonPrimary:active { box-shadow:0 0 0 var(--line) !important; transform:translate(3px,3px); }
+/* The "you signed in with X last time" badge floats oddly inside our frame. */
+.cl-lastAuthenticationStrategyBadge { display:none !important; }
