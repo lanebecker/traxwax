@@ -279,6 +279,21 @@ function emptyCrateHtml(){
   const MONO = "font-family:'IBM Plex Mono',monospace";
   const COND = "font-family:'Barlow Condensed',sans-serif";
   const BODY = 'font-family:Archivo,Helvetica,sans-serif';
+  // Wave 1 (v1.4.1): a friend's empty crate must not speak in the owner's voice or offer
+  // ADD/RE-SYNC (which are no-ops for a friend). Branch on IS_OWN().
+  const own = IS_OWN();
+  const who = (window.TraxWaxOwner && window.TraxWaxOwner.displayName) || 'This collector';
+  const body = own
+    ? 'Your Discogs collection came back empty. Add a few records over there and re-sync — ' +
+      'they’ll be filed here within the minute.'
+    : esc(who) + ' hasn’t filed any records here yet.';
+  const actions = own
+    ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
+        '<a href="https://www.discogs.com" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
+          'ADD RECORDS ON DISCOGS</a>' +
+        '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
+      '</div>'
+    : '';
   return '' +
   '<div style="padding:70px 40px 76px; display:flex; flex-direction:column; align-items:center; ' +
     'gap:18px; text-align:center">' +
@@ -295,14 +310,9 @@ function emptyCrateHtml(){
       '<span class="tw-empty-h" style="' + COND + '; font-size:38px; font-weight:700; ' +
         'line-height:1; color:var(--ink)">Nothing on the shelf yet</span>' +
       '<span style="' + BODY + '; font-size:13.5px; line-height:1.7; color:var(--muted); ' +
-        'max-width:48ch">Your Discogs collection came back empty. Add a few records over ' +
-        'there and re-sync — they’ll be filed here within the minute.</span>' +
+        'max-width:48ch">' + body + '</span>' +
     '</div>' +
-    '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
-      '<a href="https://www.discogs.com" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
-        'ADD RECORDS ON DISCOGS</a>' +
-      '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
-    '</div>' +
+    actions +
   '</div>';
 }
 
@@ -334,7 +344,7 @@ function priceCellHtml(rec, isOwn){
   const MONO = "font-family:'IBM Plex Mono',monospace";
   if (!isOwn) {
     return '<a href="https://www.discogs.com/release/' + encodeURIComponent(rec.id) + '" ' +
-      'rel="noopener" style="' + MONO + '; font-size:9.5px; font-weight:700; ' +
+      'target="_blank" rel="noopener" style="' + MONO + '; font-size:9.5px; font-weight:700; ' +
       'letter-spacing:.06em; color:var(--accent); white-space:nowrap">SEE ON DISCOGS →</a>';
   }
   if (rec.price == null) {

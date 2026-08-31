@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.4.0`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.4.1`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -136,6 +136,13 @@ server-side price suppression, and instant mutual revocation. Backend: migration
 (friendships, invites, `crate_visibility`, friend-read RLS, `private.can_view_crate`,
 `crate_view_decision`) + `live-stats` suppression. Every DB change and the frontend were
 adversarially audited. Plan + audit record: `docs/wave-1-plan.md`. Issues #11–#15.
+
+### v1.4.1 — Account UX consolidation + Wave 1 cold-audit polish
+
+Merged the SHARING tab into FRIENDS (toggle at the top). Frontend/doc fixes from the end-of-wave
+cold audit: friend empty-crate voice, "SEE ON DISCOGS" new-tab, non-sharing-friend dimming, REMOVE
+a11y, invite error copy; and reconciled the price-suppression docs (best-effort field suppression,
+not a hard boundary — the boundary is the friend-read RLS). Backend-hardening backlog: #16–#18.
 
 ---
 

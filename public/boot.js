@@ -572,7 +572,13 @@ async function renderAccount(profile, section) {
       const { data, error } = await supabase.rpc('create_friend_invite',
         { p_code_hash: await sha256hex(code) });
       if (error) throw new Error(error.message);
-      if (!data || data.status !== 'ok') throw new Error((data && data.status) || 'invite_failed');
+      if (!data || data.status !== 'ok') {
+        // Map internal status tokens to human copy (don't surface 'no_profile'/'no_auth' raw).
+        const m = { no_profile: 'Finish setting up your profile first, then create a link.',
+          no_auth: 'Please sign in again, then try creating a link.' }[data && data.status]
+          || 'Couldn’t create a link — please try again.';
+        throw new Error(m);
+      }
       return location.origin + '/i/' + code;
     },
     onRemoveFriend: async (friendId) => {
@@ -686,7 +692,7 @@ async function render() {
   // has already sent a signed-out visitor to the sign-in card. Branch here, before the
   // onboarding/connect gates, so /account is always a place you can land.
   if (segments[0] && segments[0].toLowerCase() === 'account') {
-    const valid = ['profile', 'sharing', 'friends', 'discogs'];   // Wave 1: sharing/friends live
+    const valid = ['profile', 'friends', 'discogs'];   // Wave 1: friends live (sharing merged into it, v1.4.1)
     const raw = segments[1] ? segments[1].toLowerCase() : 'profile';
     await renderAccount(profile, valid.includes(raw) ? raw : 'profile');
     return;
@@ -870,6 +876,8 @@ async function render() {
     // Wave 1: is this a friend's shared crate? get_crate_owner returns 'no_crate' for BOTH
     // "no such user" AND "exists but not shared with you", so this branch never confirms a
     // username's existence. On authorization it mounts the crate READ-ONLY and returns.
+    // NOTE (Lane, 2026-08-30): this branch sits AFTER the connect-Discogs gate by design, so a
+    // viewer must have connected their own Discogs before browsing a friend's crate.
     let friendOwner = null;
     try {
       const { data } = await supabase.rpc('get_crate_owner', { p_username: routeUsername });

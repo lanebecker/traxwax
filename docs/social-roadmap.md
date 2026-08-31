@@ -203,9 +203,8 @@ Prerequisites that block everything, none of them features:
   Verified on live traxwax.com: avatar loads under the custom Clerk domain (img.clerk.com
   hypothesis holds), profile fields persist across reload (round-tripped both ways), photo
   upload round-trips to Clerk. A papercut surfaced and was fixed as **v1.3.4** (the nav-header
-  avatar didn't refresh in place after upload). **Still open (non-blocking):** Tommy's name
-  appearing in his profile row on his next visit — the first organic test of the Clerk→DB
-  sync; awaiting Tommy (a 2026-08-30 afternoon check-in is scheduled).
+  avatar didn't refresh in place after upload). **Tommy's name-sync CONFIRMED 2026-08-30** (his
+  display name populated on his visit — the Clerk→DB sync works organically). W0.3 fully closed.
 - **W0.4 — Accessibility polish. SHIPPED v1.3.3 (2026-08-30).** All four line items done:
   `aria-live` on the result count (v1.3.2); detail-modal focus-trap + focus restore
   (returns to the invoking card, survives the async stats/tracklist re-render); roving
@@ -251,7 +250,11 @@ probeable RPC; (2) `live-stats` price suppression is best-effort UX (release pri
 global data) — the real confidentiality boundary is the `collection_items` friend-read RLS.
 Friend-profile display fields are served via the `get_crate_owner` projection RPC, not a row
 policy (RLS can't hide columns). Invite model: single-use codes (reusable-link fallback tracked
-in issue #10). The original wave spec follows.
+in issue #10). Two behaviors decided in the cold audit (Lane, 2026-08-30): (a) viewing a friend's
+crate requires the VIEWER to have connected their own Discogs first — the connect gate deliberately
+precedes the friend-crate branch; (b) disconnecting Discogs KEEPS friendships + `crate_visibility`
+(they belong to the Clerk identity), so a reconnect re-shares to existing friends — intentional, not
+reset. The original wave spec follows.
 
 
 The consent wall, the friendship graph, and the first time anyone sees anyone else's
@@ -274,10 +277,11 @@ base is two people who know each other.
   directions). **Consent is PER DATASET, decided now (rev1-F7):** the crate toggle covers
   the crate only; Wave 2 adds a separate wantlist toggle, Wave 4 a for-sale toggle — a
   Wave-1 opt-in never silently expands to expose data that didn't exist yet.
-- **Price suppression is server-side (rev1-F4):** `live-stats` gains a visit context
-  (or the visit path uses a distinct kind) that OMITS `price` from the response when the
-  viewed record is not the viewer's own — the "prices never on anyone else's crate" rule
-  is enforced where the data originates, not by the client politely not rendering it.
+- **Price suppression (rev1-F4), as built:** `live-stats` OMITS `price` for a friend-view request
+  (the `crate_view_decision` gate, migration 0014) and the friend-crate UI renders no number. Since
+  release price/stats are GLOBAL data, this field-suppression is best-effort defense-in-depth, not a
+  hard boundary — the confidentiality boundary is the `collection_items` friend-read RLS (which
+  releases a user owns). See the v1.4.0 plan §2 audit note.
 - **`delete_account` amended in this wave's migration** to remove friendship + invite
   rows (rev1-F11) — deletion semantics extend in the same migration, per ritual.
 - **Visiting:** `/app/<username>` resolves for friends of a consenting owner. Read-only
