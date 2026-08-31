@@ -865,12 +865,12 @@ function onClick(e){
     case 'view': state.view=arg; track('view_change', { view: arg }); render(); break;
     case 'sort': state.sort=arg; render(); break;
     case 'dir': state.dir*=-1; render(); break;
-    case 'genre': toggleGenre(arg); render(); break;
+    case 'genre': track('filter_used', { kind: 'genre' }); toggleGenre(arg); render(); break;
     case 'clearGenres': state.genres=[]; render(); break;
-    case 'colored': state.coloredOnly=!state.coloredOnly; render(); break;
+    case 'colored': track('filter_used', { kind: 'colored' }); state.coloredOnly=!state.coloredOnly; render(); break;
     case 'artist': state.artist=arg; state.detailId=null; render(); break;
-    case 'color': state.color=arg; state.detailId=null; render(); break;
-    case 'open': openDetail(Number(arg)); break;
+    case 'color': track('filter_used', { kind: 'color' }); state.color=arg; state.detailId=null; render(); break;
+    case 'open': track('record_opened', { source: state.view }); openDetail(Number(arg)); break;
     case 'retryDetail': { const r=RECORDS.find(x=>x.id===state.detailId); if(r){ r._relErr=false; render(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;

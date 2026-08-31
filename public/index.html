@@ -19,13 +19,16 @@
      REPLACE data-website-id with the ID from your Umami dashboard, and confirm the src host
      matches the snippet it shows. Same tag on /app (app/index.html). No-ops until a real ID. -->
 <script>
-  /* Analytics privacy guard — mirrors app/index.html. Masks any /app/<username> segment
-     (and internal referrer) before send so no Discogs handle leaves the app. Harmless on the
-     landing (no such path), kept identical for defense-in-depth on deep links. */
+  /* Analytics privacy guard — mirrors app/index.html. Masks /app/<username> and /i/<invite-code>
+     path segments (url AND internal referrer) before send; ?query and #fragment are stripped by
+     data-exclude-search/hash on the tag. Harmless on the landing (no such path), kept identical
+     for defense-in-depth on deep links. */
   window.twUmamiBeforeSend = function (type, payload) {
     try {
       var mask = function (u) {
-        return typeof u === 'string' ? u.replace(/\/app\/[^/?#]+/g, '/app/:user') : u;
+        return typeof u === 'string'
+          ? u.replace(/\/app\/[^/?#]+/g, '/app/:user').replace(/\/i\/[^/?#]+/g, '/i/:code')
+          : u;
       };
       if (payload) {
         if (payload.url) payload.url = mask(payload.url);
@@ -39,6 +42,8 @@
   data-website-id="09b243a0-36ae-4e7b-bd61-b6ac87ab4106"
   data-domains="traxwax.com"
   data-do-not-track="true"
+  data-exclude-search="true"
+  data-exclude-hash="true"
   data-before-send="twUmamiBeforeSend"></script>
 <script>
   /* Signed-in visitors skip the marketing landing and go straight to their crate.

@@ -61,7 +61,11 @@ one-liners: `data-domains="traxwax.com"` (preview/localhost don't report), `data
 (honors the browser DNT signal — drop it for fuller numbers), and a `data-before-send` guard
 (`twUmamiBeforeSend`) that masks the `/app/<username>` path segment so no Discogs handle leaves
 the app. **Rule: event props are actions/counts only — never a username, price, or any Restricted
-Discogs field.** Custom events wired so far: `import_completed` (boot.js), `view_change` (app.js).
+Discogs field** — failure `reason`s are fixed enum buckets, never a raw error message. Custom
+events (v1.4.8): activation funnel `connect_started`/`connect_completed`/`connect_failed{reason}`
++ `import_started`/`import_completed{items}`/`import_failed{reason,page}`; churn + social
+`discogs_disconnected`, `account_deleted`, `invite_created`, `invite_accepted`; engagement
+`view_change{view}`, `filter_used{kind}`, `record_opened{source}`.
 
 ## Surface 2 — Supabase Edge Functions
 

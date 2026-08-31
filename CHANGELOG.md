@@ -13,6 +13,38 @@ _Nothing yet._
 
 ---
 
+## [1.4.8] — 2026-08-30
+
+Analytics event coverage. Frontend only. Builds on the v1.4.7 Umami scaffold.
+
+### Added
+- **Activation funnel:** `connect_started`, `connect_completed`, `connect_failed` `{reason}`,
+  `import_started`, `import_failed` `{reason, page}` — joining the existing `import_completed`
+  `{items}`. Turns raw counts into a funnel with visible drop-off, and doubles as lightweight
+  connect/import error monitoring.
+- **Churn + social:** `discogs_disconnected` and `account_deleted` (the two exit doors);
+  `invite_created` and `invite_accepted` (Wave 1 viral loop; accept fires only on a genuinely
+  new accept, not a re-open of an already-used link).
+- **Engagement:** `filter_used` `{kind}` (genre/color/colored) and `record_opened` `{source}`
+  (crate/timeline) alongside the existing `view_change` `{view}`.
+
+### Privacy
+- **Failure `reason`s are fixed enum buckets, never raw error messages** — a caught `.message`
+  can carry a token or URL, so `import_failed` maps to `rate_limit`/`auth`/`network`/`other` and
+  `connect_failed` emits only known connect-status keys (else `other`). No event carries a
+  username, search query, artist/title, price, friend handle, or record id.
+
+### Fixed
+- **Capability tokens no longer reach Umami in the initial pageview URL** (hardening of the
+  v1.4.7 before-send guard, found by an adversarial audit of this change). The Umami script loads
+  before `boot.js` strips one-time codes from the URL, so the first auto-pageview captured the raw
+  `location.href`. The mask now also collapses `/i/<invite-code>` → `/i/:code`, and
+  `data-exclude-search`/`data-exclude-hash` on the tag strip the `?connect=…` query and the OAuth
+  `#twcode=…` fragment before send. (Discogs Restricted data was never exposed — these are
+  TraxWax's own capability tokens — but they don't belong in a third party's logs.)
+
+---
+
 ## [1.4.7] — 2026-08-30
 
 Privacy-first analytics scaffold (Umami Cloud, Hobby/free). Frontend only. **Inert until the

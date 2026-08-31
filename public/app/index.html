@@ -14,15 +14,20 @@
      Edit → Website ID), and confirm the src host matches the snippet it shows (Cloud may
      serve us./eu. regional hosts). The tracker no-ops until a real ID is set. -->
 <script>
-  /* TraxWax privacy guard: the app routes to /app/<discogs-username>, so an auto-pageview
-     would ship individual handles to a third party. Collapse that path segment (and any
-     internal referrer) to a placeholder before send — the funnel (/ , /app) stays intact,
-     but no username leaves the app. Restricted Discogs data never reaches analytics
-     regardless: custom events carry actions/counts only, never record identities. */
+  /* TraxWax privacy guard (defense in depth with data-exclude-search/hash on the tag below).
+     Auto-pageviews would otherwise ship identifying/capability tokens to a third party:
+       · /app/<discogs-username>  → owner/friend handle           (masked here)
+       · /i/<invite-code>         → a friend-invite capability token (masked here)
+       · ?connect=… query · #twcode=… fragment → stripped by data-exclude-search/hash
+     Mask the path segments (url AND internal referrer) before send; the funnel (/ , /app)
+     stays intact. Restricted Discogs data never reaches analytics regardless — custom events
+     carry actions/counts only, never record identities. */
   window.twUmamiBeforeSend = function (type, payload) {
     try {
       var mask = function (u) {
-        return typeof u === 'string' ? u.replace(/\/app\/[^/?#]+/g, '/app/:user') : u;
+        return typeof u === 'string'
+          ? u.replace(/\/app\/[^/?#]+/g, '/app/:user').replace(/\/i\/[^/?#]+/g, '/i/:code')
+          : u;
       };
       if (payload) {
         if (payload.url) payload.url = mask(payload.url);
@@ -36,6 +41,8 @@
   data-website-id="09b243a0-36ae-4e7b-bd61-b6ac87ab4106"
   data-domains="traxwax.com"
   data-do-not-track="true"
+  data-exclude-search="true"
+  data-exclude-hash="true"
   data-before-send="twUmamiBeforeSend"></script>
 </head>
 <body>
