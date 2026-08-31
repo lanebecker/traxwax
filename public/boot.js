@@ -410,6 +410,26 @@ async function importLoop(onProgress, onHiccup) {
   } while (page <= pages && page <= 500);
 }
 
+/* Wave 2 Stage A: silent wantlist import — the same page-loop as importLoop but kind='wantlist',
+   no progress UI, client-driven adaptive pacing. Throws on give-up; the caller logs and moves on. */
+async function wantlistImportLoop() {
+  let page = 1, pages = 1, startedAt = null;
+  do {
+    const t0 = Date.now();
+    const d = await _pipeAttempt(() => _pipeCall('import-collection',
+      Object.assign({ page, kind: 'wantlist' }, startedAt ? { started_at: startedAt } : {})));
+    pages = d.pages; startedAt = d.started_at;
+    if (d.done) break;
+    page++;
+    const elapsed = Date.now() - t0;
+    // Client-driven adaptive pacing: back off hard when Discogs' shared-IP budget runs low,
+    // else the normal elapsed-aware 1.1s pace. The 429 retry in _pipeAttempt is the backstop.
+    const rr = Number(d.rate_remaining ?? NaN);   // null/absent → NaN → normal pace, not budget-low (Number(null)===0)
+    const gap = (Number.isFinite(rr) && rr < 15) ? 2500 : Math.max(0, 1100 - elapsed);
+    await new Promise((r) => setTimeout(r, gap));
+  } while (page <= pages && page <= 500);
+}
+
 /* Background enrichment drain: silent (console only), at most one loop at a time.
    Rate-limited rounds wait 30s and do NOT count toward the stall guard (audit #10). */
 let _enrichRunning = false;
@@ -565,7 +585,12 @@ async function renderAccount(profile, section) {
     // RE-SYNC runs the full import pipeline, which renders its own progress card over this
     // page (runImport -> notice). On success we reload so the fresh count/last-synced show;
     // on failure runImport's own "stopped" card stays and we must NOT paint over it.
-    onResync: async () => { const ok = await runImport(); if (ok) window.location.reload(); },
+    onResync: async () => {
+      const ok = await runImport();
+      // Wave 2 Stage A: flag a wantlist re-sync for AFTER the reload (the reload would kill an
+      // in-flight background import). Picked up in the own-crate render path below.
+      if (ok) { try { sessionStorage.setItem('tw_wantlist_due', '1'); } catch (e) {} window.location.reload(); }
+    },
     onDisconnect: async () => { await _pipeCall('disconnect-discogs', {}); track('discogs_disconnected'); window.location.href = '/app'; },
     onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); track('account_deleted'); await window.Clerk.signOut({ redirectUrl: '/' }); },
     onSignOut: async () => { await window.Clerk.signOut({ redirectUrl: '/' }); },   // v1.4.2; → landing (v1.4.5)
@@ -976,6 +1001,17 @@ async function render() {
     backgroundHeal();                      // interrupted re-sync: heal silently
   } else {
     backgroundEnrich();                    // audit #11: sweep up any pending leftovers
+  }
+
+  // Wave 2 Stage A: a just-completed collection RE-SYNC set this flag; import the wantlist silently
+  // (deferred to here so it survives the RE-SYNC reload), THEN drain enrichment (which now discovers
+  // wanted releases). Owner-crate path only — never a friend crate. Fire-and-forget: never blocks render.
+  let _wlDue = false;
+  try { _wlDue = sessionStorage.getItem('tw_wantlist_due') === '1'; } catch (e) {}
+  if (_wlDue) {
+    try { sessionStorage.removeItem('tw_wantlist_due'); } catch (e) {}
+    wantlistImportLoop().then(() => backgroundEnrich())
+      .catch((e) => console.warn('wantlist import stopped:', e));
   }
 
   // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
