@@ -16,9 +16,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 <script>
-  /* Theme before first paint — mirrors initTheme() in app.js. Without this the landing
-     page renders light-only regardless of preference, then the crate snaps to dark. */
+  /* Signed-in visitors skip the marketing landing and go straight to their crate.
+     Clerk's __client_uat cookie is "0" when signed out and a unix timestamp when signed
+     in — readable without loading the Clerk SDK, so this fires before first paint. If the
+     cookie is stale (says signed-in but the session has lapsed), /app re-verifies with
+     Clerk and shows the sign-in card; no loop. Absent/0 → stay on the landing. */
   (function(){
+    try {
+      var m = document.cookie.match(/(?:^|;\s*)__client_uat=([^;]*)/);
+      if (m && parseInt(decodeURIComponent(m[1]), 10) > 0) { location.replace('/app'); return; }
+    } catch(e){}
+    /* Theme before first paint — mirrors initTheme() in app.js. Without this the landing
+       page renders light-only regardless of preference, then the crate snaps to dark. */
     var t; try { t = localStorage.getItem('tw_theme'); } catch(e){}
     if(!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
     document.addEventListener('DOMContentLoaded', function(){ document.body.dataset.theme = t; });

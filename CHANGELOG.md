@@ -13,6 +13,24 @@ _Nothing yet._
 
 ---
 
+## [1.4.5] — 2026-08-30
+
+Auth-aware root routing. Frontend only.
+
+### Changed
+- **Signed-in visitors to `traxwax.com` now go straight to their crate.** The landing page reads
+  Clerk's `__client_uat` cookie before first paint and redirects to `/app` when signed in (which
+  routes on to `/app/<username>`); signed-out visitors see the landing as before. No Clerk SDK on
+  the landing, and it degrades safely (a stale cookie just lands on `/app`, which re-verifies).
+- **Signing out returns you to the landing page** (`/`) — the footer sign-out link, the account
+  SIGN OUT row, and post-account-deletion all redirect there now.
+
+A logged-out deep link to `/app` still shows the sign-in card (unchanged) — that's the way in.
+
+Closes #23.
+
+---
+
 ## [1.4.4] — 2026-08-30
 
 Fixed the Clerk sign-in / sign-up card, which had drifted into a mess of stray rings, a glossy
