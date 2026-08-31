@@ -389,7 +389,8 @@ different surface.
 
 ### 9.2 The crate header's visitor variant (S18) — Wave 1
 
-- The owner line (`Lane's shelf · filed by whim`) is the **profile slot**. It becomes
+- The owner line (`Lane's shelf · filed by <word>`, the trailing word cycling per load from
+  `FILED_BY` in `app.js` since v1.4.6) is the **profile slot**. It becomes
   avatar + display name + `COLLECTING SINCE`.
 - The stat strip takes match numbers by **appending cells with a hairline divider**. So
   `EST. VALUE` simply drops out on someone else's shelf and nothing reflows. **This is why

@@ -179,7 +179,8 @@ Verified in the kit: all text clears WCAG AA 4.5:1 in both themes. Keep it that 
 ## 8. Multi-user, later
 
 The design is single-user but not painted into a corner: the header's owner line
-(`Lane's shelf · filed by whim`) is the profile slot — it becomes `{handle} · {tagline}` with an
+(`Lane's shelf · filed by <word>`, where `<word>` is drawn per load from `FILED_BY` in `app.js` —
+50 riffs on `whim`; v1.4.6) is the profile slot — it becomes `{handle} · {tagline}` with an
 avatar to its left, and the stat strip is already per-collection. The panel is one collection;
 a future browse-others view is a page above it, not a change to this one.
 

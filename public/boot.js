@@ -259,9 +259,11 @@ function installCrateProviders(profile) {
 }
 function ownerInfo(profile) {
   return {
+    // The " · filed by <word>" tagline is appended at the render site (app.js), owner-crate only —
+    // don't bake it here, or the word wouldn't cycle.
     ownerLine: profile.discogs_username
-      ? profile.discogs_username + "'s shelf · filed by whim"
-      : 'Your shelf · filed by whim',
+      ? profile.discogs_username + "'s shelf"
+      : 'Your shelf',
     lastSyncedAt: profile.last_import_at || null,
     // Phase 2 profiles: the header avatar button + modal read these.
     displayName: profile.display_name || '',

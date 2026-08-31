@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.4.6] — 2026-08-30
+
+The crate header's tagline now cycles. Frontend only.
+
+### Changed
+- **"filed by whim" is now "filed by _{one of 50}_".** The last word of the owner line
+  (`<name>'s shelf · filed by <word>`) is drawn at random on each page load from a 50-word list —
+  `whim`, `serendipity`, `tea leaves`, `dumb luck`, `pure spite`, `the needle's whim`, and 44 more.
+  The word is frozen per load, so it holds steady across filter/sort/view re-renders and only
+  reshuffles on a real reload. Owner's own crate only; a visitor's shelf keeps its plain
+  `<name>'s shelf`. The list lives once in `app.js` (`FILED_BY`) and the tagline is appended at the
+  render site — `boot.js` no longer bakes the suffix into `ownerLine`.
+
+---
+
 ## [1.4.5] — 2026-08-30
 
 Auth-aware root routing. Frontend only.
