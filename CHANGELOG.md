@@ -13,6 +13,17 @@ _Nothing yet._
 
 ---
 
+## [1.7.0] — 2026-08-31
+
+### Added
+- **The active tab is remembered across reloads** — THE CRATE / THE TIMELINE / THE LEDGER / THE WANTLIST
+  now reflect in the URL (e.g. `/app#wantlist`), so a reload lands you back on the tab you were on instead
+  of always THE CRATE, and the tab is linkable. Only tabs valid for the crate you're viewing are restored
+  (THE WANTLIST is your own crate only); a stale or invalid hash falls back to THE CRATE and the URL is
+  normalized to the actual tab on load.
+
+---
+
 ## [1.6.2] — 2026-08-31
 
 ### Fixed

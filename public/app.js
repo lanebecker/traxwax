@@ -1031,6 +1031,9 @@ function onClick(e){
     case 'account': if(window.TraxWaxAccount) window.TraxWaxAccount(); break;
     case 'view':
       state.view=arg;
+      // Wave 2: reflect the active tab in the URL hash so a reload lands back here (crate = no hash).
+      // replaceState, not pushState — flipping tabs shouldn't pile up browser-history entries.
+      try { history.replaceState(null, '', location.pathname + location.search + (arg==='crate' ? '' : '#'+arg)); } catch(e){}
       track('view_change', { view: arg });
       // Wave 2 B1: lazy-load THE WANTLIST dataset on first switch. WANTLIST_RECORDS: null=not loaded,
       // []=loaded (guards re-entry while the async load is in flight; [] shows an empty grid, not RECORDS).
@@ -1108,7 +1111,18 @@ async function _resync(){
 const DB_MODE = () => !!window.TraxWaxData;
 
 async function bootCrate(){
-  WANTLIST_RECORDS=null; state.view='crate';   // Wave 2 B1: fresh dataset + default view per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
+  WANTLIST_RECORDS=null;   // Wave 2 B1: fresh dataset per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
+  // Wave 2: restore the active tab from the URL hash (#wantlist etc.) so a reload lands on the tab you were
+  // on, not always THE CRATE. Only tabs valid for THIS crate are honored (wantlist is own+DB only); anything
+  // else falls back to 'crate'. Set before the render below so the right grid paints on the first frame.
+  const _validTabs = new Set(['crate','timeline','ledger']);
+  if (IS_OWN() && DB_MODE()) _validTabs.add('wantlist');
+  let _bootView = 'crate';
+  try { const h = (location.hash||'').replace(/^#/,''); if (_validTabs.has(h)) _bootView = h; } catch(e){}
+  state.view = _bootView;
+  // Normalize the URL to the actual tab — strips a stale/invalid hash (e.g. #wantlist carried onto a
+  // friend crate, which falls back to 'crate') so what's in the address bar always matches what's shown.
+  try { history.replaceState(null, '', location.pathname + location.search + (_bootView==='crate'?'':'#'+_bootView)); } catch(e){}
   initTheme();
   if (window.TraxWaxOwner && window.TraxWaxOwner.ownerLine) {
     SETTINGS.ownerLine = window.TraxWaxOwner.ownerLine;
@@ -1124,6 +1138,14 @@ async function bootCrate(){
       if (!IS_OWN() && window.TraxWaxMatchCtx) {
         try { window.__twMatchCtx = await window.TraxWaxMatchCtx(); } catch (e) { window.__twMatchCtx = null; }
         try { window.__twMatchCounts = await window.TraxWaxMatchCounts(); } catch (e) { window.__twMatchCounts = null; }
+      }
+      // Wave 2: a hash-restored WANTLIST tab needs its dataset loaded on a direct reload (the case 'view'
+      // lazy-load never ran). Mirror that load; render() below paints the briefly-empty grid, then this
+      // fills it. Own+DB only — guaranteed by _validTabs above.
+      if (state.view==='wantlist' && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
+        WANTLIST_RECORDS=[];
+        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; render(); })
+          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; });
       }
     } else {
       // ABSOLUTE path, deliberately. A relative './collection.json' resolves against the
