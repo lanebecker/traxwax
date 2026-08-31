@@ -244,15 +244,19 @@ export function trapFocus(container, onEscape) {
      clerkUser,               // window.Clerk.user
      recordCount,             // number | null
      lastSyncedLabel,         // string
-     section,                 // 'profile' | 'discogs'
+     section,                 // 'profile' | 'friends' | 'discogs'
      onSaveProfile(values),   // async -> throws with a human message
      onUploadPhoto(file),     // async -> new imageUrl
      onResync(), onDisconnect(), onDelete(),
+     // Wave 1 (friends section):
+     onSetVisibility(v),      // async -> set crate_visibility 'private' | 'friends'
+     onListFriends(),         // async -> [{user_id, discogs_username, display_name, avatar_url, crate_visibility}]
+     onCreateInvite(),        // async -> a shareable /i/<code> URL
+     onRemoveFriend(userId),  // async -> remove the friendship both directions
    }  */
 const NAV = [
   { id: 'profile', label: 'PROFILE' },
-  { id: 'sharing', label: 'SHARING' },   // ▸ Wave 1 — live
-  { id: 'friends', label: 'FRIENDS' },   // ▸ Wave 1 — live
+  { id: 'friends', label: 'FRIENDS' },   // ▸ Wave 1 — live (crate-sharing toggle lives here too, v1.4.1)
   { id: 'discogs', label: 'DISCOGS' },
   { id: 'danger', label: 'DANGER ZONE', danger: true, target: 'discogs' },
 ];
@@ -261,18 +265,8 @@ function accountNav(active, o) {
   const items = NAV.map((n) => {
     const isActive = n.id === active || (n.target && n.target === active && n.id !== 'danger');
     const color = n.danger ? 'var(--accent)' : (isActive ? 'var(--ink)' : 'var(--muted)');
-    const chip = n.soon
-      ? '<span style="' + MONO + '; font-size:8.5px; font-weight:700; letter-spacing:.12em; ' +
-        'color:var(--accent); border:1px solid var(--accent); padding:2px 4px">SOON</span>'
-      : '';
     const inner = '<span style="' + MONO + '; font-size:11px; font-weight:700; ' +
-      'letter-spacing:.12em; color:' + color + '">' + n.label + '</span>' + chip;
-    if (n.soon) {
-      // Drawn, not built. Rendered as a disabled row so the growth axis is visible without
-      // implying a destination — do NOT link these until Wave 1 lands.
-      return '<div style="display:flex; align-items:center; gap:8px; ' +
-        'padding:11px 18px 11px 22px; opacity:.6; cursor:default">' + inner + '</div>';
-    }
+      'letter-spacing:.12em; color:' + color + '">' + n.label + '</span>';
     if (isActive && n.id === active) {
       return '<div aria-current="page" style="display:flex; align-items:center; gap:10px; ' +
         'padding:11px 18px; background:var(--bg); border-left:4px solid var(--accent)">' +
@@ -413,16 +407,18 @@ function statCell(label, value) {
       'color:var(--ink)">' + esc(value) + '</span></div>';
 }
 
-/* ── Wave 1: SHARING ── one consent toggle for crate visibility (per-dataset; this wave adds
-   the crate only). Reads the saved value from o.profile.crate_visibility (ensureProfile now
-   selects it). Bare helper names — this is inside boot.ui.js; `UI` is boot.js's import alias. */
-function sharingSection(o) {
+/* ── Wave 1: FRIENDS (with SHARING merged in, v1.4.1) ── the crate-visibility consent copy +
+   toggle sit at the TOP of this section, above the invite link + friend list. The separate SHARING
+   tab was removed (one concept, one tab). Reads o.profile.crate_visibility. Bare helper names —
+   this is inside boot.ui.js; `UI` is boot.js's import alias. */
+function friendsSection(o) {
   const vis = (o.profile && o.profile.crate_visibility) || 'private';
   return '' +
-  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:26px">' +
-    sectionHead('SHARING', 'Who can see your crate',
+  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
+    sectionHead('FRIENDS', 'People who can see your crate',
       'Your crate is private by default. Turn this on to let friends you’ve added browse it. ' +
       'Prices never appear on anyone else’s crate. You can turn this off any time.') +
+    // Sharing message + the visibility toggle (was the SHARING tab; merged here).
     '<div id="tw-share-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent); min-height:0"></div>' +
     '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
@@ -433,15 +429,7 @@ function sharingSection(o) {
       '</div>' +
       toggle({ id: 'tw-vis-toggle', on: vis === 'friends', label: 'Friends can see my crate' }) +
     '</div>' +
-  '</div>';
-}
-
-/* ── Wave 1: FRIENDS ── create an invite link + list current friends (remove = instant
-   revocation both directions). Empty state via emptyState(). */
-function friendsSection(o) {
-  return '' +
-  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
-    sectionHead('FRIENDS', 'People who can see your crate', '') +
+    // Invite link + friend list.
     '<div id="tw-friends-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent); min-height:0"></div>' +
     '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
@@ -471,28 +459,40 @@ async function renderFriendsList(root, deps) {
     return;
   }
   host.innerHTML = friends.map((f) =>
-    '<div style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--hair)">' +
-      avatar(f.avatar_url, 40) +
-      '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">' +
-        '<span style="' + COND + '; font-size:16px; font-weight:700; color:var(--ink)">' +
-          esc(f.display_name || f.discogs_username || 'Friend') + '</span>' +
-        '<a href="/app/' + encodeURIComponent(f.discogs_username || '') + '" style="' + MONO +
-          '; font-size:10px; letter-spacing:.06em; color:var(--accent); text-decoration:none">VIEW CRATE →</a>' +
-      '</div>' +
-      '<button data-remove-friend="' + esc(f.user_id) + '" style="' + btnStyle('secondary') +
-        '; font-size:10px">REMOVE</button>' +
-    '</div>').join('');
+    (() => {
+      const name = esc(f.display_name || f.discogs_username || 'Friend');
+      // VIEW CRATE only when they're currently sharing with friends; otherwise a muted note
+      // (the link would just hit the "no crate here" page).
+      const crateLink = f.crate_visibility === 'friends'
+        ? '<a href="/app/' + encodeURIComponent(f.discogs_username || '') + '" style="' + MONO +
+          '; font-size:10px; letter-spacing:.06em; color:var(--accent); text-decoration:none">VIEW CRATE →</a>'
+        : '<span style="' + MONO + '; font-size:10px; letter-spacing:.06em; color:var(--faint)">Not sharing right now</span>';
+      return '<div style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--hair)">' +
+        avatar(f.avatar_url, 40) +
+        '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">' +
+          '<span style="' + COND + '; font-size:16px; font-weight:700; color:var(--ink)">' + name + '</span>' +
+          crateLink +
+        '</div>' +
+        '<button data-remove-friend="' + esc(f.user_id) + '" aria-label="Remove ' + name + '" style="' +
+          btnStyle('secondary') + '; font-size:10px">REMOVE</button>' +
+      '</div>';
+    })()).join('');
   host.querySelectorAll('[data-remove-friend]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
-      try { await deps.onRemoveFriend(btn.getAttribute('data-remove-friend')); await renderFriendsList(root, deps); }
-      catch (e) { btn.disabled = false; }
+      try {
+        await deps.onRemoveFriend(btn.getAttribute('data-remove-friend'));
+        await renderFriendsList(root, deps);
+        // Focus doesn't vanish to <body> after the list re-renders (a11y).
+        const ib = root.querySelector('#tw-invite-btn');
+        if (ib) ib.focus();
+      } catch (e) { btn.disabled = false; }
     });
   });
 }
 
 export function accountPageHtml(o) {
-  const section = ['discogs', 'sharing', 'friends'].includes(o.section) ? o.section : 'profile';
+  const section = ['discogs', 'friends'].includes(o.section) ? o.section : 'profile';
   return '' +
   '<div style="max-width:1040px; margin:0 auto; background:var(--panel); ' +
     'border:1.5px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">' +
@@ -517,7 +517,6 @@ export function accountPageHtml(o) {
     '<div class="tw-acct-body" style="display:grid; grid-template-columns:236px minmax(0,1fr)">' +
       accountNav(section, o) +
       (section === 'discogs' ? discogsSection(o)
-        : section === 'sharing' ? sharingSection(o)
         : section === 'friends' ? friendsSection(o)
         : profileSection(o)) +
     '</div>' +

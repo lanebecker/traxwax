@@ -23,8 +23,11 @@ anyone else's crate. Friends-only — no public crates, no discovery (those are 
 prices never appear on anyone else's crate.
 
 **Hard rules that do not bend (from `Discogs-API-Terms-Summary.md`):**
-- **Prices never appear on anyone else's crate.** Enforced **server-side** in `live-stats`, not by
-  the client politely not rendering (§2). The client `priceCellHtml(rec,false)` is defense-in-depth.
+- **Prices never appear on anyone else's crate.** The friend-crate UI renders no number
+  (`priceCellHtml`), and `live-stats` suppresses the price field for a friend-view request (§2) —
+  defense in depth. Release price/stats are GLOBAL data, so this field-suppression is best-effort UX,
+  NOT a hard boundary; the enforced boundary is the `collection_items` friend-read RLS (which releases
+  a user owns). See §2's audit note.
 - **Sharing is opt-in, default private, per-dataset, instantly revocable.** `crate_visibility`
   defaults to `'private'`. This wave adds the **crate** dataset only.
 - **Restricted stats reach a viewer only under the VIEWER's own token** (the established

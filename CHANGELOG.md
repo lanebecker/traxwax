@@ -13,6 +13,32 @@ _Nothing yet._
 
 ---
 
+## [1.4.1] — 2026-08-30
+
+Account UX consolidation + polish from the Wave 1 end-of-wave cold audit. Frontend/docs only.
+
+### Changed
+- **One tab, not two.** The account **SHARING** tab is merged into **FRIENDS**: the
+  crate-visibility toggle now sits at the top of FRIENDS, above the invite link and friend list.
+
+### Fixed
+- A friend's **empty crate** no longer speaks in the owner's voice or shows a dead RE-SYNC button.
+- Card **"SEE ON DISCOGS →"** opens in a new tab (matching the modal), instead of navigating the
+  crate away.
+- A friend who's toggled sharing off shows **"Not sharing right now"** instead of a dead VIEW CRATE
+  link.
+- REMOVE buttons carry per-friend `aria-label`s; keyboard focus is preserved after a removal.
+- Invite-creation errors show human copy, not internal status tokens.
+
+### Docs / notes
+- Reconciled the price-suppression language across the terms summary + roadmap: it's best-effort
+  field suppression + client rendering, **not** a hard server boundary (the boundary is the
+  `collection_items` friend-read RLS). Recorded two intentional behaviors (a viewer must connect
+  their own Discogs before browsing a friend's crate; a disconnect keeps friendships + visibility).
+  Backend-hardening backlog filed as #16–#18.
+
+---
+
 ## [1.4.0] — 2026-08-30
 
 **Friends & shared crates** (social roadmap Wave 1). You can now share your crate with friends you
