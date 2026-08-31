@@ -272,15 +272,18 @@ function sortBtn(id,label){
    card() runs only in the crate/wantlist grids, so a friend's timeline/ledger show no card-level control
    — but their DETAIL MODAL will show the toggle (still the viewer's own write; deliberate, and useful).
    Returns '' on the own collection crate/timeline/ledger and their modals (IS_OWN() && view!=='wantlist'). */
-const WANT_BTN_STYLE = "width:100%; margin-top:6px; font-family:'IBM Plex Mono',monospace; font-size:10px; " +
-  "letter-spacing:.06em; padding:6px 8px; border:1.5px solid var(--line); background:var(--panel); " +
-  "color:var(--ink); text-align:center; cursor:pointer";
+// appearance:none is load-bearing, not decoration: a native <button> on macOS renders with the system
+// control appearance, which clamps font-size and height regardless of the CSS, so it sits smaller/shorter
+// than the sibling <a> links with identical styles (#29 — the v1.6.1 fix matched the numbers but not this).
+const WANT_BTN_STYLE = "width:100%; margin-top:6px; -webkit-appearance:none; appearance:none; " +
+  "font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.06em; padding:6px 8px; " +
+  "border:1.5px solid var(--line); background:var(--panel); color:var(--ink); text-align:center; cursor:pointer";
 // In the modal, match the sibling action buttons (VIEW ON DISCOGS / LISTEN) exactly — 10.5px type and
-// 7px 10px padding — so the three line up in height and size (#29, Lane live report v1.6.0). No width:100%:
-// the action column is a stretch flexbox, so the button sizes to full width like the <a> links beside it.
-const WANT_BTN_STYLE_MODAL = "font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; " +
-  "padding:7px 10px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); " +
-  "text-align:center; cursor:pointer";
+// 7px 10px padding, with native appearance stripped — so the three line up in height and size. No
+// width:100%: the action column is a stretch flexbox, so the button sizes to full width like the links.
+const WANT_BTN_STYLE_MODAL = "-webkit-appearance:none; appearance:none; margin:0; " +
+  "font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; " +
+  "border:1.5px solid var(--line); background:var(--panel); color:var(--ink); text-align:center; cursor:pointer";
 function wantControlHtml(r, inModal){
   const st = inModal ? WANT_BTN_STYLE_MODAL : WANT_BTN_STYLE;
   if (state.view==='wantlist'){
