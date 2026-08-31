@@ -458,10 +458,13 @@ function backgroundHeal() {
    S7/S8: the progress line is now a real bar (UI.progressBar); on failure the bar STAYS on
    screen and goes grey at the page it reached — seeing how far it got is what makes
    "nothing is lost" believable. _lastImport* remember that position for the failure card. */
-let _lastImportPage = 0, _lastImportPages = 1, _lastImportPct = 0;
+let _lastImportPage = 0, _lastImportPages = 1, _lastImportPct = 0, _importedItems = 0;
+/* Analytics: guarded no-op when Umami is absent. Actions/counts only — never a username,
+   price, or any Restricted Discogs field (mirror of app.js's track()). */
+function track(name, data){ try { if (window.umami) window.umami.track(name, data); } catch(e){} }
 async function runImport() {
   const setProgress = (page, pages, items) => {
-    _lastImportPage = page; _lastImportPages = pages;
+    _lastImportPage = page; _lastImportPages = pages; _importedItems = items;
     _lastImportPct = (page / Math.max(1, pages)) * 100;
     const el = document.getElementById('tw-import-progress');
     if (!el) return;
@@ -504,6 +507,7 @@ async function runImport() {
     return false;
   }
   backgroundEnrich();
+  track('import_completed', { items: _importedItems });   // a count, not which records
   return true;
 }
 

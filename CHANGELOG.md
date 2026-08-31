@@ -13,6 +13,33 @@ _Nothing yet._
 
 ---
 
+## [1.4.7] — 2026-08-30
+
+Privacy-first analytics scaffold (Umami Cloud, Hobby/free). Frontend only. **Inert until the
+website ID is set** — see the setup note below.
+
+### Added
+- **Umami Cloud analytics** on both entry points (`public/index.html`, `public/app/index.html`).
+  Cookieless, no PII, no consent banner, no server or Supabase involvement. Chosen for the free
+  Hobby tier (100k events/mo) and its fit with the project's privacy posture.
+- **Custom events (guarded, no-op without the tracker):** `import_completed` with an item **count**
+  (boot.js, on import success) and `view_change` with the tab id (app.js, CRATE/TIMELINE/LEDGER).
+- **`track()` helper** in app.js and boot.js — actions and counts only; never a username, price,
+  or any Restricted Discogs field.
+
+### Privacy choices (each a one-line revert)
+- **`data-before-send` guard** (`twUmamiBeforeSend`) masks the `/app/<username>` path segment (and
+  internal referrer) before anything is sent, so no Discogs handle leaves the app. `document.title`
+  is static, so nothing leaks around the mask.
+- **`data-do-not-track`** honors the browser DNT signal (drop for fuller numbers).
+- **`data-domains="traxwax.com"`** so preview/localhost traffic doesn't report.
+
+### Setup required (Lane)
+- Create the site in Umami Cloud, then replace `REPLACE_WITH_UMAMI_WEBSITE_ID` in both HTML files
+  and confirm the script `src` host matches the dashboard snippet. The tracker no-ops until then.
+
+---
+
 ## [1.4.6] — 2026-08-30
 
 The crate header's tagline now cycles. Frontend only.

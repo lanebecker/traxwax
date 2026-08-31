@@ -15,6 +15,31 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
+<!-- Umami Cloud analytics (Hobby, free). Cookieless, no PII, no consent banner needed.
+     REPLACE data-website-id with the ID from your Umami dashboard, and confirm the src host
+     matches the snippet it shows. Same tag on /app (app/index.html). No-ops until a real ID. -->
+<script>
+  /* Analytics privacy guard — mirrors app/index.html. Masks any /app/<username> segment
+     (and internal referrer) before send so no Discogs handle leaves the app. Harmless on the
+     landing (no such path), kept identical for defense-in-depth on deep links. */
+  window.twUmamiBeforeSend = function (type, payload) {
+    try {
+      var mask = function (u) {
+        return typeof u === 'string' ? u.replace(/\/app\/[^/?#]+/g, '/app/:user') : u;
+      };
+      if (payload) {
+        if (payload.url) payload.url = mask(payload.url);
+        if (payload.referrer) payload.referrer = mask(payload.referrer);
+      }
+    } catch (e) {}
+    return payload;
+  };
+</script>
+<script defer src="https://cloud.umami.is/script.js"
+  data-website-id="09b243a0-36ae-4e7b-bd61-b6ac87ab4106"
+  data-domains="traxwax.com"
+  data-do-not-track="true"
+  data-before-send="twUmamiBeforeSend"></script>
 <script>
   /* Signed-in visitors skip the marketing landing and go straight to their crate.
      Clerk's __client_uat cookie is "0" when signed out and a unix timestamp when signed
