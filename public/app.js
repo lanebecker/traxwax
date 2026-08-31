@@ -13,8 +13,24 @@
 const SETTINGS = {
   accent: null,                                  // null = theme default
   showPrices: true,
-  ownerLine: "Lane's shelf · filed by whim",
+  ownerLine: "Lane's shelf",                     // tagline (" · filed by <word>") appended at render
 };
+
+/* The owner line ends in a wink, not a taxonomy: "<name>'s shelf · filed by <word>". The word is
+   picked at random ONCE per page load and frozen for the session, so re-renders (filter/sort/view
+   changes) keep it steady and it only reshuffles on a real reload. Owner's own crate only — a
+   visitor's shelf keeps its plain "<name>'s shelf" (see the IS_OWN() guard at the render site).
+   The list is the single source of truth; boot.js no longer carries the suffix. */
+const FILED_BY = [
+  'whim', 'mood', 'vibe', 'fancy', 'caprice', 'impulse', 'instinct', 'intuition', 'gut', 'hunch',
+  'notion', 'serendipity', 'happenstance', 'kismet', 'chance', 'fate', 'providence', 'the stars',
+  'moonlight', 'candlelight', 'dumb luck', 'horoscope', 'tarot', 'tea leaves', 'augury',
+  'divination', 'coin toss', 'dice roll', 'guesswork', 'nostalgia', 'longing', 'heartache',
+  'sentiment', 'memory', 'reverie', 'rapture', 'daydream', 'déjà vu', 'wanderlust', 'sheer nerve',
+  'wishful thinking', 'muscle memory', 'free association', 'sweet abandon', 'pure spite',
+  'stubbornness', 'mood swing', 'vibes alone', "the needle's whim", 'chaos',
+];
+const FILED_BY_WORD = FILED_BY[Math.floor(Math.random() * FILED_BY.length)];
 
 /* Wave 1: the crate renders READ-ONLY when viewing a friend's shelf. boot.js installs
    window.TraxWaxViewer = { isOwn:false, ... } for a friend crate; absent or isOwn===true means
@@ -503,7 +519,7 @@ function render(){
     <header class="tw-header" style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:22px 24px 18px; background:var(--accent); border-bottom:3px solid var(--line)">
       <div class="tw-headL" style="display:flex; align-items:flex-end; gap:14px">
         <span style="background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</span>
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.92); padding-bottom:6px">${esc(SETTINGS.ownerLine)}</span>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.92); padding-bottom:6px">${esc(SETTINGS.ownerLine + (IS_OWN() ? ' · filed by ' + FILED_BY_WORD : ''))}</span>
       </div>
       <div class="tw-headR" style="display:flex; align-items:center; gap:10px">
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
