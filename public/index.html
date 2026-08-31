@@ -19,16 +19,17 @@
      REPLACE data-website-id with the ID from your Umami dashboard, and confirm the src host
      matches the snippet it shows. Same tag on /app (app/index.html). No-ops until a real ID. -->
 <script>
-  /* Analytics privacy guard — mirrors app/index.html. Masks /app/<username> and /i/<invite-code>
-     path segments (url AND internal referrer) before send; ?query and #fragment are stripped by
-     data-exclude-search/hash on the tag. Harmless on the landing (no such path), kept identical
-     for defense-in-depth on deep links. */
+  /* Analytics privacy guard — mirrors app/index.html. Strips ?query + #fragment and masks
+     /app/<username> and /i/<invite-code> path segments on BOTH the url and the internal referrer
+     before send (self-contained; the tag's data-exclude-search/hash are belt-and-suspenders for
+     the url only). Harmless on the landing (no such path), kept identical for deep links. */
   window.twUmamiBeforeSend = function (type, payload) {
     try {
       var mask = function (u) {
-        return typeof u === 'string'
-          ? u.replace(/\/app\/[^/?#]+/g, '/app/:user').replace(/\/i\/[^/?#]+/g, '/i/:code')
-          : u;
+        if (typeof u !== 'string') return u;
+        return u.replace(/[?#].*$/, '')                     // drop query + fragment (?connect, #twcode)
+                .replace(/\/app\/[^/?#]+/g, '/app/:user')   // owner/friend handle
+                .replace(/\/i\/[^/?#]+/g, '/i/:code');       // invite capability token
       };
       if (payload) {
         if (payload.url) payload.url = mask(payload.url);

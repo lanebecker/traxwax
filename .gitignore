@@ -7,3 +7,7 @@ __pycache__/
 
 # generated Phase 0 catalog seed (regenerate with build/seed_catalog.py)
 seed_releases.sql
+
+# The append-only session log lives at the PROJECT ROOT, outside this repo — never commit a
+# copy here. Guards against a stray created by a mis-cd'd `>> log.md` append.
+log.md

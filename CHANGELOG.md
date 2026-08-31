@@ -13,6 +13,44 @@ _Nothing yet._
 
 ---
 
+## [1.4.9] — 2026-08-30
+
+Wave 1 backend hardening — clears the remaining items in #16, #17, #18. DB migration (`0016`) + frontend.
+
+### Added
+- **Per-inviter cap on active friend invites (25).** `create_friend_invite` (migration `0016`) rejects
+  when the caller already holds 25 unused, unexpired invites (`too_many_invites`, surfaced with human
+  copy in the account UI). Its expired-sweep now keeps *used* rows, matching 0015's soft-consume. (#16 item 3)
+
+### Security
+- **Dropped the `anon` reach into schema `private`.** Revoked `anon` EXECUTE on `private.can_view_crate`
+  and USAGE on schema `private`; `anon` never reads `collection_items`, so it never needed either
+  (matches the rest of the Wave 1 posture). Verified no anon path depends on it. (#16 item 4)
+- **#16 item 5 (FK friendships/invites → profiles) deferred by decision** — the auth-adjacent tables use
+  procedural integrity deliberately (`delete_account` + the `no_profile` guards); documented in the
+  migration header.
+
+### Fixed
+- **`bootCrate()` binds its document/window listeners at most once** (`__twListenersBound` guard, #18).
+  The listeners use stable module-level refs the DOM already de-dupes, so this is belt-and-suspenders
+  that future-proofs against a later inline/arrow-listener refactor; no behavior change today.
+- **Analytics `before-send` now strips `?query` + `#fragment` from the referrer too** (not just the
+  pageview url), and is fully self-contained rather than trusting the tag's `data-exclude-search/hash`
+  to cover `payload.referrer` — a gap surfaced by a belated pass-2 audit of the v1.4.8 Umami token-leak
+  fix. Low severity (only bounded `?connect=` status codes were ever at risk on the referrer; handles
+  and the invite `/i/<code>` token are path-masked on both fields). Folded in here. (follow-up to #24)
+
+### Performance (investigated, accepted — #17)
+- The friend-crate read evaluates `private.can_view_crate` **per row** (EXPLAIN ANALYZE: ~5.7k buffer
+  hits, 1,861 loops, **32.7ms** on the largest real crate). Left in place deliberately: this per-row RLS
+  check is the **sole server-side authorization** for crate reads — the client picks the crate via
+  `.eq('user_id', …)` and `get_crate_owner` gates only the profile/UI (see the v1.4.2 cross-crate leak
+  fix), so the policy must **not** be relaxed. Accepted for its cost at current scale; revisit alongside
+  the broader `auth_rls_initplan` optimization if crates/users grow. The invite cap is best-effort
+  (non-atomic if a user races themselves) — acceptable for anti-abuse.
+
+---
+
 ## [1.4.8] — 2026-08-30
 
 Analytics event coverage. Frontend only. Builds on the v1.4.7 Umami scaffold.

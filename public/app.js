@@ -952,9 +952,17 @@ async function bootCrate(){
     if (rb) rb.addEventListener('click', () => location.reload());
     return;
   }
-  document.addEventListener('click', onClick);
-  document.addEventListener('input', onInput);
-  window.addEventListener('keydown', onKeydown);   // W0.4: Escape + modal Tab-cycle + roving grid arrows
+  // #18: bind the document/window listeners at most once per page life. onClick/onInput/onKeydown
+  // are stable module-level refs, so the DOM already de-dupes a repeat addEventListener — a same-
+  // page re-boot (only reachable if the Clerk auth-state listener ever re-enters render()) does NOT
+  // actually double-fire today. This guard makes the once-only intent explicit and future-proofs
+  // against a later switch to inline/arrow listeners, which would silently defeat that de-duping.
+  if (!window.__twListenersBound) {
+    document.addEventListener('click', onClick);
+    document.addEventListener('input', onInput);
+    window.addEventListener('keydown', onKeydown);   // W0.4: Escape + modal Tab-cycle + roving grid arrows
+    window.__twListenersBound = true;
+  }
   render();
   if (DB_MODE()) {
     window.TraxWaxStats().then(v=>{ if(v && v.value){ state.headerValue=v.value; render(); } });

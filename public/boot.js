@@ -591,7 +591,8 @@ async function renderAccount(profile, section) {
       if (!data || data.status !== 'ok') {
         // Map internal status tokens to human copy (don't surface 'no_profile'/'no_auth' raw).
         const m = { no_profile: 'Finish setting up your profile first, then create a link.',
-          no_auth: 'Please sign in again, then try creating a link.' }[data && data.status]
+          no_auth: 'Please sign in again, then try creating a link.',
+          too_many_invites: 'You already have 25 open invite links — that’s the max. They expire after 14 days; let some lapse before making more.' }[data && data.status]
           || 'Couldn’t create a link — please try again.';
         throw new Error(m);
       }
