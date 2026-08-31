@@ -314,6 +314,18 @@ function sectionHead(kicker, headline, body) {
   '</div>';
 }
 
+/* Reusable account-section label: a mono caps word + a hairline rule filling the row.
+   The label pattern for every account section (Design Kit v2, FRIENDS-SPEC §2). `html` may
+   carry markup (e.g. the accent count in "YOUR FRIENDS · N") — callers pass only authored
+   strings here, never user input. */
+function sectionLabel(html) {
+  return '<div style="display:flex; align-items:center; gap:12px">' +
+    '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.16em; ' +
+      'color:var(--muted); white-space:nowrap">' + html + '</span>' +
+    '<span style="flex:1; height:1px; background:var(--hair)"></span>' +
+  '</div>';
+}
+
 function profileSection(o) {
   const p = o.profile, u = o.clerkUser || {};
   return '' +
@@ -419,97 +431,138 @@ function statCell(label, value) {
    this is inside boot.ui.js; `UI` is boot.js's import alias. */
 function friendsSection(o) {
   const vis = (o.profile && o.profile.crate_visibility) || 'private';
+  const on = vis === 'friends';
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
-    sectionHead('FRIENDS', 'People who can see your crate',
-      'Your crate is private by default. Turn this on to let friends you’ve added browse it. ' +
-      'Prices never appear on anyone else’s crate. You can turn this off any time.') +
-    // Sharing message + the visibility toggle (was the SHARING tab; merged here).
+    // Intro: eyebrow + title + one full-width description line (no max-width clamp).
+    '<div style="display:flex; flex-direction:column; gap:5px">' +
+      '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
+        'color:var(--accent)">FRIENDS</span>' +
+      '<h2 style="' + COND + '; font-size:32px; font-weight:700; line-height:1; margin:0; ' +
+        'color:var(--ink)">People who can see your crate</h2>' +
+      '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
+        'Your crate is private by default. Turn on visibility to let friends you’ve added browse ' +
+        'it — prices never appear on anyone else’s crate. You can turn it off any time.</span>' +
+    '</div>' +
+    // Shared status line (visibility changes announce here).
     '<div id="tw-share-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent); min-height:0"></div>' +
+
+    // ── Section 1: VISIBILITY — the master switch. Everything below is inert until this is on.
+    sectionLabel('VISIBILITY') +
     '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
-      'border:1.5px solid var(--hair); padding:16px">' +
+      'border:1.5px solid var(--line); padding:16px 18px">' +
       '<div style="display:flex; flex-direction:column; gap:3px">' +
-        '<span style="' + COND + '; font-size:18px; font-weight:700; color:var(--ink)">Friends can see my crate</span>' +
-        '<span style="' + MONO + '; font-size:10px; color:var(--faint)">Only people you’ve added as friends</span>' +
+        '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; ' +
+          'color:var(--ink)">Friends can see my crate</span>' +
+        '<span id="tw-vis-sub" style="' + MONO + '; font-size:10.5px; color:var(--muted)">' +
+          'Only people you’ve added as friends · currently ' + (on ? 'ON' : 'OFF') + '</span>' +
       '</div>' +
-      toggle({ id: 'tw-vis-toggle', on: vis === 'friends', label: 'Friends can see my crate' }) +
+      toggle({ id: 'tw-vis-toggle', on, label: 'Friends can see my crate' }) +
     '</div>' +
-    // Invite link + friend list.
-    '<div id="tw-friends-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
-      'line-height:1.6; color:var(--accent); min-height:0"></div>' +
-    '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
-      '<button id="tw-invite-btn" style="' + btnStyle('primary') + '">CREATE AN INVITE LINK</button>' +
-      '<input id="tw-invite-link" readonly style="' + MONO + '; font-size:11px; padding:8px 10px; ' +
-        'flex:1; min-width:200px; border:1.5px solid var(--line); background:var(--panel); ' +
-        'color:var(--ink); display:none">' +
-      '<button id="tw-invite-copy" style="' + btnStyle('secondary') + '; display:none">COPY</button>' +
+
+    // ── Section 2: INVITE A FRIEND — the link tool, boxed with its caption.
+    sectionLabel('INVITE A FRIEND') +
+    '<div style="border:1.5px solid var(--line); padding:16px 18px; display:flex; ' +
+      'flex-direction:column; gap:12px">' +
+      '<span style="' + BODY + '; font-size:12.5px; line-height:1.6; color:var(--muted)">' +
+        'Create a one-time link and send it to someone. When they open it, they’re added to your ' +
+        'friends list below.</span>' +
+      '<div id="tw-friends-msg" role="status" aria-live="polite" style="' + MONO + '; ' +
+        'font-size:11.5px; line-height:1.6; color:var(--accent); min-height:0"></div>' +
+      '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
+        '<button id="tw-invite-btn" style="' + btnStyle('primary') + '">CREATE AN INVITE LINK</button>' +
+        '<input id="tw-invite-link" readonly style="' + MONO + '; font-size:12px; padding:9px 11px; ' +
+          'flex:1; min-width:280px; border:1.5px solid var(--hair); background:var(--bar); ' +
+          'color:var(--ink); text-overflow:ellipsis; display:none">' +
+        '<button id="tw-invite-copy" style="' + btnStyle('secondary') + '; display:none">COPY</button>' +
+      '</div>' +
+      '<span id="tw-invite-life" style="' + MONO + '; font-size:10px; letter-spacing:.06em; ' +
+        'color:var(--faint); display:none">Works once · expires in 14 days</span>' +
     '</div>' +
-    '<span id="tw-invite-life" style="' + MONO + '; font-size:9.5px; letter-spacing:.06em; ' +
-      'color:var(--faint); display:none">Works once · expires in 14 days.</span>' +
+
+    // ── Section 3: YOUR FRIENDS · N — the list, one container, heading carries a live count.
+    '<div id="tw-friends-head">' +
+      sectionLabel('YOUR FRIENDS · <span id="tw-friends-count" style="color:var(--accent)">—</span>') +
+    '</div>' +
     '<div id="tw-friends-list"></div>' +
   '</div>';
 }
 
 /* Populate #tw-friends-list from deps.onListFriends(). Reused on first render and after a
    removal. emptyState() for the no-friends case. */
+// REMOVE button styling — smaller 2px offset shadow, per FRIENDS-SPEC §3.4. Armed state earns
+// the accent fill, matching the two-step DISCONNECT idiom.
+const RM_BASE = MONO + '; font-size:10.5px; font-weight:700; letter-spacing:.1em; ' +
+  'text-transform:uppercase; padding:8px 13px; border-radius:0; cursor:pointer; flex:none; ' +
+  'border:1.5px solid var(--line)';
+const RM_REST = RM_BASE + '; background:var(--panel); color:var(--ink); box-shadow:2px 2px 0 var(--shadow)';
+const RM_ARMED = RM_BASE + '; background:var(--accent); color:var(--on-accent); box-shadow:2px 2px 0 var(--shadow)';
+
 async function renderFriendsList(root, deps) {
   const host = root.querySelector('#tw-friends-list');
   if (!host) return;
+  const setCount = (n) => { const c = root.querySelector('#tw-friends-count'); if (c) c.textContent = String(n); };
   let friends = [];
-  try { friends = await deps.onListFriends(); } catch (e) { host.innerHTML = ''; return; }
+  try { friends = await deps.onListFriends(); } catch (e) { host.innerHTML = ''; setCount(0); return; }
+  setCount(friends.length);
   if (!friends.length) {
-    host.innerHTML = emptyState({
-      kicker: 'NO FRIENDS YET',
-      headline: 'Invite someone to compare crates',
-      body: 'Create an invite link above and send it to a friend. Once they accept, you’ll each be ' +
-        'able to browse the other’s shelf.',
-    });
+    // Empty state is a single hairline box (NOT an empty ink container) — FRIENDS-SPEC §3.4.
+    host.innerHTML = '<div style="border:1px solid var(--hair); padding:22px; text-align:center; ' +
+      MONO + '; font-size:11px; letter-spacing:.05em; color:var(--muted)">' +
+      'No friends yet — send an invite to get started.</div>';
     return;
   }
-  host.innerHTML = friends.map((f) =>
+  const last = friends.length - 1;
+  host.innerHTML = '<div style="border:1.5px solid var(--line)">' + friends.map((f, i) =>
     (() => {
       const uname = f.discogs_username || '';
       const dname = f.display_name || uname || 'Friend';
       const name = esc(dname);                                 // plain text, for the REMOVE aria-label
       const sharing = f.crate_visibility === 'friends';
-      // Show the username beside the name so a friend is identifiable and findable —
-      // "Tommy Perkins (tommyp)". Skip the parens when name and username are the same.
+      const rule = i === last ? 'transparent' : 'var(--hair)';   // no trailing divider inside the box
+      // Username beside the name so a friend is identifiable/findable — "Tommy Perkins (tommyp)".
+      // Skip the parens when name and username are the same.
       const nameHtml = name +
         (uname && uname.toLowerCase() !== dname.toLowerCase()
           ? ' <span style="' + MONO + '; font-size:12px; font-weight:400; color:var(--faint)">(' +
             esc(uname) + ')</span>'
           : '');
-      // Sharing: the whole name+username line is the link to their crate (with a → cue). Not sharing:
-      // plain text + a muted note — a link would just hit the "no crate here" page (the v1.4.1 guard).
+      // Sharing: the whole name line links to their crate (a friend who isn't sharing would just
+      // hit the "no crate here" page, so keep it plain). The VIEW CRATE → action is kept alongside.
       const nameLine = sharing
         ? '<a href="/app/' + encodeURIComponent(uname) + '" style="' + COND +
-          '; font-size:16px; font-weight:700; color:var(--ink); text-decoration:none">' + nameHtml +
-          ' <span style="color:var(--accent); font-weight:400">→</span></a>'
-        : '<span style="' + COND + '; font-size:16px; font-weight:700; color:var(--ink)">' + nameHtml + '</span>';
-      const subline = sharing
-        ? ''
-        : '<span style="' + MONO + '; font-size:10px; letter-spacing:.06em; color:var(--faint)">' +
-          'Not sharing right now</span>';
-      return '<div style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--hair)">' +
-        avatar(f.avatar_url, 40) +
-        '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">' +
-          nameLine +
-          subline +
+          '; font-size:19px; font-weight:700; line-height:1; color:var(--ink); text-decoration:none">' +
+          nameHtml + '</a>'
+        : '<span style="' + COND + '; font-size:19px; font-weight:700; line-height:1; ' +
+          'color:var(--ink)">' + nameHtml + '</span>';
+      const status = sharing
+        ? '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--muted)">Sharing their crate</span>'
+        : '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--faint)">Not sharing right now</span>';
+      const viewCrate = sharing
+        ? '<a href="/app/' + encodeURIComponent(uname) + '" style="' + MONO + '; font-size:10.5px; ' +
+          'font-weight:700; letter-spacing:.1em; color:var(--accent); text-decoration:none; flex:none">VIEW CRATE →</a>'
+        : '';
+      return '<div style="display:flex; align-items:center; gap:14px; padding:14px 18px; ' +
+        'border-bottom:1px solid ' + rule + '">' +
+        avatar(f.avatar_url, 44) +
+        '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px">' +
+          nameLine + status +
         '</div>' +
-        '<button data-remove-friend="' + esc(f.user_id) + '" aria-label="Remove ' + name + '" style="' +
-          btnStyle('secondary') + '; font-size:10px">REMOVE</button>' +
+        viewCrate +
+        '<button data-remove-friend="' + esc(f.user_id) + '" aria-label="Remove ' + name + '" ' +
+          'style="' + RM_REST + '">REMOVE</button>' +
       '</div>';
-    })()).join('');
+    })()).join('') + '</div>';
   host.querySelectorAll('[data-remove-friend]').forEach((btn) => {
     // Two-step inline, matching the DISCONNECT DISCOGS idiom: first click ARMS, second removes.
     let armed = false;
-    const rest = () => { armed = false; btn.textContent = 'REMOVE'; btn.setAttribute('style', btnStyle('secondary') + '; font-size:10px'); };
+    const rest = () => { armed = false; btn.textContent = 'REMOVE'; btn.setAttribute('style', RM_REST); };
     btn.addEventListener('click', async () => {
       if (!armed) {
         armed = true;
         btn.textContent = 'REALLY REMOVE?';
-        btn.setAttribute('style', btnStyle('dangerArmed') + '; font-size:10px');
+        btn.setAttribute('style', RM_ARMED);
         setTimeout(() => { if (armed) rest(); }, 4000);   // auto-disarm if they walk away
         return;
       }
@@ -675,6 +728,8 @@ export function bindAccountPage(root, deps) {
         holder.innerHTML = toggle({ id: 'tw-vis-toggle', on: next === 'friends', label: 'Friends can see my crate' });
         vt.replaceWith(holder.firstElementChild);
         wireVisToggle();   // the replacement node has no listener yet
+        const sub = $('tw-vis-sub');   // keep the "· currently ON/OFF" line in sync
+        if (sub) sub.textContent = 'Only people you’ve added as friends · currently ' + (next === 'friends' ? 'ON' : 'OFF');
         smsg(next === 'friends' ? 'Friends can now see your crate.' : 'Your crate is private again.');
       } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
     });
