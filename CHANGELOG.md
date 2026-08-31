@@ -13,6 +13,31 @@ _Nothing yet._
 
 ---
 
+## [1.4.2] — 2026-08-30
+
+Friends UX polish + two data-correctness fixes.
+
+### Fixed
+- **Cross-crate leak (the "M Ward" bug).** Viewing your own crate could mix in a friend's shared
+  records. The own-crate reads relied on row-level security that the Wave 1 friend-read policy
+  legitimately widens, so they now scope explicitly to your own `user_id` — the crate provider and
+  both record-count queries (account page + first-import gate). Friends' rows can no longer appear
+  on your shelf or in your counts.
+- **Re-opening a used invite.** A friend who opened an invite link they'd already accepted saw
+  "invalid or expired." Invites now **soft-consume** (the row is kept, marked used), so a re-open by
+  the acceptor reports **"Already connected"** instead of alarming. Also hardened: testing your own
+  link no longer burns it, and a missing profile is guarded (migration 0015).
+
+### Added
+- **Two-step REMOVE friend.** REMOVE arms to "REALLY REMOVE?" and only removes on the second click
+  (4s auto-disarm), matching the DISCONNECT DISCOGS idiom — no accidental unfriending.
+- **Friend-crate indicator strip.** A thin bar above the header on a friend's crate reads
+  "Viewing <name>'s crate" with a "← Back to your crate" link.
+- **Invite "COPY" button** + a plain lifetime line: "Works once · expires in 14 days."
+- **Sign-out** row in the account navigation.
+
+---
+
 ## [1.4.1] — 2026-08-30
 
 Account UX consolidation + polish from the Wave 1 end-of-wave cold audit. Frontend/docs only.

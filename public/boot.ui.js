@@ -294,6 +294,12 @@ function accountNav(active, o) {
           esc(o.profile.discogs_username || '') + '</span>' +
       '</div>' +
     '</div>' + items +
+    // v1.4.2: sign out lives at the bottom of the account nav.
+    '<div style="height:1px; background:var(--hair); margin:12px 0"></div>' +
+    '<button id="tw-acct-signout" style="' + MONO + '; font-size:11px; font-weight:700; ' +
+      'letter-spacing:.12em; color:var(--muted); background:transparent; border:0; cursor:pointer; ' +
+      'display:flex; align-items:center; gap:8px; padding:11px 18px 11px 22px; width:100%; ' +
+      'text-align:left">SIGN OUT</button>' +
   '</div>';
 }
 
@@ -435,9 +441,12 @@ function friendsSection(o) {
     '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
       '<button id="tw-invite-btn" style="' + btnStyle('primary') + '">CREATE AN INVITE LINK</button>' +
       '<input id="tw-invite-link" readonly style="' + MONO + '; font-size:11px; padding:8px 10px; ' +
-        'flex:1; min-width:220px; border:1.5px solid var(--line); background:var(--panel); ' +
+        'flex:1; min-width:200px; border:1.5px solid var(--line); background:var(--panel); ' +
         'color:var(--ink); display:none">' +
+      '<button id="tw-invite-copy" style="' + btnStyle('secondary') + '; display:none">COPY</button>' +
     '</div>' +
+    '<span id="tw-invite-life" style="' + MONO + '; font-size:9.5px; letter-spacing:.06em; ' +
+      'color:var(--faint); display:none">Works once · expires in 14 days.</span>' +
     '<div id="tw-friends-list"></div>' +
   '</div>';
 }
@@ -478,15 +487,25 @@ async function renderFriendsList(root, deps) {
       '</div>';
     })()).join('');
   host.querySelectorAll('[data-remove-friend]').forEach((btn) => {
+    // Two-step inline, matching the DISCONNECT DISCOGS idiom: first click ARMS, second removes.
+    let armed = false;
+    const rest = () => { armed = false; btn.textContent = 'REMOVE'; btn.setAttribute('style', btnStyle('secondary') + '; font-size:10px'); };
     btn.addEventListener('click', async () => {
-      btn.disabled = true;
+      if (!armed) {
+        armed = true;
+        btn.textContent = 'REALLY REMOVE?';
+        btn.setAttribute('style', btnStyle('dangerArmed') + '; font-size:10px');
+        setTimeout(() => { if (armed) rest(); }, 4000);   // auto-disarm if they walk away
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'REMOVING…';
       try {
         await deps.onRemoveFriend(btn.getAttribute('data-remove-friend'));
         await renderFriendsList(root, deps);
         // Focus doesn't vanish to <body> after the list re-renders (a11y).
         const ib = root.querySelector('#tw-invite-btn');
         if (ib) ib.focus();
-      } catch (e) { btn.disabled = false; }
+      } catch (e) { btn.disabled = false; rest(); }
     });
   });
 }
@@ -528,6 +547,9 @@ export function accountPageHtml(o) {
 export function bindAccountPage(root, deps) {
   const $ = (id) => root.querySelector('#' + id);
   const msg = (t) => { const el = $('tw-acct-msg'); if (el) el.textContent = t || ''; };
+
+  const signout = $('tw-acct-signout');   // v1.4.2
+  if (signout) signout.addEventListener('click', () => { if (deps.onSignOut) deps.onSignOut(); });
 
   const photo = $('tw-prof-photo');
   if (photo) photo.addEventListener('change', async () => {
@@ -648,14 +670,27 @@ export function bindAccountPage(root, deps) {
   const inviteBtn = $('tw-invite-btn');
   if (inviteBtn) {
     const fmsg = (t) => { const el = $('tw-friends-msg'); if (el) el.textContent = t || ''; };
+    const copyBtn = $('tw-invite-copy');
     inviteBtn.addEventListener('click', async () => {
       fmsg('Creating a link…');
       try {
         const link = await deps.onCreateInvite();
         const box = $('tw-invite-link');
         if (box) { box.style.display = ''; box.value = link; box.focus(); box.select(); }
-        fmsg('Copy this link and send it to your friend. It works once and expires in 14 days.');
+        if (copyBtn) copyBtn.style.display = '';
+        const life = $('tw-invite-life');
+        if (life) life.style.display = '';
+        fmsg('Send this link to your friend.');
       } catch (e) { fmsg('Couldn’t create a link: ' + ((e && e.message) || e)); }
+    });
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      const box = $('tw-invite-link');
+      if (!box || !box.value) return;
+      try { await navigator.clipboard.writeText(box.value); }
+      catch (e) { box.focus(); box.select(); }   // clipboard blocked → fall back to select-for-manual-copy
+      const prev = copyBtn.textContent;
+      copyBtn.textContent = 'COPIED';
+      setTimeout(() => { copyBtn.textContent = prev; }, 1600);
     });
     renderFriendsList(root, deps);
   }

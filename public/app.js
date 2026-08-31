@@ -495,6 +495,11 @@ function render(){
   const html=`
   <div style="position:relative; max-width:1480px; margin:0 auto; background:var(--panel); border:1px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">
 
+    ${!IS_OWN()?`<div class="tw-friend-strip" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 24px; background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase">
+      <span>Viewing ${esc((window.TraxWaxOwner&&(window.TraxWaxOwner.displayName||window.TraxWaxOwner.ownerUsername))||'a friend')}’s crate</span>
+      <a href="/app" style="color:#fff; text-decoration:underline; white-space:nowrap">← Back to your crate</a>
+    </div>`:''}
+
     <header class="tw-header" style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:22px 24px 18px; background:var(--accent); border-bottom:3px solid var(--line)">
       <div class="tw-headL" style="display:flex; align-items:flex-end; gap:14px">
         <span style="background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</span>

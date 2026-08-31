@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.4.1`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.4.2`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -143,6 +143,16 @@ Merged the SHARING tab into FRIENDS (toggle at the top). Frontend/doc fixes from
 cold audit: friend empty-crate voice, "SEE ON DISCOGS" new-tab, non-sharing-friend dimming, REMOVE
 a11y, invite error copy; and reconciled the price-suppression docs (best-effort field suppression,
 not a hard boundary — the boundary is the friend-read RLS). Backend-hardening backlog: #16–#18.
+
+### v1.4.2 — Friends UX polish + data-correctness fixes
+
+Two fixes and four polish items on the Wave 1 surface. **Fixed:** the "M Ward" cross-crate leak
+(own-crate reads now scope to your own `user_id`, so the friend-read RLS can't widen them into your
+shelf or counts); and re-opening an already-accepted invite now reports "Already connected" via
+**soft-consumed** invites (migration 0015, which also stops an inviter burning their own test link
+and guards a missing profile). **Added:** two-step REMOVE friend, a friend-crate indicator strip
+with a back link, an invite COPY button + "Works once · expires in 14 days," and a sign-out row.
+Frontend + one migration; the batch was twice adversarially audited (remediation-audit).
 
 ---
 
