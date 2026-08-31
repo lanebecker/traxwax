@@ -475,7 +475,8 @@ async function runImport() {
         '</span><span style="color:var(--accent)">' + items.toLocaleString() + ' RECORDS</span></div>' +
       UI.progressBar(_lastImportPct);
   };
-  _lastImportPage = 0; _lastImportPages = 1; _lastImportPct = 0;
+  _lastImportPage = 0; _lastImportPages = 1; _lastImportPct = 0; _importedItems = 0;
+  track('import_started');
   notice(UI.COPY.importRunning.headline, UI.COPY.importRunning.body, true, {
     kicker: UI.COPY.importRunning.kicker,
     extra: '<div id="tw-import-progress">' +
@@ -504,6 +505,13 @@ async function runImport() {
       actions: UI.btnLink(UI.COPY.importFailed.cta,
         window.location.pathname + window.location.search, { variant: 'primary' }),
     });
+    // Reason as a FIXED bucket, never the raw message (it can carry a token or URL).
+    const msg = (e && e.message) || '';
+    const reason = /rate|429/i.test(msg) ? 'rate_limit'
+      : /401|403|auth|token|unauthor/i.test(msg) ? 'auth'
+      : /network|fetch|timeout|failed to fetch/i.test(msg) ? 'network'
+      : 'other';
+    track('import_failed', { reason, page: _lastImportPage });
     return false;
   }
   backgroundEnrich();
@@ -558,8 +566,8 @@ async function renderAccount(profile, section) {
     // page (runImport -> notice). On success we reload so the fresh count/last-synced show;
     // on failure runImport's own "stopped" card stays and we must NOT paint over it.
     onResync: async () => { const ok = await runImport(); if (ok) window.location.reload(); },
-    onDisconnect: async () => { await _pipeCall('disconnect-discogs', {}); window.location.href = '/app'; },
-    onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); await window.Clerk.signOut({ redirectUrl: '/' }); },
+    onDisconnect: async () => { await _pipeCall('disconnect-discogs', {}); track('discogs_disconnected'); window.location.href = '/app'; },
+    onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); track('account_deleted'); await window.Clerk.signOut({ redirectUrl: '/' }); },
     onSignOut: async () => { await window.Clerk.signOut({ redirectUrl: '/' }); },   // v1.4.2; → landing (v1.4.5)
     // ── Wave 1: SHARING + FRIENDS ──
     onSetVisibility: async (v) => {
@@ -587,6 +595,7 @@ async function renderAccount(profile, section) {
           || 'Couldn’t create a link — please try again.';
         throw new Error(m);
       }
+      track('invite_created');
       return location.origin + '/i/' + code;
     },
     onRemoveFriend: async (friendId) => {
@@ -617,6 +626,7 @@ async function acceptInvite(code) {
   } catch (e) { res = { status: 'error', message: (e && e.message) || String(e) }; }
 
   if (res.status === 'ok' || res.status === 'already_accepted') {
+    if (res.status === 'ok') track('invite_accepted');   // a genuine new accept, not a re-open
     const who = res.friend_username ? UI.esc('@' + res.friend_username) : 'your friend';
     // already_accepted: they re-opened a link they'd already used — reassure, don't alarm.
     const head = res.status === 'already_accepted' ? 'Already connected' : 'You’re connected';
@@ -811,6 +821,7 @@ async function render() {
         if (!failStatus) {
           // Clean URL + full reload: profile refetch shows the username, routing sends
           // the user to their crate, and the import gate takes over exactly as before.
+          track('connect_completed');   // Discogs OAuth finalized (umami sendBeacon survives the nav)
           window.location.replace('/app');
           return;
         }
@@ -830,6 +841,13 @@ async function render() {
     const paintConnect = (problemOverride) => {
       const status = new URLSearchParams(window.location.search).get('connect');
       const failed = !!problemOverride || (status && status !== 'ok');
+      // Analytics: a real connect failure, once per render. Only a KNOWN connect-status key
+      // leaves as-is; an inline start error or an unknown status collapses to a bucket, so no
+      // raw error message (which finalize can put in the URL) ever reaches analytics.
+      if (failed) track('connect_failed', {
+        reason: problemOverride ? 'start_failed'
+          : ((UI.COPY.connectErrors && UI.COPY.connectErrors[status]) ? status : 'other'),
+      });
       notice(UI.COPY.connect.headline,
         '<div style="' + UI.BODY + '; font-size:13px; line-height:1.65">' +
           UI.COPY.connect.body + '</div>' +
@@ -870,6 +888,7 @@ async function render() {
               ? 'One connect attempt at a time — try again in a few seconds.'
               : (d.error || ('HTTP ' + r.status)));
           }
+          track('connect_started');   // handing off to Discogs OAuth (umami sendBeacon survives the nav)
           window.location.href = d.authorize_url;
         } catch (e) {
           console.error(e);
@@ -926,7 +945,7 @@ async function render() {
     const b = document.getElementById('tw-err-disc');
     if (b) b.addEventListener('click', async () => {
       b.disabled = true; b.textContent = 'DISCONNECTING…';
-      try { await _pipeCall('disconnect-discogs', {}); window.location.href = '/app'; }
+      try { await _pipeCall('disconnect-discogs', {}); track('discogs_disconnected'); window.location.href = '/app'; }
       catch (e) { b.disabled = false; b.textContent = UI.COPY.importPaused.cta; console.error(e); }
     });
     return;
