@@ -200,8 +200,9 @@ function installCrateProviders(profile) {
         .from('collection_items')
         .select('release_id, added, rating, vinyl, ' +
           'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
-        .order('id', { ascending: true })
-        .range(from, from + 999);
+        .eq('user_id', profile.user_id)   // v1.4.2 fix: scope to OWN rows. The Wave 1 friend-read
+        .order('id', { ascending: true }) // RLS policy widened this SELECT, so relying on RLS alone
+        .range(from, from + 999);         // leaked friends' shared records into the owner's crate.
       if (error) throw new Error('collection query failed: ' + error.message);
       for (const it of data ?? []) {
         const rel = it.releases || {};
@@ -514,7 +515,7 @@ async function renderAccount(profile, section) {
   let count = null;
   try {
     const res = await supabase.from('collection_items')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true }).eq('user_id', profile.user_id);   // own rows only (v1.4.2)
     count = res.count;
   } catch (e) { /* the connection panel shows an em-dash if the count is unavailable */ }
   const el = app();
@@ -553,6 +554,7 @@ async function renderAccount(profile, section) {
     onResync: async () => { const ok = await runImport(); if (ok) window.location.reload(); },
     onDisconnect: async () => { await _pipeCall('disconnect-discogs', {}); window.location.href = '/app'; },
     onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); await window.Clerk.signOut(); },
+    onSignOut: async () => { await window.Clerk.signOut(); },   // v1.4.2
     // ── Wave 1: SHARING + FRIENDS ──
     onSetVisibility: async (v) => {
       const { error } = await supabase.from('profiles')
@@ -608,9 +610,14 @@ async function acceptInvite(code) {
     res = data || {};
   } catch (e) { res = { status: 'error', message: (e && e.message) || String(e) }; }
 
-  if (res.status === 'ok') {
+  if (res.status === 'ok' || res.status === 'already_accepted') {
     const who = res.friend_username ? UI.esc('@' + res.friend_username) : 'your friend';
-    notice('You’re connected', 'You and ' + who + ' can now see each other’s crates.', false, {
+    // already_accepted: they re-opened a link they'd already used — reassure, don't alarm.
+    const head = res.status === 'already_accepted' ? 'Already connected' : 'You’re connected';
+    const body = res.status === 'already_accepted'
+      ? 'You and ' + who + ' are already friends — you can see each other’s crates.'
+      : 'You and ' + who + ' can now see each other’s crates.';
+    notice(head, body, false, {
       kicker: 'FRIENDS',
       actions: UI.btnLink('GO TO YOUR CRATE', '/app', { variant: 'primary' }),
     });
@@ -619,6 +626,7 @@ async function acceptInvite(code) {
       invalid_or_expired: 'That invite link is invalid or has expired. Ask your friend for a fresh one.',
       own_invite: 'That’s your own invite link — share it with a friend instead.',
       no_auth: 'Please sign in first, then open the link again.',
+      no_profile: 'Finish setting up your crate first, then open the link again.',
     }[res.status] || 'Something went wrong accepting that invite.';
     notice('Invite couldn’t be used', msg, false, {
       kicker: 'FRIENDS',
@@ -928,7 +936,8 @@ async function render() {
       if (!ok) return;                     // runImport rendered the error state itself
     } else {
       const { count, error: cntErr } = await supabase
-        .from('collection_items').select('*', { count: 'exact', head: true });
+        .from('collection_items').select('*', { count: 'exact', head: true })
+        .eq('user_id', profile.user_id);   // own rows only (v1.4.2)
       if (cntErr) { showError(new Error('collection count failed: ' + cntErr.message)); return; }
       if ((count ?? 0) > 0) {
         backgroundEnrich();                // items landed earlier; drain quietly
