@@ -99,7 +99,7 @@ function notice(title, bodyHtml, withSignOut = false, opts = {}) {
     footer: withSignOut ? UI.signOutLink : opts.footer,
   });
   const so = document.getElementById('tw-signout');
-  if (so) so.addEventListener('click', (e) => { e.preventDefault(); window.Clerk.signOut(); });
+  if (so) so.addEventListener('click', (e) => { e.preventDefault(); window.Clerk.signOut({ redirectUrl: '/' }); });
 }
 
 /* S11: the raw exception moves into a collapsed <details> labelled TECHNICAL DETAIL — still
@@ -553,8 +553,8 @@ async function renderAccount(profile, section) {
     // on failure runImport's own "stopped" card stays and we must NOT paint over it.
     onResync: async () => { const ok = await runImport(); if (ok) window.location.reload(); },
     onDisconnect: async () => { await _pipeCall('disconnect-discogs', {}); window.location.href = '/app'; },
-    onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); await window.Clerk.signOut(); },
-    onSignOut: async () => { await window.Clerk.signOut(); },   // v1.4.2
+    onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); await window.Clerk.signOut({ redirectUrl: '/' }); },
+    onSignOut: async () => { await window.Clerk.signOut({ redirectUrl: '/' }); },   // v1.4.2; → landing (v1.4.5)
     // ── Wave 1: SHARING + FRIENDS ──
     onSetVisibility: async (v) => {
       const { error } = await supabase.from('profiles')

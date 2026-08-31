@@ -10,7 +10,7 @@
 
 **[traxwax.com](https://traxwax.com)** — anyone's Discogs collection as a browsable,
 filterable crate. **Multi-user since v1.0.0 (2026-08-29)**: Clerk auth, per-user Discogs
-OAuth, Supabase backend (8 Edge Functions, migrations 0001–0010), self-healing shared CC0
+OAuth, Supabase backend (8 Edge Functions, migrations 0001–0015), self-healing shared CC0
 catalog (v1.2.0). Front-end is the Claude Design redesign ported to a dependency-free
 vanilla renderer on Cloudflare Pages.
 
@@ -27,9 +27,9 @@ vanilla renderer on Cloudflare Pages.
 | `public/_headers` · `_routes.json` | Security headers + cache policy (v1.0.1: no-cache entry points, 7d releases); Functions pinned to `/api/*` |
 | `functions/api/` | Legacy Pages proxy — **only** `release/[id].js` remains (CC0 modal fallback). `/api/value` + `/api/price` deleted in the 1.0.0 cold audit. |
 | `supabase/functions/` | **The real backend** — 8 Edge Functions (connect-discogs, callback, finalize-connect, disconnect-discogs, delete-account, import-collection, enrich-release, live-stats) + `_shared/discogs.ts`. Deployed directly, not via git — see `DEPLOY.md`. |
-| `supabase/migrations/` | `0001_init` … `0011_profiles_display` (0002 username unique · 0003 OAuth state + link RPC · 0004 import watermark · 0005 collection→releases FK · 0006 audit hardening · 0007 profiles guard trigger · 0008 pending_enrichment RPC + display_name drop · 0009 pending links + finalize/unlink/delete RPCs · 0010 gone_at + refresh + seed_releases merge · 0011 profile fields: display_name/avatar_url synced one-way from Clerk each boot, bio/location/collecting_since/link1+link2 DB-owned, all CHECK-constrained, own-row-private until social) |
+| `supabase/migrations/` | `0001_init` … `0011_profiles_display` (0002 username unique · 0003 OAuth state + link RPC · 0004 import watermark · 0005 collection→releases FK · 0006 audit hardening · 0007 profiles guard trigger · 0008 pending_enrichment RPC + display_name drop · 0009 pending links + finalize/unlink/delete RPCs · 0010 gone_at + refresh + seed_releases merge · 0011 profile fields: display_name/avatar_url synced one-way from Clerk each boot, bio/location/collecting_since/link1+link2 DB-owned, all CHECK-constrained, own-row-private until social · 0012 friendships + friend_invites + profiles.crate_visibility + friend-read RLS on collection_items · 0013 can_view_crate→private schema · 0014 crate_view_decision (service-role authz) · 0015 soft-consume invites) |
 | `build/` | Legacy single-user data builders (`refresh_collection.py` now manual-dispatch only; `seed_catalog.py` was the one-shot Phase 0 seed) |
-| `docs/roadmap.md` | Shipped versions (through v1.3.4) and what's next |
+| `docs/roadmap.md` | Shipped versions (through v1.4.5) and what's next |
 | `docs/multi-user-spec.md` | The multi-user DESIGN (period doc — see its as-built note; the shipped system diverges where the plans say so) |
 | `docs/phase-*.md`, `phase-1-cold-audit.md` | Period records of the build: phase 0/1 plans, stage A–D plans, cold audit, phase-2 account + catalog-refresh plans. Never edited retroactively. |
 | `DEPLOY.md` | Operations reference: all three deploy surfaces, secrets, cache policy, verification, rollback |
@@ -87,14 +87,18 @@ cd "…/Projects/Lane's Record Collection/traxwax-clone"
 git add -A && git commit -m "…" && git pull --rebase origin main && git push
 ```
 
-## Multi-user — SHIPPED (v1.0.0 launched 2026-08-29; current v1.3.4)
+## Multi-user — SHIPPED (v1.0.0 launched 2026-08-29; current v1.4.5; Wave 0 + Wave 1 complete)
 
-Supabase project `traxwax` (ref `sfipqknrbvamwwahwxnl`) holds **six tables**: `profiles`,
-`collection_items`, `releases`, `discogs_credentials`, `discogs_oauth_state` (handshake
-state + the v1.0.1 cooldown placeholder rows), `discogs_pending_links` (v1.1.0 parked
-links) — RLS on all, keyed on `auth.jwt()->>'sub'` (Clerk user ids, so every `user_id` is
-TEXT, not uuid). Auth is the **production** Clerk instance (its session token carries
-`"role": "authenticated"` — dev instance still backs the pages.dev preview).
+Supabase project `traxwax` (ref `sfipqknrbvamwwahwxnl`) holds **eight tables**: `profiles`
+(Wave 1 added `crate_visibility`, default `'private'`), `collection_items`, `releases`,
+`discogs_credentials`, `discogs_oauth_state` (handshake state + the v1.0.1 cooldown placeholder
+rows), `discogs_pending_links` (v1.1.0 parked links), and Wave 1's `friendships` (two-row
+symmetric) + `friend_invites` (hash-only, soft-consumed since v1.4.2) — RLS on all, keyed on
+`auth.jwt()->>'sub'` (Clerk user ids, so every `user_id` is TEXT, not uuid). Migrations run
+**0001–0015**; 0012–0015 are the friendship graph, the friend-read RLS on `collection_items`,
+`private.can_view_crate` + `crate_view_decision`, and soft-consume invites. Auth is the
+**production** Clerk instance (its session token carries `"role": "authenticated"` — dev
+instance still backs the pages.dev preview).
 
 Things that look like bugs and are not:
 

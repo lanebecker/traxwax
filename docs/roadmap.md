@@ -5,7 +5,7 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.4.4`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.4.5`** — live at [traxwax.com](https://traxwax.com).
 
 ---
 
@@ -172,6 +172,13 @@ button, and misaligned boxes as Clerk's DOM changed under the mount-time `appear
 flat TraxWax frame now lives in a token-based `.cl-*` CSS block in `styles.css` (so it follows
 light/dark live), with `boot.clerk.js` trimmed to the variables + `display` rules the appearance
 actually honors. Diagnosed and validated live against the real Clerk DOM in both themes. Issue #22.
+
+### v1.4.5 — Auth-aware root routing
+
+`traxwax.com` now sends a signed-in visitor straight to their crate (the landing reads Clerk's
+`__client_uat` cookie before first paint and redirects to `/app`), and signing out returns you to
+the landing page. A logged-out deep link to `/app` still shows the sign-in card. Frontend only
+(`index.html`, `boot.js`); redirect predicate unit-tested against the live cookie shapes. Issue #23.
 
 ---
 
