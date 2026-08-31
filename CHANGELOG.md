@@ -13,6 +13,16 @@ _Nothing yet._
 
 ---
 
+## [1.6.1] — 2026-08-31
+
+### Fixed
+- **Wantlist button in the detail modal now matches its neighbors (#29)** — it had reused the compact
+  card style, so it rendered slightly shorter and with a smaller font than the VIEW ON DISCOGS / LISTEN
+  buttons below it. It now uses the sibling action-button size (10.5px type, 7px 10px padding) and the
+  three line up. The crate/wantlist cards keep the compact style.
+
+---
+
 ## [1.6.0] — 2026-08-31
 
 Wave 2 Stage B2 — **ADD / REMOVE to wantlist: the first Discogs write.** TraxWax can now mutate your
