@@ -165,6 +165,7 @@ const THIS_MONTH = _tmNow.getFullYear() + '-' + String(_tmNow.getMonth() + 1).pa
 /* ── State ─────────────────────────────────────────────────────────────────── */
 let RECORDS = [];
 let WANTLIST_RECORDS = null;   // Wave 2 B1: null = not loaded/failed; [] = loaded-empty. Lazy-loaded on THE WANTLIST tab.
+let _removedThisSession = false;   // wantlist-remove redesign: set the moment you remove anything this session (optimistically, not on Discogs commit), so an emptied wantlist shows the "cleared" empty state instead of the "genuinely empty" one. Resets on reload.
 // Wave 2 B1: resolve a record by id from whichever dataset the current view renders — the WANTLIST tab
 // draws from WANTLIST_RECORDS, so the detail modal must look there too (else a wantlist card is a dead click).
 function recordById(id){
@@ -347,34 +348,43 @@ function emptyCrateHtml(){
   // Wave 1 (v1.4.1): a friend's empty crate must not speak in the owner's voice or offer
   // ADD/RE-SYNC (which are no-ops for a friend). Branch on IS_OWN().
   const own = IS_OWN();
-  // #27: the wantlist tab is own-only — give the empty state its own voice instead of the crate's
-  // ("ADD RECORDS / RE-SYNC" implied the collection). RE-SYNC now pulls the wantlist too (#26), so it
-  // is the right action here. Discogs has no per-release "add to wantlist" landing, so we point at the
-  // user's own wantlist page.
+  // #27 + wantlist-remove redesign: the wantlist tab is own-only and has TWO empty states — one for a
+  // wantlist you just CLEARED this session (BACK TO THE CRATE), one for a GENUINELY empty wantlist (build
+  // it on Discogs). _removedThisSession (set the moment you remove anything this session) picks between them; it resets on
+  // reload, so after a reload an empty wantlist reads as genuinely empty. Crate/friend copy is unchanged.
   const isWant = own && state.view === 'wantlist';
+  const wantCleared = isWant && _removedThisSession;
   const who = (window.TraxWaxOwner && window.TraxWaxOwner.displayName) || 'This collector';
-  const eyebrow = isWant ? 'AN EMPTY WANTLIST' : 'AN EMPTY CRATE';
-  const heading = isWant ? 'Nothing on the wantlist yet' : 'Nothing on the shelf yet';
-  const body = isWant
-    ? 'Your Discogs wantlist is empty. Star a few records over on Discogs and re-sync — they’ll show up ' +
-      'here, cross-checked against every crate you can see.'
-    : own
-      ? 'Your Discogs collection came back empty. Add a few records over there and re-sync — ' +
-        'they’ll be filed here within the minute.'
-      : esc(who) + ' hasn’t filed any records here yet.';
-  const actions = isWant
+  const eyebrow = isWant ? 'WANTLIST · 0' : 'AN EMPTY CRATE';
+  const heading = wantCleared ? 'The wantlist is clear.'
+    : isWant ? 'Nothing on the wantlist yet'
+    : 'Nothing on the shelf yet';
+  const body = wantCleared
+    ? 'That’s everything you were chasing, filed or let go. Your crate’s still right where you left it.'
+    : isWant
+      ? 'Star the records you’re chasing over on Discogs and re-sync — they’ll show up here, cross-checked ' +
+        'against every crate you can see.'
+      : own
+        ? 'Your Discogs collection came back empty. Add a few records over there and re-sync — ' +
+          'they’ll be filed here within the minute.'
+        : esc(who) + ' hasn’t filed any records here yet.';
+  const actions = wantCleared
     ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
-        '<a href="https://www.discogs.com/wantlist" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
-          'BUILD YOUR WANTLIST ON DISCOGS</a>' +
-        '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
+        '<button data-act="view" data-arg="crate" class="tw-btn tw-btn-primary tw-btn-lg">BACK TO THE CRATE</button>' +
       '</div>'
-    : own
+    : isWant
       ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
-          '<a href="https://www.discogs.com" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
-            'ADD RECORDS ON DISCOGS</a>' +
+          '<a href="https://www.discogs.com/wantlist" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
+            'BUILD YOUR WANTLIST ON DISCOGS</a>' +
           '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
         '</div>'
-      : '';
+      : own
+        ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
+            '<a href="https://www.discogs.com" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
+              'ADD RECORDS ON DISCOGS</a>' +
+            '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
+          '</div>'
+        : '';
   return '' +
   '<div style="padding:70px 40px 76px; display:flex; flex-direction:column; align-items:center; ' +
     'gap:18px; text-align:center">' +
@@ -980,6 +990,7 @@ function removeWant(id){
   if (!Array.isArray(WANTLIST_RECORDS)) return;
   const idx = WANTLIST_RECORDS.findIndex(x=>x.id===id);
   if (idx<0) return;   // already gone from the grid (e.g. a double-click) — natural dedup, no pending needed
+  _removedThisSession = true;   // an emptied wantlist now reads as "cleared", not "genuinely empty"
   _commitPendingRemove();   // a still-pending prior removal commits now (superseded by this one)
   const row = WANTLIST_RECORDS[idx];
   WANTLIST_RECORDS.splice(idx,1);
