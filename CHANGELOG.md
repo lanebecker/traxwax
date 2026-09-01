@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.8.1] — 2026-08-31
+
+### Added
+- **THE WANTLIST empty state now fits the moment** (completes the wantlist-remove redesign). Two variants,
+  both on the existing empty-state layout: when you've just cleared the list yourself this session —
+  "The wantlist is clear." with a single BACK TO THE CRATE; when it's genuinely empty (fresh account, or
+  nothing wanted on Discogs) — "Nothing on the wantlist yet" with BUILD YOUR WANTLIST ON DISCOGS + RE-SYNC.
+  An in-session flag picks between them and resets on reload. (The design's "bring them all back" restore-all
+  was intentionally dropped — the per-item undo snackbar is the safety net, and it would otherwise mean a
+  batch of Discogs re-adds reversing already-committed deletes.)
+
+---
+
 ## [1.8.0] — 2026-08-31
 
 Wantlist remove control redesign (from the design handoff). The empty-state redesign is intentionally
