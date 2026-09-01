@@ -13,6 +13,28 @@ _Nothing yet._
 
 ---
 
+## [1.9.0] — 2026-09-01
+
+Cold audit remediation — **Wave 3: backend & DB integrity (#40, #41).** Migration `0020` (applied via
+break-glass); no Edge or frontend change.
+
+### Fixed
+- **Account deletion de-identifies invites the user accepted (#40)** — `delete_account` now nulls
+  `friend_invites.accepted_by` where it held the deleted user's Clerk sub, keeping `used_at` so the
+  single-use invite stays consumed. Closes a right-to-erasure residue.
+- **anon reads no longer error on the friend-shared tables (#41)** — the `collection_select_friends` and
+  `wantlist_select_friends` RLS policies are scoped `TO authenticated`, so an anonymous SELECT never
+  reaches the `private.*` consent function (which it couldn't execute since migration 0016, erroring
+  instead of returning empty). No change for signed-in users; unblocks the Wave-5 public-crate direction.
+
+### Notes
+- **#39 (import future-skew sweep) deferred** — the proposed `least(startedAt, db_now)` clamp was a no-op
+  (caught by the verification pass: `db_now` at sweep time is newer than the fresh rows). The correct fix
+  is a protocol change (persist page-1's server clock and sweep against it), disproportionate for a
+  low-severity, self-scoped, self-healing bug. Left open with the approach documented.
+
+---
+
 ## [1.8.5] — 2026-08-31
 
 Friend-crate card redesign (design spec: friend-want; interim design work between cold-audit Waves 2 and 3).
