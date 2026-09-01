@@ -13,6 +13,16 @@ _Nothing yet._
 
 ---
 
+## [1.8.2] — 2026-08-31
+
+### Changed
+- **Card meta footer now bottom-aligns within a grid row.** The divider and the `year · style` line (with
+  the price, or `✕ REMOVE` on the wantlist) sit on a shared baseline across a row regardless of title
+  length, instead of floating up under shorter titles next to a tall multi-line title. Card content flexes
+  to fill the row-stretched height; the footer is pinned to the bottom.
+
+---
+
 ## [1.8.1] — 2026-08-31
 
 ### Added
