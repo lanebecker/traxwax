@@ -1,9 +1,19 @@
-# Phase 1 cold audit #35: baseline security headers. Full CSP deferred (the app is
-# built on inline styles); these three cost nothing and matter for authed sessions.
+# Baseline security headers (Phase 1 cold audit #35) + Wave 2 hardening (#38, 2026-08-31): a
+# REPORT-ONLY CSP (validates the allowlist without blocking anything — flip the header name to
+# Content-Security-Policy once the browser console is clean of violations), plus HSTS and
+# Permissions-Policy (both safe to enforce for an all-HTTPS site). The CSP keeps 'unsafe-inline' for
+# script/style for now (the app is inline-style heavy and has a few inline guard scripts); tighten to
+# hashes/nonces when going enforcing. SRI is intentionally omitted — Clerk @6 / supabase-js @2 /
+# umami script.js are moving version tags where a pinned integrity hash breaks on their next update;
+# the script-src allowlist is the supply-chain mitigation instead. Likely report-only additions to
+# check for in the console before enforcing: clerk-telemetry.com, challenges.cloudflare.com (Clerk).
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://clerk.traxwax.com https://cloud.umami.is https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is; frame-src 'self' https://clerk.traxwax.com; form-action 'self' https://clerk.traxwax.com
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
 
 # Issue #9: fixed asset names (/app.js, /boot.js, HTML shells) served stale from browser
 # cache across deploys — observed at launch as a pre-launch app.js dead-ending on

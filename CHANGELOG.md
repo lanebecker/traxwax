@@ -13,6 +13,27 @@ _Nothing yet._
 
 ---
 
+## [1.8.4] — 2026-08-31
+
+Cold audit remediation — **Wave 2: security hardening (#38).**
+
+### Added
+- **Content-Security-Policy (report-only) on all routes** — a full policy (script / style / img / font /
+  connect / frame / worker allowlists) shipped in REPORT-ONLY mode so it validates against the live app
+  (Clerk, Supabase, Umami, Google Fonts, Discogs covers) without blocking anything. Once the browser
+  console is clean of violations, flip the header name to `Content-Security-Policy` to enforce.
+- **Strict-Transport-Security** (`max-age=31536000; includeSubDomains`) and a **Permissions-Policy**
+  (camera / microphone / geolocation / interest-cohort disabled) — both enforced.
+
+### Notes
+- SRI intentionally omitted: Clerk `@6` / supabase-js `@2` / umami `script.js` are moving version tags
+  where a pinned integrity hash breaks on their next update; the CSP script-src allowlist is the
+  supply-chain mitigation instead.
+- Before enforcing, watch the console for `challenges.cloudflare.com` (Clerk bot-protection, if enabled —
+  would need adding to script-src + frame-src) and `clerk-telemetry.com` (connect-src; non-breaking).
+
+---
+
 ## [1.8.3] — 2026-08-31
 
 Cold audit (2026-08-31) remediation — **Wave 1: frontend correctness, a11y & config-safety.**
