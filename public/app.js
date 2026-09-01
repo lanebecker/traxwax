@@ -315,14 +315,14 @@ function card(r){
       ${(r.isNew && state.view!=='wantlist')?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
       ${badgesHtml(_badges)}
     </div>
-    <div style="min-width:0; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
+    <div style="min-width:0; flex:1; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
       <button class="tw-artist" data-act="artist" data-arg="${esc(r.artist)}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</button>
       <button class="tw-title" data-act="open" data-arg="${r.id}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.02; color:var(--ink); text-wrap:pretty">${esc(r.title)}</button>
       <button data-act="color" data-arg="${esc(r.vinylShort)}" tabindex="-1" style="display:flex; align-items:center; gap:6px; margin-top:1px; padding:0; border:0; background:transparent; text-align:left">
         <span style="width:9px; height:9px; flex:none; border:1.5px solid var(--line); background:${r.swatch}"></span>
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.vinylShort)}</span>
       </button>
-      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:6px; border-top:1.5px solid var(--line); padding-top:6px; margin-top:2px">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:6px; border-top:1.5px solid var(--line); padding-top:6px; margin-top:auto">
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0">${esc(r.year)} · ${esc(r.style1)}</span>
         ${state.view==='wantlist'
           ? `<button data-act="wantRemove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`
