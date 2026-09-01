@@ -13,6 +13,22 @@ _Nothing yet._
 
 ---
 
+## [1.8.0] — 2026-08-31
+
+Wantlist remove control redesign (from the design handoff). The empty-state redesign is intentionally
+deferred pending discussion.
+
+### Changed
+- **THE WANTLIST remove control is now quiet and reversible.** The full-width `✕ REMOVE FROM WANTLIST`
+  button under every card (a "wall of black boxes" that out-weighed the covers) is replaced by an
+  underlined `✕ REMOVE` action in the card's meta row, opposite `year · style`. Removing a record drops
+  it from the grid immediately and shows an undo snackbar naming the record; the Discogs delete commits
+  when the snackbar is dismissed or times out (~6s), and **UNDO cancels it with no round-trip**. A new
+  removal commits the previous pending one. `JUST IN` is suppressed in the wantlist view. The remove
+  control in the detail modal routes through the same flow.
+
+---
+
 ## [1.7.0] — 2026-08-31
 
 ### Added
