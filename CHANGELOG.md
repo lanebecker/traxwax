@@ -13,6 +13,25 @@ _Nothing yet._
 
 ---
 
+## [1.8.5] — 2026-08-31
+
+Friend-crate card redesign (design spec: friend-want; interim design work between cold-audit Waves 2 and 3).
+
+### Changed
+- **Add/remove on a friend's crate moved into the card's meta row.** The full-width `＋ ADD TO WANTLIST`
+  button is gone; the meta footer now shows a quiet **+ WANT** (accent) when a record isn't on your
+  wantlist and **✕ REMOVE** (ink — the same control as the wantlist tab) when it is. The **ON YOUR
+  WANTLIST** cover strip states the status.
+- **Adding is instant and quiet** — the strip is the confirmation, so there's no snackbar on add.
+- **Removing reuses the wantlist undo snackbar** (deferred Discogs delete, UNDO within the ~6s grace
+  window), but the card **stays on the friend's shelf** — only the strip and the meta control revert.
+  (Re-clicking + WANT during the grace window cancels the pending delete with no round-trip.)
+- **`SEE ON DISCOGS →` retired from the card face** — it lives on the record's detail view
+  (`VIEW ON DISCOGS ↗`). The full-width friend button and the dead `priceCellHtml` are removed; the
+  MATCHES stat refreshes when an add/remove commits.
+
+---
+
 ## [1.8.4] — 2026-08-31
 
 Cold audit remediation — **Wave 2: security hardening (#38).**

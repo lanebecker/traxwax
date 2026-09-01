@@ -299,9 +299,26 @@ function wantControlHtml(r, inModal){
   return '';
 }
 
+/* The meta row's right-hand cell (friend-want redesign). Own crate: price (unchanged; hidden in DB mode,
+   Restricted). Friend's crate: the +WANT ⇄ ✕REMOVE toggle keyed on viewerWants (the same Set that drives
+   the ON YOUR WANTLIST cover strip via badgesFor). THE WANTLIST tab: the ✕REMOVE control. The Discogs link
+   is retired from the card face — it lives on the detail modal now (VIEW ON DISCOGS ↗). */
+function metaCellHtml(r){
+  if (state.view==='wantlist')
+    return `<button data-act="wantRemove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
+  if (IS_OWN())
+    return SETTINGS.showPrices
+      ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`
+      : '';
+  const ctx = window.__twMatchCtx;
+  const wanted = ctx && ctx.viewerWants && ctx.viewerWants.has(r.id);
+  if (wanted)   // State B — wanted: the wantlist ✕ REMOVE control, verbatim (ink, underline, hover accent)
+    return `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
+  return `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;   // State A — not wanted
+}
+
 /* ── Card ──────────────────────────────────────────────────────────────────── */
 function card(r){
-  const showP = SETTINGS.showPrices;
   // #27: compute badges once — the same list drives the visual badge AND the card's accessible name, so a
   // screen reader announces "ON YOUR WANTLIST" / "YOU OWN THIS" as part of the card rather than as a
   // detached span after it. Badge labels are static strings (no user data), safe to inline in the label.
@@ -324,11 +341,8 @@ function card(r){
       </button>
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:6px; border-top:1.5px solid var(--line); padding-top:6px; margin-top:auto">
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0">${esc(r.year)} · ${esc(r.style1)}</span>
-        ${state.view==='wantlist'
-          ? `<button data-act="wantRemove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`
-          : (IS_OWN()?(showP?`<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`:''):priceCellHtml(r,false))}
+        ${metaCellHtml(r)}
       </div>
-      ${state.view==='wantlist' ? '' : wantControlHtml(r)}
     </div>
   </div>`;
 }
@@ -427,24 +441,9 @@ function badgesFor(rec, ctx){
   return out;
 }
 
-/* #3 · THE PRICE CELL — ▸ RESERVED FOR WAVE 1 (friend crates). live-stats suppresses price
-   server-side for records that aren't the viewer's own, so on a friend's crate every price
-   is null and the cell would collapse. THE RULE: the cell always renders — own+known → $34,
-   own+unknown → em-dash, friend's → SEE ON DISCOGS →. Never a number on a friend's record. */
-function priceCellHtml(rec, isOwn){
-  const MONO = "font-family:'IBM Plex Mono',monospace";
-  if (!isOwn) {
-    return '<a href="https://www.discogs.com/release/' + encodeURIComponent(rec.id) + '" ' +
-      'target="_blank" rel="noopener" style="' + MONO + '; font-size:9.5px; font-weight:700; ' +
-      'letter-spacing:.06em; color:var(--accent); white-space:nowrap">SEE ON DISCOGS →</a>';
-  }
-  if (rec.price == null) {
-    return '<span style="' + MONO + '; font-size:9.5px; letter-spacing:.06em; ' +
-      'color:var(--faint)">—</span>';
-  }
-  return '<span style="' + MONO + '; font-size:11px; font-weight:700; color:var(--accent)">$' +
-    Math.round(rec.price) + '</span>';
-}
+/* #3 · THE PRICE/META CELL — retired into metaCellHtml (friend-want redesign). The friend-crate
+   SEE ON DISCOGS → link is gone from the card face (it lives on the detail modal now); the own-crate
+   price rule moved into metaCellHtml above. */
 
 /* ── computeVals: the single source that render() draws from ─────────────────── */
 function computeVals(){
@@ -937,28 +936,51 @@ const _wantInflight = new Set();
 /* Friend-crate toggle: optimistically flip the viewer's want membership (drives both the badge and the
    button label), then reconcile the MATCHES stat from the server. Revert everything on failure. The Edge
    fn seeds the release server-side if needed, so no seed is sent from here. */
-async function toggleWant(id, action){
-  if (!window.TraxWaxSetWant || _wantInflight.has(id)) return;
+/* Friend-crate ADD (+ WANT): optimistically add to the viewer's wantlist Set — the ON YOUR WANTLIST cover
+   strip appears and the meta flips to ✕ REMOVE on re-render — then PUT under the viewer's own token. The
+   strip IS the confirmation, so there is NO snackbar on add. Revert + toast on failure; MATCHES refreshes
+   on the committed add. */
+async function friendAdd(id){
+  // Re-add during a pending removal's grace window (the card stays put on a friend crate, so + WANT is
+  // live): just cancel the pending DELETE — it never committed, so no network is needed and nothing
+  // desyncs. Without this the deferred DELETE would fire ~6s later and silently revert this re-add.
+  if (_pendingRemove && _pendingRemove.id === id) { _undoRemove(); return; }
   const ctx = window.__twMatchCtx;
-  const hasCtx = !IS_OWN() && ctx && ctx.viewerWants;
+  if (!ctx || !ctx.viewerWants || !window.TraxWaxSetWant || _wantInflight.has(id) || ctx.viewerWants.has(id)) return;
   _wantInflight.add(id);
-  if (hasCtx){ if (action==='add') ctx.viewerWants.add(id); else ctx.viewerWants.delete(id); }
+  ctx.viewerWants.add(id);
   render();
   try {
-    await window.TraxWaxSetWant(id, action);
-    track(action==='add'?'wantlist_add':'wantlist_remove', { source: state.view });
-    if (hasCtx && window.TraxWaxMatchCounts){
-      // TraxWaxMatchCounts RETURNS null on a crate_match error (doesn't throw) — guard so a transient
-      // RPC failure can't blank the MATCHES stat bar; keep the prior counts until a good refetch.
-      try { const mc = await window.TraxWaxMatchCounts(); if (mc) window.__twMatchCounts = mc; } catch(e){}
-      render();
-    }
+    await window.TraxWaxSetWant(id, 'add');
+    track('wantlist_add', { source: 'friend' });
+    _refreshMatchCounts();   // committed → recompute the MATCHES stat
   } catch(e){
-    if (hasCtx){ if (action==='add') ctx.viewerWants.delete(id); else ctx.viewerWants.add(id); }
+    ctx.viewerWants.delete(id);
     render();
     showToast(e && e.status===409 ? 'Connect Discogs to change your wantlist'
                                   : 'Couldn’t update your wantlist — try again', null, null);
   } finally { _wantInflight.delete(id); }
+}
+
+/* Friend-crate REMOVE (✕ REMOVE): reuses the wantlist undo snackbar + deferred commit VERBATIM, with one
+   difference — the card STAYS in the grid (it's the friend's record); only the strip + meta revert. Undo
+   re-adds to the viewer's wantlist Set; the Discogs DELETE commits on snackbar dismiss/timeout; MATCHES
+   refreshes when the remove commits. */
+function friendRemove(id){
+  const ctx = window.__twMatchCtx;
+  if (!ctx || !ctx.viewerWants || !ctx.viewerWants.has(id)) return;
+  const rec = recordById(id) || { id };
+  ctx.viewerWants.delete(id);   // strip disappears + meta flips to + WANT on the re-render inside _beginDeferredRemove
+  const revert = () => { const c = window.__twMatchCtx; if (c && c.viewerWants) c.viewerWants.add(id); render(); };
+  _beginDeferredRemove(id, rec, revert, 'friend', _refreshMatchCounts);
+}
+
+/* Recompute the MATCHES header stat (friend crate only) from the server after a wantlist write commits.
+   TraxWaxMatchCounts RETURNS null on error (doesn't throw) — only reassign on a good result so a transient
+   RPC failure can't blank the stat bar. */
+function _refreshMatchCounts(){
+  if (IS_OWN() || !window.TraxWaxMatchCounts) return;
+  window.TraxWaxMatchCounts().then((mc)=>{ if (mc) { window.__twMatchCounts = mc; render(); } }).catch(()=>{});
 }
 
 /* WANTLIST-tab remove (wantlist-remove redesign). Optimistic + reversible with a DEFERRED commit: the card
@@ -967,7 +989,7 @@ async function toggleWant(id, action){
    removal commits the previous pending one. One snackbar at a time, naming the most recently removed record.
    Trade-off (accepted per the design's grace-window model): a reload during the window loses the un-committed
    delete, so that record reloads still-wanted — safe (no data loss), just not-yet-removed. */
-let _pendingRemove = null;   // { id, row, idx, timer } — at most one un-committed removal
+let _pendingRemove = null;   // { id, revert, timer, source, onCommit } — at most one un-committed removal
 function _commitPendingRemove(){
   const p = _pendingRemove; if (!p) return;
   _pendingRemove = null;
@@ -975,40 +997,48 @@ function _commitPendingRemove(){
   _hideRemoveSnackbar();
   if (!window.TraxWaxSetWant) return;
   window.TraxWaxSetWant(p.id, 'remove')
-    .then(()=>{ track('wantlist_remove', { source:'wantlist' }); })
+    .then(()=>{ track('wantlist_remove', { source: p.source }); if (p.onCommit) p.onCommit(); })
     .catch(()=>{
-      // Grace window closed, card already gone, but the DELETE failed — the record is still on Discogs.
-      // Put it back in the list and say so, rather than leaving the UI and Discogs out of sync.
-      if (Array.isArray(WANTLIST_RECORDS) && !WANTLIST_RECORDS.some(x=>x.id===p.id)){
-        WANTLIST_RECORDS.splice(Math.min(p.idx, WANTLIST_RECORDS.length), 0, p.row);
-        render();
-      }
+      // Grace window closed, optimistic UI already applied, but the DELETE failed — the record is still on
+      // Discogs. Undo the optimistic change and say so, rather than leaving the UI and Discogs out of sync.
+      p.revert();
       showToast('Couldn’t remove — it’s still on your wantlist', null, null);
     });
-}
-function removeWant(id){
-  if (!Array.isArray(WANTLIST_RECORDS)) return;
-  const idx = WANTLIST_RECORDS.findIndex(x=>x.id===id);
-  if (idx<0) return;   // already gone from the grid (e.g. a double-click) — natural dedup, no pending needed
-  _removedThisSession = true;   // an emptied wantlist now reads as "cleared", not "genuinely empty"
-  _commitPendingRemove();   // a still-pending prior removal commits now (superseded by this one)
-  const row = WANTLIST_RECORDS[idx];
-  WANTLIST_RECORDS.splice(idx,1);
-  if (state.detailId===id) state.detailId=null;   // close the modal if it was open on this record
-  const timer = setTimeout(_commitPendingRemove, 6000);
-  _pendingRemove = { id, row, idx, timer };
-  render();
-  showRemoveSnackbar(row);
 }
 function _undoRemove(){
   const p = _pendingRemove; if (!p) return;   // cancel the pending delete — no Discogs call
   _pendingRemove = null;
   clearTimeout(p.timer);
   _hideRemoveSnackbar();
-  if (Array.isArray(WANTLIST_RECORDS) && !WANTLIST_RECORDS.some(x=>x.id===p.id)){
-    WANTLIST_RECORDS.splice(Math.min(p.idx, WANTLIST_RECORDS.length), 0, p.row);   // computeVals re-sorts → sorted position
-  }
+  p.revert();
+}
+/* Shared deferred-remove: the caller has already applied the optimistic UI change. This shows the undo
+   snackbar, arms the ~6s commit timer, and supersedes any prior pending removal (committing it first).
+   `revert` undoes the caller's optimistic change AND re-renders; `onCommit` runs after a successful Discogs
+   DELETE (or null). The wantlist tab and a friend's crate share this — they differ only in what `revert`
+   restores (a spliced list row vs. a viewerWants Set membership). */
+function _beginDeferredRemove(id, snackRec, revert, source, onCommit){
+  _commitPendingRemove();   // a still-pending prior removal commits now (superseded by this one)
+  const timer = setTimeout(_commitPendingRemove, 6000);
+  _pendingRemove = { id, revert, timer, source, onCommit: onCommit || null };
   render();
+  showRemoveSnackbar(snackRec);
+}
+/* WANTLIST-tab remove: the card LEAVES the grid (splice) — that's the difference from a friend crate. */
+function removeWant(id){
+  if (!Array.isArray(WANTLIST_RECORDS)) return;
+  const idx = WANTLIST_RECORDS.findIndex(x=>x.id===id);
+  if (idx<0) return;   // already gone from the grid (e.g. a double-click) — natural dedup
+  _removedThisSession = true;   // an emptied wantlist now reads as "cleared", not "genuinely empty"
+  const row = WANTLIST_RECORDS[idx];
+  WANTLIST_RECORDS.splice(idx,1);
+  if (state.detailId===id) state.detailId=null;   // close the modal if it was open on this record
+  const revert = () => {
+    if (Array.isArray(WANTLIST_RECORDS) && !WANTLIST_RECORDS.some(x=>x.id===id))
+      WANTLIST_RECORDS.splice(Math.min(idx, WANTLIST_RECORDS.length), 0, row);   // computeVals re-sorts → sorted position
+    render();
+  };
+  _beginDeferredRemove(id, row, revert, 'wantlist', null);
 }
 
 /* The undo snackbar (design spec §4a): ink panel, names the record, UNDO (accent) + dismiss ✕. Dismiss AND
@@ -1114,7 +1144,7 @@ function onClick(e){
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
     case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; render(); break;
     case 'closeDetail': state.detailId=null; render(); break;
-    case 'want': toggleWant(Number(arg), t.dataset.want==='remove'?'remove':'add'); break;
+    case 'want': (t.dataset.want==='remove' ? friendRemove : friendAdd)(Number(arg)); break;
     case 'wantRemove': removeWant(Number(arg)); break;
     case 'stop': e.stopPropagation(); break;
   }
