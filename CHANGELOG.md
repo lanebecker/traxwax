@@ -13,6 +13,35 @@ _Nothing yet._
 
 ---
 
+## [1.8.3] — 2026-08-31
+
+Cold audit (2026-08-31) remediation — **Wave 1: frontend correctness, a11y & config-safety.**
+
+### Fixed
+- **config.toml: added the missing `verify_jwt=false` blocks for `disconnect-discogs`, `delete-account`,
+  `finalize-connect` (#30)** — each verifies Clerk in-handler, so a config-driven deploy would otherwise
+  401 them. Config only; no redeploy needed — it prevents a future break.
+- **Sign-in no longer risks a spurious error card mid-hydration (#32)** — `render()` guards on the Clerk
+  user object, not just `isSignedIn`.
+- **Genre chip counts now match what clicking the chip returns (#33)** — the filter is styles-only, like
+  the counts (and guards a non-array `styles`).
+- **Import loops no longer stop early if a page response omits `pages` (#35)** — `d.done` is the terminator.
+- **Rate-limit backoff widened 30s → 60s to clear Discogs' ~60s window (#36).**
+- **Detail modal no longer fabricates country "US" for unknown / still-loading releases (#34)** — shows "—".
+- **Wantlist remove keeps keyboard focus reachable (#31)** — focus moves to UNDO after a remove.
+
+### Added
+- **Page titles reflect the crate (#45)** — "TraxWax — My Crate" on your own, "TraxWax — {name}'s Crate"
+  on a friend's.
+- **All Discogs links open in a new tab (#46)** — the landing footer attribution now matches the app.
+- Search input `aria-label` (part of #37).
+
+### Known follow-ups (tracked)
+- #37 (partial): modal `inert` moves to Wave 4 (#44, with the modal-container refactor); sub-44px tap
+  targets (AAA — already AA-compliant) and the landing theme FOUC (nit) remain, pending a design call.
+
+---
+
 ## [1.8.2] — 2026-08-31
 
 ### Changed

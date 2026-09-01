@@ -436,7 +436,7 @@ const _pipeCall = async (path, payload) => {
 };
 
 // Retries with backoff -- but NOT on non-retryable 4xx (bad request, auth, not
-// connected), and with a 30s wait when the upstream reported a rate limit (audit #13).
+// connected), and with a 60s wait when the upstream reported a rate limit (audit #13; #36 widened 30s→60s to clear Discogs' ~60s window).
 const _pipeAttempt = async (fn, onLine) => {
   const delays = [2000, 5000, 10000];
   for (let i = 0; ; i++) {
@@ -444,7 +444,7 @@ const _pipeAttempt = async (fn, onLine) => {
     catch (e) {
       if ([400, 401, 403, 409].includes(e && e.status)) throw e;
       if (i >= delays.length) throw e;
-      const wait = (e && e.upstream === 429) ? 30000 : delays[i];
+      const wait = (e && e.upstream === 429) ? 60000 : delays[i];   // #36: Discogs' rate window is ~60s; 30s retried into a still-closed window
       if (onLine) onLine('Hiccup (' + ((e && e.message) || e) + ') — retrying…');
       await new Promise((r) => setTimeout(r, wait));
     }
@@ -462,7 +462,8 @@ async function importLoop(onProgress, onHiccup) {
     const t0 = Date.now();
     const d = await _pipeAttempt(() => _pipeCall('import-collection',
       startedAt ? { page, started_at: startedAt } : { page }), onHiccup);
-    pages = d.pages; startedAt = d.started_at;
+    pages = Number.isFinite(d.pages) ? d.pages : pages;   // #35: don't let an omitted `pages` (undefined) end the loop early; d.done is the real terminator
+    startedAt = d.started_at;
     if (onProgress) onProgress(d.page, d.pages, d.items);
     if (d.done) break;
     page++;
@@ -479,7 +480,8 @@ async function wantlistImportLoop() {
     const t0 = Date.now();
     const d = await _pipeAttempt(() => _pipeCall('import-collection',
       Object.assign({ page, kind: 'wantlist' }, startedAt ? { started_at: startedAt } : {})));
-    pages = d.pages; startedAt = d.started_at;
+    pages = Number.isFinite(d.pages) ? d.pages : pages;   // #35: as importLoop — d.done terminates, not an absent `pages`
+    startedAt = d.started_at;
     if (d.done) break;
     page++;
     const elapsed = Date.now() - t0;
@@ -807,7 +809,10 @@ async function render() {
   const segments = window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
   const routeUsername = segments[1] ? decodeURIComponent(segments[1]) : null;
 
-  if (!window.Clerk.isSignedIn) {
+  // #32 (cold audit): guard on the USER object too, not just isSignedIn. Clerk can briefly report
+  // isSignedIn===true with a null user (mid-refresh / partial hydration); proceeding would dereference
+  // window.Clerk.user.id below and throw into route()'s catch → a spurious error card mid-sign-in.
+  if (!window.Clerk.isSignedIn || !window.Clerk.user) {
     mountAuth();
     return;
   }

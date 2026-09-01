@@ -29,3 +29,15 @@ verify_jwt = false
 
 [functions.wantlist-write]
 verify_jwt = false
+
+# Cold audit (2026-08-31): these three were missing and each verifies the Clerk RS256 token in-handler
+# (jose.jwtVerify), so they REQUIRE the platform gate off — without a block, a config-driven deploy would
+# default verify_jwt=true and 401 disconnect / delete-account / link-finalize before the handler runs.
+[functions.disconnect-discogs]
+verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = false
+
+[functions.finalize-connect]
+verify_jwt = false

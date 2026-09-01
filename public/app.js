@@ -211,10 +211,10 @@ function matches(r){
   if(s.coloredOnly && s.view!=='wantlist' && !isColored(r.vinyl)) return false;
   if(s.artist && r.artist!==s.artist) return false;
   if(s.color && s.view!=='wantlist' && shortVinyl(r.vinyl)!==s.color) return false;
-  if(s.genres.length && !s.genres.some(g=>r.styles.includes(g)||r.genres.includes(g))) return false;
+  if(s.genres.length && !s.genres.some(g=>(r.styles||[]).includes(g))) return false;   // #33: chips are ranked/counted from styles, so filter on styles too — count and result now agree (and guard non-array styles)
   if(s.query){
     const q=s.query.toLowerCase();
-    const hay=(r.artist+' '+r.title+' '+r.label+' '+r.styles.join(' ')+' '+r.vinyl).toLowerCase();
+    const hay=(r.artist+' '+r.title+' '+r.label+' '+(r.styles||[]).join(' ')+' '+r.vinyl).toLowerCase();
     if(!hay.includes(q)) return false;
   }
   return true;
@@ -624,7 +624,7 @@ function render(){
       <button data-act="clearGenres" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1.5px solid var(--line); ${noGenres?chipOn.replace('var(--accent)','var(--ink)'):chipOff}">ALL ${v.all.length.toLocaleString('en-US')}</button>
       ${genreChips}
       <span style="margin-left:auto; display:flex; align-items:center; gap:8px">
-        <input id="tw-search" value="${esc(s.query)}" placeholder="SEARCH THE CRATE ⌕" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 12px; width:210px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); border-radius:0" />
+        <input id="tw-search" value="${esc(s.query)}" placeholder="SEARCH THE CRATE ⌕" aria-label="Search the crate" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 12px; width:210px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); border-radius:0" />
         <button data-act="colored" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:6px 10px; border:1.5px solid var(--line); ${s.coloredOnly?chipOn:chipOff}; box-shadow:2px 2px 0 var(--shadow)">COLORED WAX ●</button>
       </span>
     </div>
@@ -696,7 +696,7 @@ function modalHtml(){
   if(!rec) return '';
   const d=deco(rec);
   const rel=rec._rel;  // tracklist/country/videos from the baked release file (or live fallback), via _loadRelease
-  const country=(rel && rel.country)?rel.country:'US';
+  const country=(rel && rel.country)?rel.country:'—';   // #34: don't fabricate "US" before the release loads / for unknown-country pressings
   const subLine=(rec.year||'—')+' · '+(rec.label||'Unknown label')+' · '+country;
   // DB mode: live stats live under rec._stats (see _loadStats -- MAJOR-2); baked mode
   // keeps reading the collection.json fields. One selector, both worlds.
@@ -1039,6 +1039,9 @@ function showRemoveSnackbar(rec){
   dismiss.textContent='✕'; dismiss.addEventListener('click', _commitPendingRemove);
   bar.append(eyebrow, title, undo, dismiss);
   document.body.appendChild(bar);
+  // #31: after a remove, render() rebuilt the grid and focus fell to <body> — move it to UNDO so a
+  // keyboard/screen-reader user can actually reverse the removal within the grace window.
+  try { undo.focus(); } catch (e) {}
 }
 function _hideRemoveSnackbar(){ const el=document.getElementById('tw-remove-snack'); if(el) el.remove(); }
 
@@ -1181,6 +1184,12 @@ async function bootCrate(){
   if (window.TraxWaxOwner && window.TraxWaxOwner.ownerLine) {
     SETTINGS.ownerLine = window.TraxWaxOwner.ownerLine;
   }
+  // #45: page title reflects whose crate this is — own → "My Crate"; friend → "{display name}'s Crate".
+  try {
+    const _o = window.TraxWaxOwner || {};
+    const _who = _o.displayName || _o.ownerUsername || 'a friend';
+    document.title = IS_OWN() ? 'TraxWax — My Crate' : ('TraxWax — ' + _who + '’s Crate');
+  } catch (e) {}
   if (DB_MODE()) SETTINGS.showPrices = false;   // per-record prices are Restricted; header+modal only
   document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted)">Loading the crate…</div>`;
   try{
