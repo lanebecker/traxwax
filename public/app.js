@@ -311,7 +311,7 @@ function card(r){
       <button data-act="open" data-arg="${r.id}" class="tw-cell" tabindex="-1" aria-haspopup="dialog" aria-label="Open ${esc(r.artist)} — ${esc(r.title)}${_badgeAria}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
         <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
       </button>
-      ${r.isNew?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
+      ${(r.isNew && state.view!=='wantlist')?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
       ${badgesHtml(_badges)}
     </div>
     <div style="min-width:0; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
@@ -322,10 +322,12 @@ function card(r){
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.vinylShort)}</span>
       </button>
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:6px; border-top:1.5px solid var(--line); padding-top:6px; margin-top:2px">
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase">${esc(r.year)} · ${esc(r.style1)}</span>
-        ${IS_OWN()?(showP?`<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`:''):priceCellHtml(r,false)}
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0">${esc(r.year)} · ${esc(r.style1)}</span>
+        ${state.view==='wantlist'
+          ? `<button data-act="wantRemove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`
+          : (IS_OWN()?(showP?`<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`:''):priceCellHtml(r,false))}
       </div>
-      ${wantControlHtml(r)}
+      ${state.view==='wantlist' ? '' : wantControlHtml(r)}
     </div>
   </div>`;
 }
@@ -949,44 +951,85 @@ async function toggleWant(id, action){
   } finally { _wantInflight.delete(id); }
 }
 
-/* WANTLIST-tab remove: optimistically drop the row (card vanishes), fire the Discogs DELETE, and offer
-   an UNDO toast that re-adds. Revert the row on failure. */
-async function removeWant(id){
-  if (!window.TraxWaxSetWant || _wantInflight.has(id) || !Array.isArray(WANTLIST_RECORDS)) return;
+/* WANTLIST-tab remove (wantlist-remove redesign). Optimistic + reversible with a DEFERRED commit: the card
+   leaves the grid immediately and an undo snackbar appears, but the Discogs DELETE is NOT sent until the
+   snackbar dismisses or times out (~6s) — the grace window. UNDO cancels with NO network at all; a new
+   removal commits the previous pending one. One snackbar at a time, naming the most recently removed record.
+   Trade-off (accepted per the design's grace-window model): a reload during the window loses the un-committed
+   delete, so that record reloads still-wanted — safe (no data loss), just not-yet-removed. */
+let _pendingRemove = null;   // { id, row, idx, timer } — at most one un-committed removal
+function _commitPendingRemove(){
+  const p = _pendingRemove; if (!p) return;
+  _pendingRemove = null;
+  clearTimeout(p.timer);
+  _hideRemoveSnackbar();
+  if (!window.TraxWaxSetWant) return;
+  window.TraxWaxSetWant(p.id, 'remove')
+    .then(()=>{ track('wantlist_remove', { source:'wantlist' }); })
+    .catch(()=>{
+      // Grace window closed, card already gone, but the DELETE failed — the record is still on Discogs.
+      // Put it back in the list and say so, rather than leaving the UI and Discogs out of sync.
+      if (Array.isArray(WANTLIST_RECORDS) && !WANTLIST_RECORDS.some(x=>x.id===p.id)){
+        WANTLIST_RECORDS.splice(Math.min(p.idx, WANTLIST_RECORDS.length), 0, p.row);
+        render();
+      }
+      showToast('Couldn’t remove — it’s still on your wantlist', null, null);
+    });
+}
+function removeWant(id){
+  if (!Array.isArray(WANTLIST_RECORDS)) return;
   const idx = WANTLIST_RECORDS.findIndex(x=>x.id===id);
-  if (idx<0) return;
+  if (idx<0) return;   // already gone from the grid (e.g. a double-click) — natural dedup, no pending needed
+  _commitPendingRemove();   // a still-pending prior removal commits now (superseded by this one)
   const row = WANTLIST_RECORDS[idx];
-  const wasOpen = state.detailId===id;
-  _wantInflight.add(id);
   WANTLIST_RECORDS.splice(idx,1);
-  if (wasOpen) state.detailId=null;
+  if (state.detailId===id) state.detailId=null;   // close the modal if it was open on this record
+  const timer = setTimeout(_commitPendingRemove, 6000);
+  _pendingRemove = { id, row, idx, timer };
   render();
-  try {
-    await window.TraxWaxSetWant(id, 'remove');
-    track('wantlist_remove', { source: 'wantlist' });
-    showToast('Removed from your wantlist', 'UNDO', ()=>_undoRemoveWant(id, row, idx));
-  } catch(e){
-    WANTLIST_RECORDS.splice(Math.min(idx, WANTLIST_RECORDS.length), 0, row);
-    if (wasOpen) state.detailId=id;   // restore the modal we optimistically closed
-    render();
-    showToast('Couldn’t remove — try again', null, null);
-  } finally { _wantInflight.delete(id); }
+  showRemoveSnackbar(row);
+}
+function _undoRemove(){
+  const p = _pendingRemove; if (!p) return;   // cancel the pending delete — no Discogs call
+  _pendingRemove = null;
+  clearTimeout(p.timer);
+  _hideRemoveSnackbar();
+  if (Array.isArray(WANTLIST_RECORDS) && !WANTLIST_RECORDS.some(x=>x.id===p.id)){
+    WANTLIST_RECORDS.splice(Math.min(p.idx, WANTLIST_RECORDS.length), 0, p.row);   // computeVals re-sorts → sorted position
+  }
+  render();
 }
 
-/* UNDO for a wantlist-tab remove: re-add on Discogs and restore the card at its old position. NOTE: the
-   re-added row's `added` becomes today (Discogs stamps a fresh date_added on re-add and the mirror follows)
-   — the original add-date is not preserved. Accepted: a re-added want is legitimately "added now". */
-async function _undoRemoveWant(id, row, idx){
-  if (_wantInflight.has(id) || !Array.isArray(WANTLIST_RECORDS)) return;
-  _wantInflight.add(id);
-  try {
-    await window.TraxWaxSetWant(id, 'add');
-    if (!WANTLIST_RECORDS.some(x=>x.id===id)) WANTLIST_RECORDS.splice(Math.min(idx, WANTLIST_RECORDS.length), 0, row);
-    track('wantlist_add', { source: 'undo' });
-    render();
-  } catch(e){ showToast('Couldn’t undo — try again', null, null); }
-  finally { _wantInflight.delete(id); }
+/* The undo snackbar (design spec §4a): ink panel, names the record, UNDO (accent) + dismiss ✕. Dismiss AND
+   the 6s timeout both COMMIT the delete; UNDO cancels it. One at a time; textContent only (no injection). */
+function showRemoveSnackbar(rec){
+  _hideRemoveSnackbar();
+  const bar=document.createElement('div'); bar.id='tw-remove-snack';
+  bar.setAttribute('role','status'); bar.setAttribute('aria-live','polite');
+  bar.style.cssText="position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:60; "+
+    "display:flex; align-items:center; gap:14px; max-width:calc(100vw - 32px); background:var(--ink); "+
+    "color:var(--panel); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow); padding:10px 12px 10px 15px";
+  const eyebrow=document.createElement('span');
+  eyebrow.style.cssText="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; opacity:.7";
+  eyebrow.textContent='REMOVED FROM WANTLIST';
+  const title=document.createElement('span');
+  title.style.cssText="font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:600; "+
+    "max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap";
+  title.textContent=rec.title||'';
+  const undo=document.createElement('button');
+  undo.style.cssText="-webkit-appearance:none; appearance:none; font-family:'IBM Plex Mono',monospace; "+
+    "font-size:10.5px; font-weight:700; letter-spacing:.1em; padding:6px 12px; background:var(--accent); "+
+    "color:var(--on-accent); border:0; cursor:pointer";
+  undo.textContent='UNDO'; undo.addEventListener('click', _undoRemove);
+  const dismiss=document.createElement('button');
+  dismiss.setAttribute('title','Dismiss');
+  dismiss.style.cssText="-webkit-appearance:none; appearance:none; padding:2px 4px; border:0; background:transparent; "+
+    "color:var(--panel); opacity:.55; font-size:14px; line-height:1; cursor:pointer";
+  dismiss.textContent='✕'; dismiss.addEventListener('click', _commitPendingRemove);
+  bar.append(eyebrow, title, undo, dismiss);
+  document.body.appendChild(bar);
 }
+function _hideRemoveSnackbar(){ const el=document.getElementById('tw-remove-snack'); if(el) el.remove(); }
 
 /* Minimal toast: one at a time, auto-dismiss 6s, optional single action. No dependencies; theme-aware. */
 let _toastTimer=null;
