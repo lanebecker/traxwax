@@ -307,8 +307,8 @@ function ownerInfo(profile) {
 }
 
 /* Wave 1: providers for a READ-ONLY friend crate. `owner` is the display projection from
-   get_crate_owner. Reads the friend's collection via the collection_select_friends RLS policy —
-   paginated + inline-mapped EXACTLY like installCrateProviders (only .eq('user_id', ...) differs).
+   get_crate_owner. Reads the friend's collection via the get_friend_crate projection RPC (#42 — keeps
+   rating, omits folder/instance_id; the old table-wide collection_select_friends policy is dropped).
    Deliberately installs NO TraxWaxRefresh / TraxWaxAccount (nothing to re-sync, no account of
    theirs), and the stats call carries `owner` so live-stats suppresses price server-side. */
 function installFriendCrateProviders(owner) {
@@ -343,31 +343,20 @@ function installFriendCrateProviders(owner) {
     ownerUsername: owner.discogs_username,
   };
 
+  // #42: friend crate read goes through the get_friend_crate projection RPC (keeps rating, omits the
+  // owner's folder + instance_id, which the table-wide RLS policy used to expose). SECURITY DEFINER +
+  // gated on can_view_crate; returns the full ordered array in one call, so no pagination / no table read.
   window.TraxWaxData = async () => {
-    const rows = [];
-    for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase
-        .from('collection_items')
-        .select('release_id, added, rating, vinyl, ' +
-          'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
-        .eq('user_id', owner.user_id)
-        .order('id', { ascending: true })
-        .range(from, from + 999);
-      if (error) throw new Error('friend collection query failed: ' + error.message);
-      for (const it of data ?? []) {
-        const rel = it.releases || {};
-        rows.push({
-          id: it.release_id,
-          artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
-          label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
-          vinyl: it.vinyl || '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
-          added: it.added || '', rating: it.rating || 0,
-          price: null, crating: null, crcount: null, have: null, want: null,
-        });
-      }
-      if (!data || data.length < 1000) break;
-    }
-    return rows;
+    const { data, error } = await supabase.rpc('get_friend_crate', { p_username: owner.discogs_username });
+    if (error) throw new Error('friend collection query failed: ' + error.message);
+    return (data ?? []).map((it) => ({
+      id: it.release_id,
+      artist: it.artist || '', title: it.title || '', year: it.year || 0,
+      label: it.label || '', styles: it.styles || [], genres: it.genres || [],
+      vinyl: it.vinyl || '', thumb: it.thumb || '', cover_image: it.cover_image || '',
+      added: it.added || '', rating: it.rating || 0,
+      price: null, crating: null, crcount: null, have: null, want: null,
+    }));
   };
 
   // Wave 2 B1: the VIEWER's own wants + haves as id Sets — the badges match these against the friend's
