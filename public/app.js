@@ -498,6 +498,36 @@ function computeVals(){
   };
 }
 
+/* ── renderModal: the detail modal renders into its own body-level container (#tw-modal-root, a sibling of
+   #app like the toast/snackbar), so opening or updating it never rebuilds the card grid (#44), and #app can
+   be made inert beside it (#37). render() calls this at its end; the six modal-only actions call it directly. */
+function renderModal(){
+  let root = document.getElementById('tw-modal-root');
+  if (!root){ root = document.createElement('div'); root.id = 'tw-modal-root'; document.body.appendChild(root); }
+  // Capture focus inside the modal BEFORE replacing it, so _syncModalFocus can restore the same control.
+  const ae = document.activeElement;
+  _modalFocusKey = null;
+  if (state.detailId && ae && ae.closest && ae.closest('.tw-modal-ov')) {
+    _modalFocusKey = { act: ae.getAttribute('data-act'), arg: ae.getAttribute('data-arg'), href: ae.getAttribute('href') };
+  }
+  root.innerHTML = modalHtml();   // '' when state.detailId is null (or the record isn't in the active dataset)
+  // #37: while a modal is ACTUALLY open, the shell is inert + hidden from assistive tech; the modal (beside
+  // #app) and the body-level toast/snackbar stay interactive. Pass-1 fix: gate on the modal HAVING rendered,
+  // not on state.detailId alone — a truthy detailId whose record is absent yields '' here, and inert-ing the
+  // shell behind an empty modal-root would brick the app with nothing to close.
+  const _modalOpen = !!(state.detailId && root.innerHTML);
+  const app = document.getElementById('app');
+  if (app){
+    if (_modalOpen){ app.inert = true; app.setAttribute('aria-hidden', 'true'); }
+    else { app.inert = false; app.removeAttribute('aria-hidden'); }
+  }
+  // Pass-1 fix: the standalone modal paths (open/close/Escape/loaders) must also re-point the grid's roving
+  // tabindex — pre-refactor every close ran render()→_syncGridRoving(). Keep the proven roving-then-modal
+  // focus order. (render() now delegates BOTH to this call, so a full render still ends the same way.)
+  _syncGridRoving();
+  _syncModalFocus();
+}
+
 /* ── render ────────────────────────────────────────────────────────────────── */
 function render(){
   const v=computeVals(); const s=state;
@@ -654,8 +684,7 @@ function render(){
   <footer class="tw-footer" style="max-width:1480px; margin:20px auto 0; padding:14px 24px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 24px; font-family:'IBM Plex Mono',monospace; font-size:10px; line-height:1.7; letter-spacing:.04em; color:var(--faint)">
     <a href="https://www.discogs.com/" target="_blank" rel="noopener" style="color:var(--accent); text-transform:uppercase; letter-spacing:.09em; white-space:nowrap">Data provided by Discogs ↗</a>
     <span class="tw-footer-note" style="flex:1; min-width:240px; text-align:right">This application uses Discogs' API but is not affiliated with, sponsored or endorsed by Discogs. "Discogs" is a trademark of Zink Media, LLC.</span>
-  </footer>
-  ${modalHtml()}`;
+  </footer>`;
 
   const app=document.getElementById('app');
   // Issue #5 + remediation-audit F1/F3: activeElement is the truth, not a flag. If the
@@ -667,14 +696,7 @@ function render(){
   const _ae=document.activeElement;
   const _wasSearch=!!(_ae && _ae.id==='tw-search');
   const _caret=_wasSearch ? _ae.selectionStart : null;
-  // W0.4: if focus is inside the open modal, remember WHICH control (by act+arg, or href for
-  // links) so _syncModalFocus can put it back after the innerHTML swap wipes activeElement to
-  // <body>. Without this, every async stats/tracklist re-render yanked focus back to ✕.
-  _modalFocusKey = null;
-  if (state.detailId && _ae && _ae.closest && _ae.closest('.tw-modal-ov')) {
-    _modalFocusKey = { act:_ae.getAttribute('data-act'), arg:_ae.getAttribute('data-arg'), href:_ae.getAttribute('href') };
-  }
-  app.innerHTML=html;
+  app.innerHTML=html;   // shell only — the modal lives in #tw-modal-root now (renderModal owns its focus capture)
   if(_wasSearch && !state.detailId){
     const si=document.getElementById('tw-search');
     if(si){
@@ -683,10 +705,9 @@ function render(){
       si.setSelectionRange(p, p);
     }
   }
-  // A11y (W0.4): re-establish roving tabindex, then modal focus. Roving first so the modal's
-  // focus-restore target (the invoking cover cell) is tabbable when we hand focus back to it.
-  _syncGridRoving();
-  _syncModalFocus();
+  // A11y (W0.4): renderModal() re-establishes the grid's roving tabindex AND the modal DOM/focus/shell-inert
+  // in the proven roving-then-modal-focus order, so a full render still ends exactly as it did pre-refactor.
+  renderModal();
 }
 
 /* ── Detail modal ──────────────────────────────────────────────────────────── */
@@ -849,7 +870,7 @@ function _gridColumns(cells){
 function onKeydown(e){
   // Modal open: Escape closes; Tab cycles within the dialog.
   if (state.detailId){
-    if (e.key==='Escape'){ state.detailId=null; render(); return; }
+    if (e.key==='Escape'){ state.detailId=null; renderModal(); return; }
     if (e.key==='Tab'){
       const ov = document.querySelector('.tw-modal-ov'); if(!ov) return;
       const panel = ov.querySelector('[data-act="stop"]'); if(!panel) return;
@@ -892,7 +913,7 @@ async function openDetail(id){
     if(c && (Date.now()-(c.ts||0))<REL_TTL_MS){ rec._rel=c.d; rec._relErr=false; }   // instant from cache
     else { rec._rel=null; rec._relErr=false; }                                        // show loading, then fetch
   }
-  render();
+  renderModal();
   if(rec) _loadStats(rec);
   if(rec && !rec._rel) await _loadRelease(rec);
 }
@@ -905,7 +926,7 @@ async function _loadRelease(rec){
   if(!d) d = await _fetchReleaseLive(rec);      // last resort: the live proxy
   if(d){ rec._rel=d; rec._relErr=false; _relCache[rec.id]={ts:Date.now(), d}; _saveRelCache(); }
   else { rec._relErr=true; }
-  if(state.detailId===rec.id) render();
+  if(state.detailId===rec.id) renderModal();
 }
 async function _loadStats(rec){
   if(!DB_MODE() || rec._stats) return;
@@ -919,7 +940,7 @@ async function _loadStats(rec){
       // partial sums. The degraded surfaces must stay degraded, not half-alive.
       rec._stats = { price: s.price, crating: s.crating, crcount: s.crcount,
                      have: s.have, want: s.want };
-      if(state.detailId===rec.id) render();
+      if(state.detailId===rec.id) renderModal();
     }
   } catch(e) { /* stats are decoration; the modal stands without them */ }
 }
@@ -1139,11 +1160,11 @@ function onClick(e){
     case 'artist': state.artist=arg; state.detailId=null; render(); break;
     case 'color': track('filter_used', { kind: 'color' }); state.color=arg; state.detailId=null; render(); break;
     case 'open': track('record_opened', { source: state.view }); openDetail(Number(arg)); break;
-    case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; render(); _loadRelease(r); } break; }
+    case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; renderModal(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
     case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; render(); break;
-    case 'closeDetail': state.detailId=null; render(); break;
+    case 'closeDetail': state.detailId=null; renderModal(); break;
     case 'want': (t.dataset.want==='remove' ? friendRemove : friendAdd)(Number(arg)); break;
     case 'wantRemove': removeWant(Number(arg)); break;
     case 'stop': e.stopPropagation(); break;
@@ -1199,6 +1220,9 @@ const DB_MODE = () => !!window.TraxWaxData;
 
 async function bootCrate(){
   WANTLIST_RECORDS=null;   // Wave 2 B1: fresh dataset per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
+  state.detailId = null;   // #44/#37: never inherit a stale open modal across a (re)boot
+  { const _a = document.getElementById('app'); if (_a){ _a.inert = false; _a.removeAttribute('aria-hidden'); } }
+  { const _m = document.getElementById('tw-modal-root'); if (_m) _m.innerHTML = ''; }
   // Wave 2: restore the active tab from the URL hash (#wantlist etc.) so a reload lands on the tab you were
   // on, not always THE CRATE. Only tabs valid for THIS crate are honored (wantlist is own+DB only); anything
   // else falls back to 'crate'. Set before the render below so the right grid paints on the first frame.

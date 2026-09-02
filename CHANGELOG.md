@@ -13,6 +13,39 @@ _Nothing yet._
 
 ---
 
+## [1.9.1] — 2026-09-01
+
+Cold audit remediation — **Wave 4: performance + modal a11y (#44, #37 modal-inert).** Frontend only
+(`public/app.js`); no Edge, migration, or break-glass.
+
+### Fixed
+- **Opening a record no longer rebuilds the entire card grid (#44).** The detail modal now renders into its
+  own body-level `#tw-modal-root` (a sibling of `#app`, like the toast/snackbar) via a new `renderModal()`,
+  instead of being part of `render()`'s `#app` innerHTML. A single record-open fired `render()` three times
+  (openDetail → `_loadStats` → `_loadRelease`), each recomputing `computeVals()` and re-parsing every card;
+  those six modal-only paths (also Escape, retryDetail, closeDetail) now call `renderModal()`, leaving the
+  grid DOM untouched. `render()` is shell-only and ends by delegating to `renderModal()`, so a full render
+  still finishes with the same roving-tabindex-then-modal-focus behavior as before.
+- **The modal is now inert-isolated (#37, modal-inert sub-item).** While a record modal is actually open,
+  `#app` is set `inert` + `aria-hidden`, so keyboard/screen-reader focus is trapped in the dialog and can't
+  wander into the grid behind it; the body-level modal, toast, and undo snackbar stay interactive. Closes
+  the last a11y-infra piece of #37 (search label shipped in v1.8.3; sub-44px tap targets + landing-theme
+  FOUC remain, tracked in #37).
+
+### Notes
+- **Render coalescing / grid-HTML memoization deliberately left out of scope (#44).** The container split
+  removes the pathological 3×-grid-rebuild on modal open; batching `render()` into an animation frame would
+  make the render heart async and risk focus/caret/roving timing bugs — high risk, low remaining value.
+- **Adversarial audit:** Pass-1 (executed jsdom repros) found two introduced defects, both fixed before
+  ship — the shell `inert` toggle now gates on the modal *having rendered* (`state.detailId` truthy **and**
+  `#tw-modal-root` non-empty), not on `detailId` alone (an absent record would otherwise inert the shell
+  behind an empty modal-root); and `_syncGridRoving()` moved into `renderModal()` so standalone modal
+  open/close paths re-point the grid's roving tabindex (pre-refactor only `render()` did). Pass-2 over the
+  rework was clean. One pre-existing finding filed as **#48** (a pending deferred-remove timer survives a
+  `bootCrate` re-boot).
+
+---
+
 ## [1.9.0] — 2026-09-01
 
 Cold audit remediation — **Wave 3: backend & DB integrity (#40, #41).** Migration `0020` (applied via
