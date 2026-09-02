@@ -13,6 +13,33 @@ _Nothing yet._
 
 ---
 
+## [1.9.3] — 2026-09-02
+
+Two deferred cold-audit low-sevs: **#39** (import future-skew self-wipe) + **#48** (stray Discogs delete
+after re-boot). One migration (`0022`) + `import-collection` redeploy via break-glass; one frontend fix.
+
+### Fixed
+- **A forged future `started_at` can no longer wipe the caller's own mirror (#39).** `import-collection`
+  now persists the page-1 DB-clock watermark server-side per kind (`profiles.import_started_collection` /
+  `_wantlist`), and the final-page stale-sweep uses THAT value (in-memory on a single-page import), never
+  the client's echoed `started_at`. The echo is still returned for response continuity but no longer steers
+  the delete, so a client echoing a +future watermark can't make the sweep delete the rows it just imported.
+  No client change. (Wave 3 deferred this as needing a protocol change; Option A — persist, don't sign — was
+  chosen for consistency with the existing `import_status` server-state, no new secret, no client edit.)
+- **A pending wantlist removal is abandoned on (re)boot instead of firing a stray delete (#48).** `bootCrate`
+  now cancels any un-committed deferred removal (`clearTimeout` + null) without sending its Discogs DELETE, so
+  a re-boot (Clerk auth-state change) inside the ~6s undo window can't later commit a removal against a
+  possibly-different context. The fresh wantlist reload reflects Discogs truth.
+
+### Notes
+- Adversarial audit (remediation-audit): Pass-1 verified both fixes against the live deploy — the sweep's
+  strict-`lt` against the DB-minted watermark, combined with the unconditional `touch_updated_at` trigger,
+  guarantees a freshly-imported row is never swept. Two accepted LOW limitations documented in the #39 plan
+  (same-kind concurrent-import watermark sharing; a page-1-skip sweeping against a stale watermark — both
+  self-scoped, self-healing, strictly less severe than the original bug).
+
+---
+
 ## [1.9.2] — 2026-09-02
 
 Friend-visibility **#42** — friend-crate read projection (backend + frontend; migration `0021` via

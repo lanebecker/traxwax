@@ -1,5 +1,7 @@
 /* Stage C: chunked collection import. One invocation = one Discogs page (<=100 items).
- * The frontend drives page 1..pages; the server keeps no cursor state.
+ * The frontend drives page 1..pages; the server keeps no page CURSOR, but DOES persist a per-kind page-1
+ * watermark (profiles.import_started_<kind>, #39) so the final-page stale-sweep can't be steered by a
+ * forged client echo of started_at.
  *
  * Identity: Stage B pattern exactly. verify_jwt is FALSE at the platform gate (it cannot
  * validate Clerk RS256); jwtVerify below is the ONLY source of user id. Every row this
@@ -96,6 +98,7 @@ async function handle(req: Request): Promise<Response> {
         listKey: 'wants',
         table: 'wantlist_items',
         conflict: 'user_id,release_id',
+        wmCol: 'import_started_wantlist',
         needsInstanceId: false,
         mapItem: (r: Record<string, unknown>, releaseId: number): Record<string, unknown> => ({
           user_id: userId, release_id: releaseId,
@@ -107,6 +110,7 @@ async function handle(req: Request): Promise<Response> {
         listKey: 'releases',
         table: 'collection_items',
         conflict: 'user_id,instance_id',
+        wmCol: 'import_started_collection',
         needsInstanceId: true,
         mapItem: (r: Record<string, unknown>, releaseId: number): Record<string, unknown> => ({
           user_id: userId, release_id: releaseId,
@@ -142,8 +146,10 @@ async function handle(req: Request): Promise<Response> {
     return json({ error: 'credentials_unreadable' }, 500);
   }
 
-  // ── Watermark: minted from the DATABASE clock on page 1 (same clock the trigger
-  //    stamps rows with); rejected -- not clamped -- when an echo is out of range. ──
+  // ── Watermark: minted from the DATABASE clock on page 1 (same clock the trigger stamps rows with) and
+  //    PERSISTED to profiles.import_started_<kind> (#39). The page->=2 client echo below is kept for
+  //    response continuity + range-validated, but the final-page sweep uses the PERSISTED value, so a
+  //    forged echo can no longer steer the delete. ──
   let startedAt: string;
   if (page === 1) {
     const { data: dbNow, error: nowErr } = await admin.rpc('db_now');
@@ -152,15 +158,17 @@ async function handle(req: Request): Promise<Response> {
       return json({ error: 'store_failed' }, 500);
     }
     startedAt = dbNow as string;
-    // Wave 2 Stage A: only the collection pass writes import_status (the boot gate). A stray
-    // 'running' from the background wantlist pass would trigger a spurious backgroundHeal on reload.
-    if (kind === 'collection') {
-      const { error: runErr } = await admin.from('profiles')
-        .update({ import_status: 'running' }).eq('user_id', userId);
-      if (runErr) {
-        console.error('running-state update failed:', runErr.message);
-        return json({ error: 'store_failed' }, 500);
-      }
+    // #39: persist the page-1 DB-clock watermark server-side (per kind) so the final-page sweep uses THIS
+    // value, never the client's echo — a forged +future echo could otherwise delete the freshly-upserted
+    // rows. Collection ALSO flips import_status='running' (the boot gate); a stray 'running' from the
+    // background wantlist pass would trigger a spurious backgroundHeal on reload, so only collection sets it.
+    const p1Update: Record<string, unknown> = { [KIND.wmCol]: startedAt };
+    if (kind === 'collection') p1Update.import_status = 'running';
+    const { error: runErr } = await admin.from('profiles')
+      .update(p1Update).eq('user_id', userId);
+    if (runErr) {
+      console.error('page-1 watermark/state update failed:', runErr.message);
+      return json({ error: 'store_failed' }, 500);
     }
   } else {
     const s = typeof body.started_at === 'string' ? Date.parse(body.started_at) : NaN;
@@ -289,9 +297,24 @@ async function handle(req: Request): Promise<Response> {
   //    enrich-release owns it, so an interrupted enrichment resumes on next load. ──
   const done = page >= pages;
   if (done) {
-    const { error: sweepErr } = await admin.from(KIND.table)
-      .delete().eq('user_id', userId).lt('updated_at', startedAt);
-    if (sweepErr) console.error(KIND.table + ' stale sweep failed:', sweepErr.message);
+    // #39: sweep against the AUTHORITATIVE page-1 watermark — in-memory when page 1 IS the final page,
+    // else the value page 1 persisted (NEVER the client echo, which a caller could forge into the future
+    // to wipe its own fresh rows). If it's missing, SKIP the sweep (stale rows are safe and self-heal on
+    // the next full import) rather than delete against a bad bound.
+    let sweepWm: string | null = startedAt;
+    if (page > 1) {
+      const { data: wmRow, error: wmErr } = await admin.from('profiles')
+        .select(KIND.wmCol).eq('user_id', userId).maybeSingle();
+      if (wmErr) console.error('watermark read failed:', wmErr.message);
+      sweepWm = wmRow ? ((wmRow as Record<string, unknown>)[KIND.wmCol] as string | null) : null;
+    }
+    if (!sweepWm) {
+      console.error(KIND.table + ' stale sweep skipped: no page-1 watermark');
+    } else {
+      const { error: sweepErr } = await admin.from(KIND.table)
+        .delete().eq('user_id', userId).lt('updated_at', sweepWm);
+      if (sweepErr) console.error(KIND.table + ' stale sweep failed:', sweepErr.message);
+    }
     if (kind === 'collection') {   // collection owns import_status; wantlist sweeps on the watermark only
       const { error: idleErr } = await admin.from('profiles')
         .update({ import_status: 'idle' }).eq('user_id', userId);

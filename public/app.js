@@ -1223,6 +1223,11 @@ async function bootCrate(){
   state.detailId = null;   // #44/#37: never inherit a stale open modal across a (re)boot
   { const _a = document.getElementById('app'); if (_a){ _a.inert = false; _a.removeAttribute('aria-hidden'); } }
   { const _m = document.getElementById('tw-modal-root'); if (_m) _m.innerHTML = ''; }
+  // #48: abandon any un-committed deferred removal on (re)boot WITHOUT firing its Discogs DELETE. A re-boot
+  // (Clerk auth-state change) inside the ~6s grace window would otherwise let the armed timer fire later
+  // against a possibly-different provider/context. clearTimeout + null cancels it silently; the fresh
+  // WANTLIST_RECORDS reload below reflects Discogs truth, so the un-sent delete simply never happens.
+  if (_pendingRemove) { clearTimeout(_pendingRemove.timer); _pendingRemove = null; }
   // Wave 2: restore the active tab from the URL hash (#wantlist etc.) so a reload lands on the tab you were
   // on, not always THE CRATE. Only tabs valid for THIS crate are honored (wantlist is own+DB only); anything
   // else falls back to 'crate'. Set before the render below so the right grid paints on the first frame.
