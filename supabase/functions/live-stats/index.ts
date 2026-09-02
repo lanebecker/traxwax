@@ -115,8 +115,9 @@ async function handle(req: Request): Promise<Response> {
   // private.can_view_crate, so this endpoint never duplicates or pattern-matches (audit #12-A).
   // NOTE: price/community stats here are GLOBAL per-release data, so this suppression is
   // best-effort UX for the friend-view context, NOT a confidentiality boundary — that boundary is
-  // the collection_items RLS (which release IDs are in whose crate), enforced by
-  // private.can_view_crate (0013). A client omitting `owner` gets the (global) price, as it does
+  // which release IDs are in whose crate, enforced by private.can_view_crate (0013) via the
+  // get_friend_crate projection RPC (#42; the table-wide collection_items friend RLS policy was dropped).
+  // A client omitting `owner` gets the (global) price, as it does
   // for its own crate today; the friend-crate UI never renders a number (priceCellHtml).
   let suppressPrice = false;
   if (kind === 'release' && owner) {

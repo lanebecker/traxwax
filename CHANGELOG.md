@@ -13,6 +13,30 @@ _Nothing yet._
 
 ---
 
+## [1.9.2] — 2026-09-02
+
+Friend-visibility **#42** — friend-crate read projection (backend + frontend; migration `0021` via
+break-glass).
+
+### Fixed
+- **A consented friend can no longer read the owner's `folder` or `instance_id` (#42).** The friend crate
+  read moved from a table-wide `collection_select_friends` RLS SELECT (every column readable) to a SECURITY
+  DEFINER projection RPC `get_friend_crate`, gated on `private.can_view_crate`, returning only the display
+  columns + `rating` (**ratings stay visible to friends, by design**). `folder` and `instance_id` are never
+  emitted, and the internal `collection_items.id` surrogate is stripped from the payload too. The table-wide
+  friend policy is **dropped**, so `collection_items` is no longer friend-readable at the table level —
+  `get_friend_crate` is the sole friend crate path. `boot.js` reads via the RPC (one ordered array, no
+  pagination); no visible change to the grid.
+
+### Notes
+- Adversarial audit: Pass-1 caught the RPC emitting the internal `collection_items.id` (a *different*
+  internal id) into the friend payload → fixed (`to_jsonb(t) - 'ord'`); Pass-2 over the fix verified
+  byte-for-byte serialization parity with the prior shape → converged.
+- **#43** (wantlist-only visitor + locked crate tab) and **#47** (friend-crate header) are the next bundle,
+  built with the friend-crate-view design pass.
+
+---
+
 ## [1.9.1] — 2026-09-01
 
 Cold audit remediation — **Wave 4: performance + modal a11y (#44, #37 modal-inert).** Frontend only
