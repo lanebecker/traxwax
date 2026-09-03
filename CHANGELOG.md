@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.15.1] — 2026-09-03
+
+Sharing on by default (migration 0026, applied via break-glass).
+
+### Changed
+- **New users now default to friends-visible**, not private: `profiles.crate_visibility` and
+  `wantlist_visibility` column defaults flipped `'private'` → `'friends'`. New profiles pick this up
+  automatically (`ensureProfile`'s upsert omits these columns, so the column default applies on insert) —
+  no frontend change.
+- **Existing users opened up:** a one-time backfill set every existing profile (the 4-user alpha) to
+  friends-visible on both crate and wantlist. Verified: 4/4 at friends/friends, 0 still private. (On a fresh
+  `db reset` the backfill touches 0 rows — no-op — so the migration is safe to keep in the tree.)
+
+---
+
 ## [1.15.0] — 2026-09-03
 
 Account page restructure (design kit: `traxwax-account-page-redesign`): the sharing/matching settings split
