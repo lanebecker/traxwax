@@ -13,6 +13,65 @@ _Nothing yet._
 
 ---
 
+## [1.14.0] — 2026-09-03
+
+End-of-phase **cold audit** over the entire codebase (all waves) + an adversarial documentation review.
+Four independent cold-audit agents (frontend renderer / auth+providers+account UI / backend / config+ops)
+plus a documentation pass; findings argued down, survivors fixed here or filed. Result: **zero critical or
+major code defects** — the app is healthy. This release ships the surviving fixes.
+
+### Security
+- **`wantlist_items` write lockdown (#54, migration 0025).** The table was directly client-writable via
+  PostgREST (0017 mirrored the pre-hardening collection_items posture), letting a user desync their Discogs
+  mirror and inflate the match counts friends see. Dropped `wantlist_write_own` + revoked INSERT/UPDATE/DELETE
+  from anon/authenticated — now SELECT-only, matching collection_items (0006). All wantlist writes go through
+  the service-role `wantlist-write` Edge function. Bounded to own data; no cross-user exposure existed.
+- **Revoked inert DML grants (defense-in-depth, 0025):** `friendships` I/U/D, `friend_invites` I/U (kept
+  DELETE — it has a client policy), `profiles` DELETE. These relied only on RLS-policy *absence* to deny; a
+  future broad policy would have silently opened them. Friendship mutations already flow through SECURITY
+  DEFINER RPCs.
+- **`profiles_guard` search_path pinned** (0025) — the one function missing the pin.
+
+### Fixed
+- **Friend crate want-control (#53, any mode):** a record you want *exactly* but also own a different pressing
+  of showed the "ON YOUR WANTLIST" badge with no ✕ REMOVE. Reordered `metaCellHtml` so exact-want wins before
+  the own-suppression; the card control now agrees with the badge in every state. (Modal unchanged — it keeps
+  ＋ ADD for own-a-pressing by design.)
+- **Latent full-grid crash guard:** `deco()` now reads `(r.styles||[])[0]` so a record missing `styles` can't
+  throw and blank the whole grid.
+- **Connect-error URL hygiene:** an unmapped finalize error is bucketed to a known status before it reaches
+  `/app?connect=`, so no raw error string is reflected into the address bar/history (it was never rendered, so
+  not XSS — just hygiene, mirroring the analytics path).
+
+### Performance
+- **RLS `auth_rls_initplan` (0025):** all 9 `auth.jwt()`-using policies rewritten to the `(select auth.jwt())`
+  form so the JWT is evaluated once per query instead of once per row — measurable on a ~1,861-row own-crate
+  scan. Advisor lint cleared. Semantically identical (verified: same sub vs same column, no row-visibility
+  change).
+
+### Docs
+- Swept every doc against the shipped code: both `CLAUDE.md` files, `DEPLOY.md`, `README.md`, and both roadmaps
+  were stale on migration count (said 0001–0010/0015 → now 0001–0025), function count (8 → 9, `wantlist-write`
+  was missing), table count (8 → 9), and version (v1.2–v1.4.5 → v1.14.0). Corrected the operator-misleading
+  `DEPLOY.md` "there is no CSP" (it's enforced since v1.13.0) and README's "crates are private only" (sharing
+  shipped). Stamped five executed plan docs EXECUTED. Reconciled the "dev Clerk backs the preview" claim
+  everywhere — the shell hardcodes the prod `pk_live_` key, so the preview runs prod Clerk. Deleted the dead
+  `build/build_collection.py` (referenced a retired file).
+
+### Filed (not fixed here)
+- #50 (a11y: remove-from-modal escapes the focus trap), #51 (friend-wantlist first-open empty-state flash),
+  #52 (Edge functions fail-open to the dev CLERK_ISSUER default if the env var is unset).
+
+### Note
+- Migration 0025 was applied to production as two ledger entries (`close_audit_hardening` then
+  `close_audit_initplan_canonical` — the initplan rewrite needed the canonical `(select auth.jwt()) ->> 'sub'`
+  form to clear the advisor). The committed `0025_close_audit_hardening.sql` holds the final form, so a fresh
+  `db reset` reproduces the end state in one step (same convention as 0021's strip-ord fold).
+
+Closes #53, #54.
+
+---
+
 ## [1.13.0] — 2026-09-03
 
 Optional **any-pressing matching** (#28, Design "Wave B"): a per-viewer switch to count a match on the *album*

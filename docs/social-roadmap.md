@@ -13,7 +13,11 @@ that keep documentation and hygiene current. This is a SEQUENCING document — e
 still gets its own implementation plan at the junior-engineer bar, twice audited, before a
 line of its code executes. Nothing here overrides that.
 
-Current shipped version: **v1.4.0** — **Wave 1 SHIPPED (2026-08-30)**: friends, consented crates,
+Current shipped version: **v1.14.0**. SHIPPED SINCE: Wave 1 (friends & consented crates, v1.4.0); the
+wantlist + match-matrix wave (v1.5.0) and THE OVERLAP (v1.6.0); the friend-crate visibility/header/card
+work (v1.10.0–v1.12.0); optional any-pressing matching (#28, v1.13.0). The §4/§5/§6 wave targets below are
+historical — treat any `→ vX.Y` as its shipped version; `CHANGELOG.md` is authoritative. Original Wave 1
+note — **Wave 1 SHIPPED (2026-08-30)**: friends, consented crates,
 invite links, read-only friend views with server-side price suppression (see §4 + `docs/wave-1-plan.md`,
 twice-audited; DB adversarially audited, one advisor leak caught + fixed in 0013). **Wave 0 is
 complete** — see the status tags in §3; its only open threads are non-blocking (the W0.2b letter is

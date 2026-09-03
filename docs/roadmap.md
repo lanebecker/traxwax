@@ -5,7 +5,10 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.4.5`** — live at [traxwax.com](https://traxwax.com).
+**Current version: `1.14.0`** — live at [traxwax.com](https://traxwax.com). The per-release detail below
+stops at v1.4.5; for v1.5.0 onward (wantlists + match matrix, THE OVERLAP, the cold-audit waves, the
+friends/social wave, any-pressing #28, CSP enforce #38, the end-of-phase cold audit) see `CHANGELOG.md`,
+which is the authoritative release-by-release record.
 
 ---
 

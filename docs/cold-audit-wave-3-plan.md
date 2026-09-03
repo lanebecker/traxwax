@@ -1,6 +1,6 @@
 # Cold audit — Wave 3 plan (backend & DB integrity)
 
-Status: DRAFT — verified (verification-pass 2026-08-31). Needs **break-glass** (one migration apply; no
+Status: EXECUTED — shipped as v1.9.0 (migration 0020, 2026-09-01). Historical plan record. (Was: DRAFT — verified (verification-pass 2026-08-31). Needs **break-glass** — one migration apply; no
 Edge redeploy). Target version **v1.9.0**.
 
 ## Scope

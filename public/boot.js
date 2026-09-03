@@ -1005,7 +1005,11 @@ async function render() {
           window.location.replace('/app');
           return;
         }
-        window.location.replace('/app?connect=' + encodeURIComponent(failStatus));
+        // Close-audit fix: only a KNOWN connect-status key reaches the URL/history — an unmapped server
+        // error (e.g. "Failed to fetch") is bucketed to store_failed, mirroring the analytics path, so no
+        // raw error string is ever reflected into the address bar.
+        const urlStatus = (UI.COPY.connectErrors && UI.COPY.connectErrors[failStatus]) ? failStatus : 'store_failed';
+        window.location.replace('/app?connect=' + encodeURIComponent(urlStatus));
         return;
       }
       // Arrived on ?connect=verify with no stored code (history revisit, cleared

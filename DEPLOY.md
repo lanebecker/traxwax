@@ -54,9 +54,13 @@ Rotation touches both plus the other consumers — see `../DISCOGS-CREDENTIALS.m
 
 **Analytics (Umami Cloud, since v1.4.7).** Cookieless, no-PII, no consent banner — a `<script>`
 tag in both entry-point heads (`public/index.html`, `public/app/index.html`). No server, no
-Supabase involvement, nothing in the CSP path (there is no CSP). The `data-website-id` is **not
-a secret** (it's public in the HTML) — it lives in the repo, one value in both files; to rotate
-or set it, replace `REPLACE_WITH_UMAMI_WEBSITE_ID` in both and push. Config choices, all
+Supabase involvement. **The CSP is ENFORCED (since v1.13.0, #38)** — `public/_headers` allowlists
+Umami's script origin (`cloud.umami.is`) AND its event endpoint (`gateway.umami.is`), so adding ANY
+new analytics/third-party origin now requires a `_headers` CSP edit or it is silently blocked; the
+report-only→enforced flip + the rollback lever (rename the header back to
+`Content-Security-Policy-Report-Only`) are documented in `_headers` itself. The `data-website-id` is
+**not a secret** (it's public in the HTML, currently a real id) — one value in both files; to rotate
+it, replace it in both and push. Config choices, all
 one-liners: `data-domains="traxwax.com"` (preview/localhost don't report), `data-do-not-track`
 (honors the browser DNT signal — drop it for fuller numbers), and a `data-before-send` guard
 (`twUmamiBeforeSend`) that masks the `/app/<username>` path segment so no Discogs handle leaves
@@ -69,7 +73,7 @@ events (v1.4.8): activation funnel `connect_started`/`connect_completed`/`connec
 
 ## Surface 2 — Supabase Edge Functions
 
-Project `sfipqknrbvamwwahwxnl` (`https://sfipqknrbvamwwahwxnl.supabase.co`). **Eight
+Project `sfipqknrbvamwwahwxnl` (`https://sfipqknrbvamwwahwxnl.supabase.co`). **Nine
 functions**, all `verify_jwt: false` with in-handler `jose.jwtVerify` against Clerk's JWKS
 (the platform gate cannot validate Clerk RS256 — Stage B finding C1):
 
@@ -80,9 +84,10 @@ functions**, all `verify_jwt: false` with in-handler `jose.jwtVerify` against Cl
 | `finalize-connect` | Completes a pending link: code hash + verified Clerk sub (closes the link-CSRF) |
 | `disconnect-discogs` | Unlink: credential + imported items deleted, profile reset |
 | `delete-account` | Purge all TraxWax data (never the Clerk identity); server re-checks the typed `DELETE` |
-| `import-collection` | One collection page per invocation; seeds the catalog via the `seed_releases` merge RPC (v1.2.0) |
-| `enrich-release` | Budgeted CC0 enrichment + refresh drain (7d tombstone retry, 180d TTL) |
-| `live-stats` | Restricted data, live under the caller's token, ≤6h in-instance cache |
+| `import-collection` | One page (collection OR wantlist) per invocation; seeds the catalog via `seed_releases` (v1.2.0); captures `master_id` (0024) |
+| `enrich-release` | Budgeted CC0 enrichment + refresh drain (7d tombstone retry, 180d TTL); captures `master_id` (0024) |
+| `live-stats` | Restricted data, live under the caller's token, ≤6h in-instance cache; price suppressed on friend crates |
+| `wantlist-write` | Add/remove on the caller's OWN wantlist under their Discogs token, then mirror the row (the only client wantlist writer — direct table DML is locked down, 0025) |
 
 **Secrets** (Supabase → Edge Functions → Secrets): `DISCOGS_CONSUMER_KEY`,
 `DISCOGS_CONSUMER_SECRET` (the `TraxWax` Discogs app), `DISCOGS_TOKEN_ENC_KEY` (32-byte
@@ -99,8 +104,9 @@ verification runs).
 
 ## Surface 3 — Database
 
-Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids). Migrations `0001`–`0010`
-applied; the migration map lives in `CLAUDE.md`. Apply via the MCP `apply_migration` (or
+Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids; RLS policies use the
+`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0025` applied; the migration
+map lives in `CLAUDE.md`. Apply via the MCP `apply_migration` (or
 `supabase db push`), verify with the checks each migration's plan documents, then commit the
 file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
 `unlink_discogs_account`, `delete_account`, `pending_enrichment`, `seed_releases`, `db_now`)
@@ -111,8 +117,11 @@ are SECURITY DEFINER and granted to `service_role` only.
 Production Clerk instance, registered under Supabase Third-Party Auth (native integration —
 never the deprecated JWT-template method). The session token **must** carry
 `"role": "authenticated"` — its absence files every request as `anon` and breaks profile
-writes (launch-day incident 2, 2026-08-29). The dev instance
-(`brave-buffalo-7127.clerk.accounts.dev`) still backs the pages.dev preview.
+writes (launch-day incident 2, 2026-08-29). NOTE: `public/app/index.html` hardcodes the **production**
+`pk_live_…` publishable key + `clerk.traxwax.com` with no dev/preview swap, so the pages.dev preview
+runs the **production** Clerk instance too. The dev instance (`brave-buffalo-7127.clerk.accounts.dev`)
+survives only as the Edge functions' in-code `CLERK_ISSUER` *default* (the prod env var overrides it;
+consider failing closed if that env var is ever unset — see close-audit finding).
 
 ## Local testing
 
