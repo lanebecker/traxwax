@@ -13,6 +13,41 @@ _Nothing yet._
 
 ---
 
+## [1.10.0] — 2026-09-02
+
+Friend-crate **header redesign (#47)** — the header shown while viewing someone else's crate (design kit:
+`traxwax-friend-header-redesign`). Frontend only.
+
+### Added
+- **The black context strip is now a match sentence.** Instead of "Viewing X's crate," a friend's crate
+  reads *"{OWNER} HAS {n} ALBUMS YOU WANT, AND YOU HAVE {n} ALBUMS THEY WANT."* — the two counts are links:
+  the first filters their crate to the records **you want that they have**, the second opens their wantlist
+  filtered to the records **they want that you have**. A removable **MATCH** chip (in the active-filter row)
+  clears the filter; so does any tab switch.
+- **THE WANTLIST tab on a friend's crate** — shows their wantlist and is the match sentence's second
+  destination (backed by a new friend wantlist read under the existing `wantlist_select_friends` RLS). Each
+  row carries the viewer's OWN `+ WANT` / `✕ REMOVE` toggle (add their wanted records to *your* wantlist;
+  records you already own show no control) — it writes only your list, never theirs.
+- **Owner-identity block in the red band** — avatar (or a person glyph), *"{Name}'s Crate,"* and
+  *"@handle · COLLECTING SINCE {year}."*
+
+### Changed
+- The friend-crate stat pill drops the two match cells (now the sentence) and keeps `IN CRATE · COLORED ·
+  +n THIS MONTH`; `EST.` stays owner-only. The owner header is unchanged.
+
+### Fixed
+- **A friend's wantlist never edits the friend's list.** Caught in the pre-ship adversarial audit: widening
+  THE WANTLIST tab to friends had exposed the *own-wantlist* `✕ REMOVE` (which DELETES from your list) on a
+  friend's wantlist. That destructive control is now owner-gated; on a friend's wantlist you get only the
+  non-destructive viewer's-own add/remove toggle above.
+
+### Notes
+- The WANTLIST tab shows empty when the owner shared their crate but not their wantlist; the locked/private
+  treatment for that is tracked in **#43** (commented). A `null` (unknown) match count renders as "NO ALBUMS"
+  — spec-faithful, revisited with #43.
+
+---
+
 ## [1.9.3] — 2026-09-02
 
 Two deferred cold-audit low-sevs: **#39** (import future-skew self-wipe) + **#48** (stray Discogs delete

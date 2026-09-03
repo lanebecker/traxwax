@@ -175,6 +175,7 @@ function recordById(id){
 const state = {
   theme:'light', view:'crate', query:'', genres:[], coloredOnly:false,
   artist:null, color:null, sort:'added', dir:-1, detailId:null, headerValue:null,
+  matchFilter:null,   // #47: null | 'youWant' (crate ∩ viewerWants) | 'theyWant' (wantlist ∩ viewerHas)
 };
 let _searchDebounce = null;   // issue #5: pending debounced render, if any
 
@@ -204,6 +205,15 @@ function setTheme(t, persist=true){
 }
 
 /* ── Derivations (mirror the kit's matches/sorted/deco) ─────────────────────── */
+// #47: friend-crate match sentence pieces (spec §3). `n` is a match count from __twMatchCounts.
+function _matchAlbums(n){ return n === 1 ? 'ONE ALBUM' : (n === 0 ? 'NO ALBUMS' : n + ' ALBUMS'); }
+function _matchPart(n, tail, act){   // tail: 'YOU WANT' | 'THEY WANT'
+  const label = _matchAlbums(n) + ' ' + tail;
+  const link = "color:#fff; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,.5)";
+  return n > 0
+    ? `<a href="#" data-act="${act}" style="${link}">${label}</a>`
+    : `<span style="color:#fff">${label}</span>`;   // zero side: white, no link
+}
 function matches(r){
   const s=state;
   // Wave 2 B1: the wantlist has no vinyl variant (every row vinyl:''), so the colored/color facets are
@@ -216,6 +226,13 @@ function matches(r){
     const q=s.query.toLowerCase();
     const hay=(r.artist+' '+r.title+' '+r.label+' '+(r.styles||[]).join(' ')+' '+r.vinyl).toLowerCase();
     if(!hay.includes(q)) return false;
+  }
+  // #47: match filter (friend crate only) — the two match-sentence links narrow to the overlap sets.
+  if(s.matchFilter){
+    const ctx=window.__twMatchCtx;
+    if(!ctx) return false;   // sets not loaded yet → show nothing rather than the whole shelf under a match chip
+    if(s.matchFilter==='youWant'){ if(!(ctx.viewerWants && ctx.viewerWants.has(r.id))) return false; }
+    else if(s.matchFilter==='theyWant'){ if(!(ctx.viewerHas && ctx.viewerHas.has(r.id))) return false; }
   }
   return true;
 }
@@ -287,9 +304,12 @@ const WANT_BTN_STYLE_MODAL = "-webkit-appearance:none; appearance:none; margin:0
   "border:1.5px solid var(--line); background:var(--panel); color:var(--ink); text-align:center; cursor:pointer";
 function wantControlHtml(r, inModal){
   const st = inModal ? WANT_BTN_STYLE_MODAL : WANT_BTN_STYLE;
-  if (state.view==='wantlist'){
+  if (IS_OWN() && state.view==='wantlist'){   // own wantlist: the destructive ✕REMOVE (delete FROM your own wantlist)
     return `<button data-act="wantRemove" data-arg="${r.id}" style="${st}">✕ REMOVE FROM WANTLIST</button>`;
   }
+  // #47 follow-up: the !IS_OWN branch now serves the friend CRATE and the friend WANTLIST alike — the
+  // VIEWER's OWN +WANT/✕REMOVE toggle (data-act="want" → friendAdd/friendRemove; never edits the friend's
+  // list). Owned (a "they want, you have" match on the wantlist) → no control.
   const ctx = window.__twMatchCtx;
   if (!IS_OWN() && ctx){
     if (ctx.viewerHas && ctx.viewerHas.has(r.id)) return '';   // you own this release — no want action
@@ -304,8 +324,17 @@ function wantControlHtml(r, inModal){
    the ON YOUR WANTLIST cover strip via badgesFor). THE WANTLIST tab: the ✕REMOVE control. The Discogs link
    is retired from the card face — it lives on the detail modal now (VIEW ON DISCOGS ↗). */
 function metaCellHtml(r){
-  if (state.view==='wantlist')
-    return `<button data-act="wantRemove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
+  if (state.view==='wantlist'){
+    if (IS_OWN())   // own wantlist: the destructive ✕REMOVE (delete FROM your own wantlist)
+      return `<button data-act="wantRemove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
+    // #47 follow-up: a friend's wantlist offers the VIEWER's OWN +WANT/✕REMOVE toggle (data-act="want" →
+    // friendAdd/friendRemove; never touches the friend's list). Owned (a "they want, you have" match) → no control.
+    const ctx = window.__twMatchCtx;
+    if (ctx && ctx.viewerHas && ctx.viewerHas.has(r.id)) return '';
+    return (ctx && ctx.viewerWants && ctx.viewerWants.has(r.id))
+      ? `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`
+      : `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;
+  }
   if (IS_OWN())
     return SETTINGS.showPrices
       ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`
@@ -470,6 +499,8 @@ function computeVals(){
   if(s.artist) active.push({kind:'ARTIST',value:s.artist});
   if(s.color && s.view!=='wantlist') active.push({kind:'COLOR',value:s.color});               // #27: ditto for the color facet
   if(s.query) active.push({kind:'SEARCH',value:s.query});
+  if(s.matchFilter==='youWant') active.push({kind:'MATCH',value:'YOU WANT · THEY HAVE'});
+  else if(s.matchFilter==='theyWant') active.push({kind:'MATCH',value:'THEY WANT · YOU HAVE'});
 
   const groups={};
   filtered.forEach(r=>{const k=(r.added||'').slice(0,7); (groups[k]=groups[k]||[]).push(r);});
@@ -617,23 +648,41 @@ function render(){
   const html=`
   <div style="position:relative; max-width:1480px; margin:0 auto; background:var(--panel); border:1px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">
 
-    ${!IS_OWN()?`<div class="tw-friend-strip" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 24px; background:#16171a; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase">
-      <span>Viewing ${esc((window.TraxWaxOwner&&(window.TraxWaxOwner.displayName||window.TraxWaxOwner.ownerUsername))||'a friend')}’s crate</span>
+    ${!IS_OWN()?(()=>{
+      const o=window.TraxWaxOwner||{}; const mc=window.__twMatchCounts||{};
+      const owner=(o.displayName||o.ownerUsername||'A friend');
+      const sentence =
+        `<span style="color:#fff">${esc(owner.toUpperCase())}</span> HAS ` +
+        _matchPart(mc.you_want_they_have|0, 'YOU WANT', 'matchYouWant') +
+        ', AND YOU HAVE ' +
+        _matchPart(mc.they_want_you_have|0, 'THEY WANT', 'matchTheyWant') + '.';
+      return `<div class="tw-friend-strip" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 24px; background:#16171a; color:rgba(255,255,255,.62); font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase">
+      <span>${sentence}</span>
       <a href="/app" style="color:#fff; text-decoration:underline; white-space:nowrap">← Back to your crate</a>
-    </div>`:''}
+    </div>`;})():''}
 
     <header class="tw-header" style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:22px 24px 18px; background:var(--accent); border-bottom:3px solid var(--line)">
       <div class="tw-headL" style="display:flex; align-items:flex-end; gap:14px">
         <span style="background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</span>
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.92); padding-bottom:6px">${esc(SETTINGS.ownerLine + (IS_OWN() ? ' · filed by ' + FILED_BY_WORD : ''))}</span>
+        ${IS_OWN()
+          ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.92); padding-bottom:6px">${esc(SETTINGS.ownerLine + ' · filed by ' + FILED_BY_WORD)}</span>`
+          : (()=>{ const o=window.TraxWaxOwner||{}; const av=o.avatarUrl||'';
+              const glyph='<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"/><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"/></svg>';
+              const name=(o.displayName||o.ownerUsername||'A friend');
+              const since=o.collectingSince ? (' · COLLECTING SINCE ' + esc(String(o.collectingSince))) : '';
+              return `<div style="display:flex; align-items:center; gap:12px; padding-bottom:2px">
+                <span style="width:46px; height:46px; flex:none; border:1.5px solid #16171a; border-radius:50%; overflow:hidden; background:#fff; display:inline-flex; align-items:center; justify-content:center">${av?`<img src="${esc(av)}" alt="" style="width:100%; height:100%; object-fit:cover; display:block">`:glyph}</span>
+                <span style="display:flex; flex-direction:column; gap:3px">
+                  <span style="font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:700; line-height:1; color:#fff">${esc(name)}’s Crate</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.85)">@${esc(o.ownerUsername||'')}${since}</span>
+                </span>
+              </div>`;})()}
       </div>
       <div class="tw-headR" style="display:flex; align-items:center; gap:10px">
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
           <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} ${s.view==='wantlist'?'ON WANTLIST':'IN CRATE'}</span>
           ${s.view!=='wantlist'?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount} COLORED</span>`:''}
           ${(IS_OWN() && s.view!=='wantlist')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
-          ${(!IS_OWN() && window.__twMatchCounts && window.__twMatchCounts.you_want_they_have != null)?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">YOU WANT ${window.__twMatchCounts.you_want_they_have} THEY HAVE</span>`:''}
-          ${(!IS_OWN() && window.__twMatchCounts && window.__twMatchCounts.they_want_you_have != null)?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">THEY WANT ${window.__twMatchCounts.they_want_you_have} YOU HAVE</span>`:''}
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
@@ -659,7 +708,7 @@ function render(){
     </div>
 
     <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
-      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${(IS_OWN() && DB_MODE())?tab('wantlist','THE WANTLIST'):''}
+      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
         <span role="status" aria-live="polite" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
@@ -1128,6 +1177,7 @@ function _dismissToast(){ const el=document.getElementById('tw-toast'); if(el) e
 /* ── Events (delegation) ───────────────────────────────────────────────────── */
 function onClick(e){
   const t=e.target.closest('[data-act]'); if(!t) return;
+  if(t.tagName==='A') e.preventDefault();   // #47: in-app <a data-act> links (match sentence) never navigate
   // Remediation-audit F2: a pending debounced search render is superseded by whatever
   // this click renders (state.query is already current); letting the stale timer fire
   // would rebuild the app a second time for nothing.
@@ -1139,6 +1189,7 @@ function onClick(e){
     case 'account': if(window.TraxWaxAccount) window.TraxWaxAccount(); break;
     case 'view':
       state.view=arg;
+      state.matchFilter=null;   // #47: a manual tab switch is a fresh context; the match filter is set only by the match links
       // Wave 2: reflect the active tab in the URL hash so a reload lands back here (crate = no hash).
       // replaceState, not pushState — flipping tabs shouldn't pile up browser-history entries.
       try { history.replaceState(null, '', location.pathname + location.search + (arg==='crate' ? '' : '#'+arg)); } catch(e){}
@@ -1163,8 +1214,21 @@ function onClick(e){
     case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; renderModal(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
-    case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; render(); break;
+    case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; state.matchFilter=null; render(); break;
     case 'closeDetail': state.detailId=null; renderModal(); break;
+    case 'matchYouWant':   // #47: their crate, narrowed to records you want that they have
+      state.view='crate'; state.matchFilter='youWant'; track('match_filter', { dir: 'youWant' });
+      try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+      render(); break;
+    case 'matchTheyWant':  // #47: their wantlist, narrowed to records they want that you have
+      state.view='wantlist'; state.matchFilter='theyWant'; track('match_filter', { dir: 'theyWant' });
+      try { history.replaceState(null, '', location.pathname + location.search + '#wantlist'); } catch(e){}
+      if (WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {   // lazy-load the friend wantlist, as case 'view' does
+        WANTLIST_RECORDS=[];
+        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; render(); })
+          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; });
+      }
+      render(); break;
     case 'want': (t.dataset.want==='remove' ? friendRemove : friendAdd)(Number(arg)); break;
     case 'wantRemove': removeWant(Number(arg)); break;
     case 'stop': e.stopPropagation(); break;
@@ -1176,6 +1240,7 @@ function removeFacet(kind, val){
   else if(kind==='ARTIST') state.artist=null;
   else if(kind==='COLOR') state.color=null;
   else if(kind==='SEARCH') state.query='';
+  else if(kind==='MATCH') state.matchFilter=null;   // #47
 }
 function onInput(e){
   if(e.target.id==='tw-search'){
@@ -1220,6 +1285,7 @@ const DB_MODE = () => !!window.TraxWaxData;
 
 async function bootCrate(){
   WANTLIST_RECORDS=null;   // Wave 2 B1: fresh dataset per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
+  state.matchFilter=null;  // #47: match filter is per-crate context — never inherit it across a (re)boot
   state.detailId = null;   // #44/#37: never inherit a stale open modal across a (re)boot
   { const _a = document.getElementById('app'); if (_a){ _a.inert = false; _a.removeAttribute('aria-hidden'); } }
   { const _m = document.getElementById('tw-modal-root'); if (_m) _m.innerHTML = ''; }
@@ -1232,7 +1298,7 @@ async function bootCrate(){
   // on, not always THE CRATE. Only tabs valid for THIS crate are honored (wantlist is own+DB only); anything
   // else falls back to 'crate'. Set before the render below so the right grid paints on the first frame.
   const _validTabs = new Set(['crate','timeline','ledger']);
-  if (IS_OWN() && DB_MODE()) _validTabs.add('wantlist');
+  if (DB_MODE()) _validTabs.add('wantlist');   // #47: friend crates get THE WANTLIST too
   let _bootView = 'crate';
   try { const h = (location.hash||'').replace(/^#/,''); if (_validTabs.has(h)) _bootView = h; } catch(e){}
   state.view = _bootView;

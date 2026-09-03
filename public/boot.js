@@ -341,6 +341,7 @@ function installFriendCrateProviders(owner) {
     avatarUrl: owner.avatar_url || '',
     isOwn: false,
     ownerUsername: owner.discogs_username,
+    collectingSince: owner.collecting_since || null,   // #47 header sub-line ("COLLECTING SINCE {year}")
   };
 
   // #42: friend crate read goes through the get_friend_crate projection RPC (keeps rating, omits the
@@ -357,6 +358,35 @@ function installFriendCrateProviders(owner) {
       added: it.added || '', rating: it.rating || 0,
       price: null, crating: null, crcount: null, have: null, want: null,
     }));
+  };
+
+  // #47: THE WANTLIST tab on a friend's crate reads THEIR wantlist (read-only), under the
+  // wantlist_select_friends RLS gate (can_view_wantlist). Returns [] if the owner hasn't shared it.
+  window.TraxWaxWantlistData = async () => {
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('wantlist_items')
+        .select('release_id, added, ' +
+          'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
+        .eq('user_id', owner.user_id)
+        .order('id', { ascending: true })
+        .range(from, from + 999);
+      if (error) throw new Error('friend wantlist query failed: ' + error.message);
+      for (const it of data ?? []) {
+        const rel = it.releases || {};
+        rows.push({
+          id: it.release_id,
+          artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
+          label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
+          vinyl: '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
+          added: it.added || '', rating: 0,
+          price: null, crating: null, crcount: null, have: null, want: null,
+        });
+      }
+      if (!data || data.length < 1000) break;
+    }
+    return rows;
   };
 
   // Wave 2 B1: the VIEWER's own wants + haves as id Sets — the badges match these against the friend's
