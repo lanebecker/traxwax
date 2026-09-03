@@ -206,6 +206,7 @@ const THIS_MONTH = _tmNow.getFullYear() + '-' + String(_tmNow.getMonth() + 1).pa
 /* ── State ─────────────────────────────────────────────────────────────────── */
 let RECORDS = [];
 let WANTLIST_RECORDS = null;   // Wave 2 B1: null = not loaded/failed; [] = loaded-empty. Lazy-loaded on THE WANTLIST tab.
+let _wlLoading = false;   // #51: true while TraxWaxWantlistData() is in flight. The load paths flip WANTLIST_RECORDS to [] to arm the reload-guard BEFORE the rows return, so [] alone can't distinguish "loading" from "loaded-empty" — this does.
 let _removedThisSession = false;   // wantlist-remove redesign: set the moment you remove anything this session (optimistically, not on Discogs commit), so an emptied wantlist shows the "cleared" empty state instead of the "genuinely empty" one. Resets on reload.
 // Wave 2 B1: resolve a record by id from whichever dataset the current view renders — the WANTLIST tab
 // draws from WANTLIST_RECORDS, so the detail modal must look there too (else a wantlist card is a dead click).
@@ -792,7 +793,11 @@ function render(){
     // that excluded everything. The old code showed "0 RESULTS · CLEAR THE FILTERS" to a
     // brand-new user with no filters set — advice that couldn't help.
     if(v.all.length===0){
-      content=emptyCrateHtml();
+      // #51: while the wantlist dataset is still loading (WANTLIST_RECORDS flipped to [] to arm the reload-guard,
+      // rows not back yet), show a neutral LOADING line — NOT emptyCrateHtml's "isn't hunting anything" flash.
+      content = (_wlLoading && state.view==='wantlist')
+        ? `<div style="display:flex; justify-content:center; padding:90px 24px 96px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; color:var(--muted)">LOADING…</span></div>`
+        : emptyCrateHtml();
     } else {
       content=`<div style="display:flex; flex-direction:column; align-items:center; gap:12px; padding:90px 24px 96px; text-align:center">
       <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.18em; color:var(--muted)">0 RESULTS</span>
@@ -1304,9 +1309,13 @@ function showRemoveSnackbar(rec){
   dismiss.textContent='✕'; dismiss.addEventListener('click', _commitPendingRemove);
   bar.append(eyebrow, title, undo, dismiss);
   document.body.appendChild(bar);
-  // #31: after a remove, render() rebuilt the grid and focus fell to <body> — move it to UNDO so a
-  // keyboard/screen-reader user can actually reverse the removal within the grace window.
-  try { undo.focus(); } catch (e) {}
+  // #31: after a grid remove, render() rebuilt the grid and focus fell to <body> — move it to UNDO so a
+  // keyboard/SR user can reverse the removal within the grace window. #50: but NOT when the detail modal is
+  // open (a friend-crate remove keeps it open) — _beginDeferredRemove's render()→renderModal already placed
+  // focus inside the dialog, and stealing it to the body-level snackbar would break the modal's focus trap.
+  const _mr = document.getElementById('tw-modal-root');
+  const _modalOpen = !!(state.detailId && _mr && _mr.innerHTML);
+  if (!_modalOpen) { try { undo.focus(); } catch (e) {} }
 }
 function _hideRemoveSnackbar(){ const el=document.getElementById('tw-remove-snack'); if(el) el.remove(); }
 
@@ -1362,9 +1371,9 @@ function onClick(e){
       // Wave 2 B1: lazy-load THE WANTLIST dataset on first switch. WANTLIST_RECORDS: null=not loaded,
       // []=loaded (guards re-entry while the async load is in flight; [] shows an empty grid, not RECORDS).
       if ((arg==='wantlist' || (arg==='ledger' && !IS_OWN())) && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
-        WANTLIST_RECORDS=[];
-        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; render(); })
-          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; });
+        WANTLIST_RECORDS=[]; _wlLoading=true;
+        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; _wlLoading=false; render(); })
+          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; _wlLoading=false; });
       }
       render();
       break;
@@ -1389,9 +1398,9 @@ function onClick(e){
       state.view='wantlist'; state.matchFilter='theyWant'; track('match_filter', { dir: 'theyWant' });
       try { history.replaceState(null, '', location.pathname + location.search + '#wantlist'); } catch(e){}
       if (WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {   // lazy-load the friend wantlist, as case 'view' does
-        WANTLIST_RECORDS=[];
-        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; render(); })
-          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; });
+        WANTLIST_RECORDS=[]; _wlLoading=true;
+        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; _wlLoading=false; render(); })
+          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; _wlLoading=false; });
       }
       render(); break;
     case 'want': (t.dataset.want==='remove' ? friendRemove : friendAdd)(Number(arg)); break;
@@ -1501,9 +1510,9 @@ async function bootCrate(){
       // lazy-load never ran). Mirror that load; render() below paints the briefly-empty grid, then this
       // fills it. Own+DB only — guaranteed by _validTabs above.
       if ((state.view==='wantlist' || (state.view==='ledger' && !IS_OWN())) && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
-        WANTLIST_RECORDS=[];
-        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; render(); })
-          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; });
+        WANTLIST_RECORDS=[]; _wlLoading=true;
+        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; _wlLoading=false; render(); })
+          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; _wlLoading=false; });
       }
     } else {
       // ABSOLUTE path, deliberately. A relative './collection.json' resolves against the

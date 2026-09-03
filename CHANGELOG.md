@@ -13,6 +13,33 @@ _Nothing yet._
 
 ---
 
+## [1.14.1] — 2026-09-03
+
+The three deferred close-audit findings (#50, #51, #52), fixed.
+
+### Fixed
+- **a11y — removing from the open modal no longer escapes the focus trap (#50).** On a friend's crate/wantlist,
+  ✕ REMOVE from inside the detail modal used to move focus to the body-level undo snackbar (outside the
+  `aria-modal` dialog), breaking the Tab trap. The snackbar now keeps focus inside the dialog when the remove
+  originated there (`_beginDeferredRemove`'s re-render already re-focuses the dialog).
+- **Friend wantlist no longer flashes the wrong empty state (#51).** First open of a friend's non-empty wantlist
+  briefly painted "{name} isn't hunting anything." because the load paths set `WANTLIST_RECORDS = []` (the
+  loaded-empty sentinel) before the rows arrived. A new `_wlLoading` flag distinguishes loading from
+  loaded-empty; a neutral LOADING line shows while the fetch is in flight.
+
+### Security
+- **Edge functions fail CLOSED on missing auth config (#52).** All 8 jwtVerify functions
+  (connect-discogs, finalize-connect, disconnect-discogs, delete-account, import-collection, enrich-release,
+  live-stats, wantlist-write) dropped the `?? 'https://brave-buffalo-…dev'` dev-issuer / preview-origin
+  fallbacks: `CLERK_ISSUER` / `APP_ORIGIN` are now required, and the function refuses to boot without them
+  rather than silently accepting dev-issued tokens against production data. Redeployed all 8 via break-glass;
+  verified each boots and returns `invalid_token` to a forged token (prod env is set — no behavior change; the
+  fail-open default is gone).
+
+Closes #50, #51, #52.
+
+---
+
 ## [1.14.0] — 2026-09-03
 
 End-of-phase **cold audit** over the entire codebase (all waves) + an adversarial documentation review.
