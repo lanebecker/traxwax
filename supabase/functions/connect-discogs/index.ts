@@ -13,8 +13,11 @@ import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames }
   from '../_shared/discogs.ts';
 
 // Audit #31: env-first so the production flip is a secret change, not five redeploys.
-const CLERK_ISSUER = Deno.env.get('CLERK_ISSUER') ?? 'https://brave-buffalo-7127.clerk.accounts.dev';
-const APP_ORIGIN   = Deno.env.get('APP_ORIGIN') ?? 'https://multi-user.traxwax.pages.dev';
+// #52: fail CLOSED — no dev fallback. Prod always sets these; an unset value (misconfigured deploy / a new
+// preview env) must refuse, never silently accept dev-issued tokens against production data.
+const CLERK_ISSUER = Deno.env.get('CLERK_ISSUER');
+const APP_ORIGIN   = Deno.env.get('APP_ORIGIN');
+if (!CLERK_ISSUER || !APP_ORIGIN) throw new Error('CLERK_ISSUER and APP_ORIGIN env vars are required');
 const CALLBACK     = 'https://sfipqknrbvamwwahwxnl.supabase.co/functions/v1/connect-discogs-callback';
 
 const JWKS = createRemoteJWKSet(new URL(`${CLERK_ISSUER}/.well-known/jwks.json`));
