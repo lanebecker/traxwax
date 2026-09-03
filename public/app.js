@@ -37,6 +37,30 @@ const FILED_BY_WORD = FILED_BY[Math.floor(Math.random() * FILED_BY.length)];
    the owner's own crate (also baked/local-dev mode). */
 const IS_OWN = () => !window.TraxWaxViewer || window.TraxWaxViewer.isOwn !== false;
 
+// #43: friend-crate section visibility. Own crate → both true. Friend → the get_crate_owner flags.
+const CAN_VIEW_CRATE    = () => IS_OWN() || !window.TraxWaxViewer || window.TraxWaxViewer.canViewCrate === true;
+const CAN_VIEW_WANTLIST = () => IS_OWN() || !window.TraxWaxViewer || window.TraxWaxViewer.canViewWantlist === true;
+// Which section a view belongs to for locking: crate/timeline/ledger ride the crate; wantlist is its own.
+const _viewLocked = (view) => (view === 'wantlist') ? !CAN_VIEW_WANTLIST() : !CAN_VIEW_CRATE();
+
+// #43 (Decision 5): match counts derived from the SETS, so a count can never disagree with the filter it links
+// to. A `null` count means the direction is PRIVATE — driven ONLY by the visibility flag, never by a not-yet-
+// loaded set (the sets are awaited in bootCrate before first render), so a shared direction always yields a
+// real count (0+).
+function _matchCounts(){
+  const ctx = window.__twMatchCtx;
+  const out = { youWant: null, theyWant: null };   // null ⇔ the direction is PRIVATE
+  if (CAN_VIEW_CRATE()){
+    let n = 0; if (ctx && ctx.viewerWants) for (const r of (RECORDS||[])) if (ctx.viewerWants.has(r.id)) n++;
+    out.youWant = n;
+  }
+  if (CAN_VIEW_WANTLIST()){
+    let n = 0; const ids = window.__twOwnerWantIds; if (ctx && ctx.viewerHas && ids) for (const id of ids) if (ctx.viewerHas.has(id)) n++;
+    out.theyWant = n;
+  }
+  return out;
+}
+
 /* Issue #6 (dead code sweep): the client `api` helper (live value + per-record price) is
    gone. Its two endpoints (/api/value, /api/price) were deleted in cold-audit #24 —
    Restricted Data now flows only through the authenticated live-stats Edge Function — so
@@ -205,7 +229,7 @@ function setTheme(t, persist=true){
 }
 
 /* ── Derivations (mirror the kit's matches/sorted/deco) ─────────────────────── */
-// #47: friend-crate match sentence pieces (spec §3). `n` is a match count from __twMatchCounts.
+// #47: friend-crate match sentence pieces (spec §3). `n` is a match count from _matchCounts() (set-derived, #43).
 function _matchAlbums(n){ return n === 1 ? 'ONE ALBUM' : (n === 0 ? 'NO ALBUMS' : n + ' ALBUMS'); }
 function _matchPart(n, tail, act){   // tail: 'YOU WANT' | 'THEY WANT'
   const label = _matchAlbums(n) + ' ' + tail;
@@ -276,8 +300,13 @@ function toggleGenre(g){
 const chipOn = 'background:var(--accent); color:var(--on-accent)';
 const chipOff = 'background:var(--panel); color:var(--ink)';
 
+// #43: lock glyph for a private section's tab + panel badge (kit §Lock glyph).
+const LOCK_SVG = '<svg width="10" height="12" viewBox="0 0 24 24" aria-hidden="true" style="margin-right:6px; vertical-align:-1px"><rect x="4" y="10" width="16" height="11" rx="1.5" fill="currentColor"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.6"></path></svg>';
 function tab(id,label){
   const on = state.view===id;
+  if (_viewLocked(id)){   // #43: greyed + lock glyph, still clickable → the locked panel (kit Decision 1, 1b)
+    return `<button data-act="view" data-arg="${id}" aria-label="${esc(label)} (private)" title="Private" style="display:inline-flex; align-items:center; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:var(--lockbg); border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--lock)':'transparent'}; color:var(--lock); cursor:pointer">${LOCK_SVG}${label}</button>`;
+  }
   return `<button data-act="view" data-arg="${id}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:transparent; border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--accent)':'transparent'}; color:${on?'var(--ink)':'var(--muted)'}">${label}</button>`;
 }
 function sortBtn(id,label){
@@ -396,14 +425,18 @@ function emptyCrateHtml(){
   // it on Discogs). _removedThisSession (set the moment you remove anything this session) picks between them; it resets on
   // reload, so after a reload an empty wantlist reads as genuinely empty. Crate/friend copy is unchanged.
   const isWant = own && state.view === 'wantlist';
+  const friendWant = !own && state.view === 'wantlist';   // #43: a friend's SHARED wantlist, genuinely empty (private → lockedPanelHtml, not here)
   const wantCleared = isWant && _removedThisSession;
   const who = (window.TraxWaxOwner && window.TraxWaxOwner.displayName) || 'This collector';
-  const eyebrow = isWant ? 'WANTLIST · 0' : 'AN EMPTY CRATE';
+  const eyebrow = friendWant ? 'THEIR WANTLIST · 0' : isWant ? 'WANTLIST · 0' : 'AN EMPTY CRATE';
   const heading = wantCleared ? 'The wantlist is clear.'
+    : friendWant ? esc(who) + ' isn’t hunting anything.'
     : isWant ? 'Nothing on the wantlist yet'
     : 'Nothing on the shelf yet';
   const body = wantCleared
     ? 'That’s everything you were chasing, filed or let go. Your crate’s still right where you left it.'
+    : friendWant
+      ? 'Nothing on their wantlist right now. The crate’s where the records are.'
     : isWant
       ? 'Star the records you’re chasing over on Discogs and re-sync — they’ll show up here, cross-checked ' +
         'against every crate you can see.'
@@ -415,6 +448,10 @@ function emptyCrateHtml(){
     ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
         '<button data-act="view" data-arg="crate" class="tw-btn tw-btn-primary tw-btn-lg">BACK TO THE CRATE</button>' +
       '</div>'
+    : friendWant
+      ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
+          '<button data-act="view" data-arg="crate" class="tw-btn tw-btn-primary tw-btn-lg">BACK TO THE CRATE →</button>' +
+        '</div>'
     : isWant
       ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
           '<a href="https://www.discogs.com/wantlist" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">' +
@@ -447,6 +484,37 @@ function emptyCrateHtml(){
         'max-width:48ch">' + body + '</span>' +
     '</div>' +
     actions +
+  '</div>';
+}
+
+/* #43 (kit Decision 1/3-B): the inline "private" panel a locked tab lands on. `section` = 'crate' | 'wantlist'.
+   Third-person, lock-badged, NO Add CTA. Reuses the empty-state layout shell + tokens. */
+function lockedPanelHtml(section){
+  const MONO = "font-family:'IBM Plex Mono',monospace";
+  const COND = "font-family:'Barlow Condensed',sans-serif";
+  const BODY = 'font-family:Archivo,Helvetica,sans-serif';
+  const o = window.TraxWaxOwner || {};
+  const who = esc(o.displayName || o.ownerUsername || 'This collector');
+  const lockBadge = '<div aria-hidden="true" style="width:44px; height:44px; border:1.5px solid var(--hair); display:flex; align-items:center; justify-content:center; color:var(--lock)"><svg width="15" height="18" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="1.5" fill="currentColor"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.6"></path></svg></div>';
+  let eyebrow, headline, bodyHtml, cta;
+  if (section === 'crate'){
+    eyebrow = 'THE CRATE · PRIVATE';
+    headline = who + ' keeps their crate closed.';
+    bodyHtml = 'Their wantlist is open, though — <a href="#" data-act="view" data-arg="wantlist" style="color:var(--accent); text-decoration:underline; text-underline-offset:3px">browse their wants here →</a>';
+    cta = '';   // the CTA link is inline in the body
+  } else {
+    eyebrow = 'THE WANTLIST · PRIVATE';
+    headline = who + '’s wantlist is private.';
+    bodyHtml = 'They’re keeping their hunt to themselves. The crate’s still open.';
+    cta = '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center"><button data-act="view" data-arg="crate" class="tw-btn tw-btn-secondary tw-btn-lg">BACK TO THE CRATE →</button></div>';
+  }
+  return '<div style="padding:70px 40px 76px; display:flex; flex-direction:column; align-items:center; gap:18px; text-align:center">' +
+    lockBadge +
+    '<div style="display:flex; flex-direction:column; gap:8px; align-items:center">' +
+      '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; color:var(--lock)">' + eyebrow + '</span>' +
+      '<span class="tw-empty-h" style="' + COND + '; font-size:38px; font-weight:700; line-height:1; color:var(--ink)">' + headline + '</span>' +
+      '<span style="' + BODY + '; font-size:13.5px; line-height:1.7; color:var(--muted); max-width:48ch">' + bodyHtml + '</span>' +
+    '</div>' + cta +
   '</div>';
 }
 
@@ -563,10 +631,11 @@ function renderModal(){
 function render(){
   const v=computeVals(); const s=state;
   const hasFilters=v.active.length>0;
-  const showGrid=(s.view==='crate' || s.view==='wantlist') && v.filtered.length>0;   // Wave 2 B1: the wantlist reuses the card grid
-  const showTimeline=s.view==='timeline' && v.filtered.length>0;
-  const showStats=s.view==='ledger' && v.filtered.length>0;
-  const showEmpty=v.filtered.length===0;
+  const lockedSection = !IS_OWN() && _viewLocked(s.view) ? (s.view==='wantlist' ? 'wantlist' : 'crate') : null;  // #43
+  const showGrid=!lockedSection && (s.view==='crate' || s.view==='wantlist') && v.filtered.length>0;   // Wave 2 B1: the wantlist reuses the card grid
+  const showTimeline=!lockedSection && s.view==='timeline' && v.filtered.length>0;
+  const showStats=!lockedSection && s.view==='ledger' && v.filtered.length>0;
+  const showEmpty=!lockedSection && v.filtered.length===0;
 
   const genreChips=v.topGenres.map(g=>`<button data-act="genre" data-arg="${esc(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1.5px solid var(--line); ${s.genres.includes(g)?chipOn:chipOff}">${esc(g.toUpperCase())} ${v.counts[g]}</button>`).join('');
 
@@ -578,7 +647,9 @@ function render(){
   const noGenres=s.genres.length===0;
 
   let content='';
-  if(showGrid){
+  if(lockedSection){   // #43: a private section → the inline locked panel (kit Decision 1/3-B)
+    content=lockedPanelHtml(lockedSection);
+  } else if(showGrid){
     content=`<div class="tw-grid">${v.visible.map(card).join('')}</div>`;
   } else if(showTimeline){
     content=`<div style="display:flex; flex-direction:column; padding:6px 0 28px">${v.timeline.map(grp=>`
@@ -649,13 +720,23 @@ function render(){
   <div style="position:relative; max-width:1480px; margin:0 auto; background:var(--panel); border:1px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">
 
     ${!IS_OWN()?(()=>{
-      const o=window.TraxWaxOwner||{}; const mc=window.__twMatchCounts||{};
+      const o=window.TraxWaxOwner||{};
       const owner=(o.displayName||o.ownerUsername||'A friend');
-      const sentence =
-        `<span style="color:#fff">${esc(owner.toUpperCase())}</span> HAS ` +
-        _matchPart(mc.you_want_they_have|0, 'YOU WANT', 'matchYouWant') +
-        ', AND YOU HAVE ' +
-        _matchPart(mc.they_want_you_have|0, 'THEY WANT', 'matchTheyWant') + '.';
+      const mc=_matchCounts();
+      const nameSpan = `<span style="color:#fff">${esc(owner.toUpperCase())}</span>`;
+      let sentence;
+      if (mc.youWant !== null && mc.theyWant !== null){                    // both shared
+        sentence = `${nameSpan} HAS ` + _matchPart(mc.youWant,'YOU WANT','matchYouWant')
+                 + ', AND YOU HAVE ' + _matchPart(mc.theyWant,'THEY WANT','matchTheyWant') + '.';
+      } else if (mc.youWant !== null){                                     // wantlist private
+        sentence = `${nameSpan} HAS ` + _matchPart(mc.youWant,'YOU WANT','matchYouWant')
+                 + '. THEIR WANTLIST IS PRIVATE.';
+      } else if (mc.theyWant !== null){                                    // crate private
+        sentence = `${nameSpan}’S CRATE IS PRIVATE. YOU HAVE `
+                 + _matchPart(mc.theyWant,'THEY WANT','matchTheyWant') + '.';
+      } else {                                                             // both private — unreachable (→ S16); belt-and-suspenders
+        sentence = `${nameSpan}’S CRATE IS PRIVATE. THEIR WANTLIST IS PRIVATE.`;
+      }
       return `<div class="tw-friend-strip" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 24px; background:#16171a; color:rgba(255,255,255,.62); font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase">
       <span>${sentence}</span>
       <a href="/app" style="color:#fff; text-decoration:underline; white-space:nowrap">← Back to your crate</a>
@@ -1023,7 +1104,7 @@ async function friendAdd(id){
   try {
     await window.TraxWaxSetWant(id, 'add');
     track('wantlist_add', { source: 'friend' });
-    _refreshMatchCounts();   // committed → recompute the MATCHES stat
+    // #43: the match sentence recomputes from the flipped viewerWants on the next render (set-derived) — no server recount.
   } catch(e){
     ctx.viewerWants.delete(id);
     render();
@@ -1042,16 +1123,9 @@ function friendRemove(id){
   const rec = recordById(id) || { id };
   ctx.viewerWants.delete(id);   // strip disappears + meta flips to + WANT on the re-render inside _beginDeferredRemove
   const revert = () => { const c = window.__twMatchCtx; if (c && c.viewerWants) c.viewerWants.add(id); render(); };
-  _beginDeferredRemove(id, rec, revert, 'friend', _refreshMatchCounts);
+  _beginDeferredRemove(id, rec, revert, 'friend', null);   // #43: no onCommit recount — the sentence is set-derived
 }
 
-/* Recompute the MATCHES header stat (friend crate only) from the server after a wantlist write commits.
-   TraxWaxMatchCounts RETURNS null on error (doesn't throw) — only reassign on a good result so a transient
-   RPC failure can't blank the stat bar. */
-function _refreshMatchCounts(){
-  if (IS_OWN() || !window.TraxWaxMatchCounts) return;
-  window.TraxWaxMatchCounts().then((mc)=>{ if (mc) { window.__twMatchCounts = mc; render(); } }).catch(()=>{});
-}
 
 /* WANTLIST-tab remove (wantlist-remove redesign). Optimistic + reversible with a DEFERRED commit: the card
    leaves the grid immediately and an undo snackbar appears, but the Discogs DELETE is NOT sent until the
@@ -1299,8 +1373,10 @@ async function bootCrate(){
   // else falls back to 'crate'. Set before the render below so the right grid paints on the first frame.
   const _validTabs = new Set(['crate','timeline','ledger']);
   if (DB_MODE()) _validTabs.add('wantlist');   // #47: friend crates get THE WANTLIST too
-  let _bootView = 'crate';
-  try { const h = (location.hash||'').replace(/^#/,''); if (_validTabs.has(h)) _bootView = h; } catch(e){}
+  // #43: default to the first SHARED section (crate open → crate; crate private + wantlist open → wantlist).
+  // both-private never reaches here — boot.js served the S16 no-crate card.
+  let _bootView = CAN_VIEW_CRATE() ? 'crate' : 'wantlist';
+  try { const h=(location.hash||'').replace(/^#/,''); if (_validTabs.has(h) && !(!IS_OWN() && _viewLocked(h))) _bootView = h; } catch(e){}
   state.view = _bootView;
   // Normalize the URL to the actual tab — strips a stale/invalid hash (e.g. #wantlist carried onto a
   // friend crate, which falls back to 'crate') so what's in the address bar always matches what's shown.
@@ -1322,10 +1398,13 @@ async function bootCrate(){
       RECORDS = await window.TraxWaxData();
       // Wave 2 B1: reset first (defensive) so a stale friend ctx never renders badges on the own crate;
       // then, on a FRIEND crate only, load the viewer's own wants/haves (badges) + the match counts (stat).
-      window.__twMatchCtx = null; window.__twMatchCounts = null;
+      window.__twMatchCtx = null; window.__twOwnerWantIds = null;
       if (!IS_OWN() && window.TraxWaxMatchCtx) {
         try { window.__twMatchCtx = await window.TraxWaxMatchCtx(); } catch (e) { window.__twMatchCtx = null; }
-        try { window.__twMatchCounts = await window.TraxWaxMatchCounts(); } catch (e) { window.__twMatchCounts = null; }
+        // #43: AWAIT the owner-wantlist ids so the "they want" count is ready at first paint — never a
+        // transient null that _matchCounts would misread as PRIVATE. Fetch failure → empty set (best-effort
+        // real 0 on a shared list; self-heals on reload), never "PRIVATE" (that's flag-driven).
+        try { window.__twOwnerWantIds = await window.TraxWaxOwnerWantIds(); } catch (e) { window.__twOwnerWantIds = new Set(); }
       }
       // Wave 2: a hash-restored WANTLIST tab needs its dataset loaded on a direct reload (the case 'view'
       // lazy-load never ran). Mirror that load; render() below paints the briefly-empty grid, then this
