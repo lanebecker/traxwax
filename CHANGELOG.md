@@ -13,6 +13,43 @@ _Nothing yet._
 
 ---
 
+## [1.13.0] — 2026-09-03
+
+Optional **any-pressing matching** (#28, Design "Wave B"): a per-viewer switch to count a match on the *album*
+(Discogs master), not just the exact pressing. Backend migration `0024` + `import-collection` / `enrich-release`
+redeploys; frontend badges/counts/overlap/filter go mode-aware. Default stays **exact** — nothing changes for
+anyone until they flip it.
+
+### Added
+- **ANY PRESSING mode.** A new **MATCHING** control in Account (segmented **EXACT PRESSING** / **ANY PRESSING**,
+  default EXACT) sets your own reading preference (`profiles.match_mode`, stored cross-device). In ANY mode a
+  match also counts when two records share a Discogs **master** (the album), so a different pressing of something
+  you own/want now lights up. Applies symmetrically to every crate you open; **reads only** — `+ WANT` always
+  adds the exact release you're viewing.
+- **Outlined "a pressing" badges.** Exact matches keep the solid `ON YOUR WANTLIST` / `YOU OWN THIS`; an
+  any-pressing-only match gets an outlined `A PRESSING YOU WANT` (accent rule) / `YOU OWN A PRESSING` (ink rule),
+  on the cards, the ledger overlap panel, and (suppressing the inline `+ WANT` on a card you own a pressing of).
+- **`releases.master_id`.** Captured free from Discogs `basic_information` (import) and the release GET (enrich);
+  no forced backfill — it fills organically as users re-sync / the catalog enriches, and un-backfilled rows read
+  exact-only. Discogs' no-master sentinel `0` is normalized to NULL everywhere.
+
+### Fixed
+- **Viewer match signals were capped at 1,000 rows (#49).** `TraxWaxMatchCtx` fetched your own
+  collection/wantlist without pagination, so PostgREST's silent 1,000-row cap truncated your `viewerHas` /
+  `viewerWants` — under-counting YOU-OWN badges, IN COMMON, and the match sentence on every friend's crate for
+  collections over 1,000 (Lane's ~1,861 included). Now paginated like the sibling providers. Pre-existing; found
+  in the #28 audit, fixed here.
+
+### Notes
+- The friend-crate match **filter** (the two match-sentence links) is now mode-aware, so the grid it opens always
+  matches the count and badges (found in audit).
+- On a friend's crate, a record you already own no longer shows a stray `+ WANT` — the exact-owned case now
+  matches the wantlist tab, the modal, and the card's own "YOU OWN THIS" badge.
+
+Closes #28, #49.
+
+---
+
 ## [1.12.0] — 2026-09-03
 
 Open design items — **Wave A** (frontend only): a friend's LEDGER/TIMELINE go social, the friend header + card

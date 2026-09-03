@@ -43,19 +43,36 @@ const CAN_VIEW_WANTLIST = () => IS_OWN() || !window.TraxWaxViewer || window.Trax
 // Which section a view belongs to for locking: crate/timeline/ledger ride the crate; wantlist is its own.
 const _viewLocked = (view) => (view === 'wantlist') ? !CAN_VIEW_WANTLIST() : !CAN_VIEW_CRATE();
 
+// #28: the viewer's own reading preference (default 'exact'). In 'any' mode a match also counts when the
+// records share a master_id (the album), not just the exact release_id.
+const MATCH_ANY = () => window.__twMatchMode === 'any';
+
+// #28: does the VIEWER own this record — exactly, or (any mode) a different pressing of the same master?
+// Self-sources ctx so the two want-control call sites can share it. Used to suppress the inline + WANT.
+function _viewerOwns(r){
+  const ctx = window.__twMatchCtx; if (!ctx || !ctx.viewerHas) return false;
+  return ctx.viewerHas.has(r.id) || (MATCH_ANY() && r.master_id && ctx.viewerHasMasters && ctx.viewerHasMasters.has(r.master_id));
+}
+
 // #43 (Decision 5): match counts derived from the SETS, so a count can never disagree with the filter it links
 // to. A `null` count means the direction is PRIVATE — driven ONLY by the visibility flag, never by a not-yet-
 // loaded set (the sets are awaited in bootCrate before first render), so a shared direction always yields a
-// real count (0+).
+// real count (0+). #28: each direction counts a record on exact OR (any-mode) master match — iterating records
+// (not intersecting sets) so a record matched both ways counts exactly once.
 function _matchCounts(){
   const ctx = window.__twMatchCtx;
+  const any = MATCH_ANY();
   const out = { youWant: null, theyWant: null };   // null ⇔ the direction is PRIVATE
   if (CAN_VIEW_CRATE()){
-    let n = 0; if (ctx && ctx.viewerWants) for (const r of (RECORDS||[])) if (ctx.viewerWants.has(r.id)) n++;
+    let n = 0;
+    if (ctx && ctx.viewerWants) for (const r of (RECORDS||[]))
+      if (ctx.viewerWants.has(r.id) || (any && r.master_id && ctx.viewerWantsMasters && ctx.viewerWantsMasters.has(r.master_id))) n++;
     out.youWant = n;
   }
   if (CAN_VIEW_WANTLIST()){
-    let n = 0; const ids = window.__twOwnerWantIds; if (ctx && ctx.viewerHas && ids) for (const id of ids) if (ctx.viewerHas.has(id)) n++;
+    let n = 0; const ow = window.__twOwnerWants;   // #28: array of {id, master} — owner's wantlist entries
+    if (ctx && ctx.viewerHas && Array.isArray(ow)) for (const e of ow)
+      if (ctx.viewerHas.has(e.id) || (any && e.master && ctx.viewerHasMasters && ctx.viewerHasMasters.has(e.master))) n++;
     out.theyWant = n;
   }
   return out;
@@ -252,11 +269,17 @@ function matches(r){
     if(!hay.includes(q)) return false;
   }
   // #47: match filter (friend crate only) — the two match-sentence links narrow to the overlap sets.
+  // #28: the filter MUST mirror _matchCounts exactly (exact OR any-pressing master), or the grid the link
+  // opens would show fewer records than the count/badges promised.
   if(s.matchFilter){
     const ctx=window.__twMatchCtx;
     if(!ctx) return false;   // sets not loaded yet → show nothing rather than the whole shelf under a match chip
-    if(s.matchFilter==='youWant'){ if(!(ctx.viewerWants && ctx.viewerWants.has(r.id))) return false; }
-    else if(s.matchFilter==='theyWant'){ if(!(ctx.viewerHas && ctx.viewerHas.has(r.id))) return false; }
+    const any=MATCH_ANY();
+    if(s.matchFilter==='youWant'){
+      if(!((ctx.viewerWants && ctx.viewerWants.has(r.id)) || (any && r.master_id && ctx.viewerWantsMasters && ctx.viewerWantsMasters.has(r.master_id)))) return false;
+    } else if(s.matchFilter==='theyWant'){
+      if(!((ctx.viewerHas && ctx.viewerHas.has(r.id)) || (any && r.master_id && ctx.viewerHasMasters && ctx.viewerHasMasters.has(r.master_id)))) return false;
+    }
   }
   return true;
 }
@@ -357,9 +380,10 @@ function metaCellHtml(r){
     if (IS_OWN())   // own wantlist: the destructive ✕REMOVE (delete FROM your own wantlist)
       return `<button data-act="wantRemove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
     // #47 follow-up: a friend's wantlist offers the VIEWER's OWN +WANT/✕REMOVE toggle (data-act="want" →
-    // friendAdd/friendRemove; never touches the friend's list). Owned (a "they want, you have" match) → no control.
+    // friendAdd/friendRemove; never touches the friend's list). Owned (a "they want, you have" match) → no
+    // control. #28: _viewerOwns also covers any-pressing ("you own a pressing" → no inline want).
     const ctx = window.__twMatchCtx;
-    if (ctx && ctx.viewerHas && ctx.viewerHas.has(r.id)) return '';
+    if (_viewerOwns(r)) return '';
     return (ctx && ctx.viewerWants && ctx.viewerWants.has(r.id))
       ? `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`
       : `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;
@@ -369,6 +393,9 @@ function metaCellHtml(r){
       ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`
       : '';
   const ctx = window.__twMatchCtx;
+  // #28 (kit §1.4): a "you own it" card hides the inline + WANT — exact OR any-pressing. (Consistency fix:
+  // the exact case wasn't suppressed on the crate card before, though the badge, wantlist tab + modal all did.)
+  if (_viewerOwns(r)) return '';
   const wanted = ctx && ctx.viewerWants && ctx.viewerWants.has(r.id);
   if (wanted)   // State B — wanted: the wantlist ✕ REMOVE control, verbatim (ink, underline, hover accent)
     return `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
@@ -522,21 +549,33 @@ function lockedPanelHtml(section){
 //  (a) THEIR crate ∩ YOUR wants  → 'you'  → ON YOUR WANTLIST (accent)  [from RECORDS + viewerWants]
 //  (b) THEIR wantlist ∩ YOUR haves → 'both' → YOU OWN THIS   (ink)     [from WANTLIST_RECORDS + viewerHas]
 // (b) needs the friend's wantlist DISPLAY rows; the ledger triggers that load (case 'view'/bootCrate). Until
-// they arrive (b) is empty — IN COMMON's COUNT is still exact (it uses __twOwnerWantIds, awaited at boot).
+// they arrive (b) is empty — but IN COMMON's COUNT is complete regardless (it uses __twOwnerWants, awaited at
+// boot, and is mode-aware via _matchCounts).
+// #28: exact matches keep the solid 'you'/'both' kinds; any-pressing-only matches get the outlined variants.
 function _overlapRecords(){
   const ctx = window.__twMatchCtx; if (!ctx) return [];
-  const out = [];
-  if (ctx.viewerWants) for (const r of (RECORDS||[])) if (ctx.viewerWants.has(r.id)) out.push({ rec:r, kind:'you' });
-  if (ctx.viewerHas && Array.isArray(WANTLIST_RECORDS))
-    for (const r of WANTLIST_RECORDS) if (ctx.viewerHas.has(r.id)) out.push({ rec:r, kind:'both' });
+  const any = MATCH_ANY(); const out = [];
+  for (const r of (RECORDS||[])){
+    if (ctx.viewerWants && ctx.viewerWants.has(r.id)) out.push({ rec:r, kind:'you' });
+    else if (any && r.master_id && ctx.viewerWantsMasters && ctx.viewerWantsMasters.has(r.master_id)) out.push({ rec:r, kind:'you-outline' });
+  }
+  if (Array.isArray(WANTLIST_RECORDS)) for (const r of WANTLIST_RECORDS){
+    if (ctx.viewerHas && ctx.viewerHas.has(r.id)) out.push({ rec:r, kind:'both' });
+    else if (any && r.master_id && ctx.viewerHasMasters && ctx.viewerHasMasters.has(r.master_id)) out.push({ rec:r, kind:'both-outline' });
+  }
   return out;
 }
-/* 2A: the friend LEDGER's second panel — the records you both care about (exact mode; #28 adds any-pressing). */
+/* 2A: the friend LEDGER's second panel — the records you both care about. #28: outlined variants for
+   any-pressing-only overlaps (panel-fill + a colored rule, mirroring the card badge outline idiom). */
 function overlapPanelHtml(){
   const rows = _overlapRecords();
-  const badge = (kind) => kind==='both'
-    ? '<span style="font-family:\'IBM Plex Mono\',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px; background:var(--ink); color:var(--bg)">YOU OWN THIS</span>'
-    : '<span style="font-family:\'IBM Plex Mono\',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px; background:var(--accent); color:var(--on-accent)">ON YOUR WANTLIST</span>';
+  const _b = 'font-family:\'IBM Plex Mono\',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px;';
+  const badge = (kind) => ({
+    both:          '<span style="' + _b + ' background:var(--ink); color:var(--bg)">YOU OWN THIS</span>',
+    'both-outline':'<span style="' + _b + ' background:var(--panel); color:var(--ink); border:1.5px solid var(--ink)">YOU OWN A PRESSING</span>',
+    you:           '<span style="' + _b + ' background:var(--accent); color:var(--on-accent)">ON YOUR WANTLIST</span>',
+    'you-outline': '<span style="' + _b + ' background:var(--panel); color:var(--accent); border:1.5px solid var(--accent)">A PRESSING YOU WANT</span>',
+  }[kind]);
   const list = rows.length ? rows.map(({rec,kind})=>{ const r=deco(rec); return `
             <button data-act="open" data-arg="${r.id}" style="display:flex; align-items:center; gap:12px; padding:8px 0; border:0; border-bottom:1px solid var(--hair); background:transparent; text-align:left; width:100%">
               <div role="img" aria-label="${esc(r.coverAlt)}" style="width:38px; height:38px; flex:none; border:1px solid var(--line); background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
@@ -557,19 +596,25 @@ function overlapPanelHtml(){
    Grammar: 'you' accent (true about YOU) · 'both' ink (true about BOTH) · 'else' panel
    (action lives ELSEWHERE). Two badges max; wantlist/you-own are mutually exclusive so the
    cap is safe. Classes ship in styles.css (.tw-badge*). */
-const BADGE_CLASS = { you: 'tw-badge-you', both: 'tw-badge-both', else: 'tw-badge-else' };
+const BADGE_CLASS = { you: 'tw-badge-you', both: 'tw-badge-both', else: 'tw-badge-else',
+  'you-outline': 'tw-badge-you-outline', 'both-outline': 'tw-badge-both-outline' };   // #28: any-pressing variants
 function badgesHtml(badges){
   if (!badges || !badges.length) return '';
   return badges.slice(0, 2).map((b, i) =>
     '<span class="tw-badge ' + (BADGE_CLASS[b.kind] || BADGE_CLASS.you) + ' tw-badge-' + (i + 1) + '">' +
       esc(b.label) + '</span>').join('');
 }
+// #28: exact-first — an exact release match wins the solid badge; else (any mode) a master-only match gets
+// the outlined variant. In exact mode the two `any &&` branches are dead, so this reduces to the prior logic.
 function badgesFor(rec, ctx){
   if (!ctx) return [];
+  const any = MATCH_ANY(); const m = rec.master_id;
   const out = [];
-  if (ctx.viewerWants && ctx.viewerWants.has(rec.id)) out.push({ kind: 'you',  label: 'ON YOUR WANTLIST' });
-  else if (ctx.viewerHas && ctx.viewerHas.has(rec.id)) out.push({ kind: 'both', label: 'YOU OWN THIS' });
-  if (ctx.forSale && ctx.forSale.has(rec.id))          out.push({ kind: 'else', label: 'FOR SALE' });
+  if (ctx.viewerWants && ctx.viewerWants.has(rec.id))                           out.push({ kind: 'you',          label: 'ON YOUR WANTLIST' });
+  else if (any && m && ctx.viewerWantsMasters && ctx.viewerWantsMasters.has(m)) out.push({ kind: 'you-outline',  label: 'A PRESSING YOU WANT' });
+  else if (ctx.viewerHas && ctx.viewerHas.has(rec.id))                          out.push({ kind: 'both',         label: 'YOU OWN THIS' });
+  else if (any && m && ctx.viewerHasMasters && ctx.viewerHasMasters.has(m))     out.push({ kind: 'both-outline', label: 'YOU OWN A PRESSING' });
+  if (ctx.forSale && ctx.forSale.has(rec.id))                                   out.push({ kind: 'else',         label: 'FOR SALE' });
   return out;
 }
 
@@ -1442,13 +1487,13 @@ async function bootCrate(){
       RECORDS = await window.TraxWaxData();
       // Wave 2 B1: reset first (defensive) so a stale friend ctx never renders badges on the own crate;
       // then, on a FRIEND crate only, load the viewer's own wants/haves (badges) + the match counts (stat).
-      window.__twMatchCtx = null; window.__twOwnerWantIds = null;
+      window.__twMatchCtx = null; window.__twOwnerWants = null;   // #28: __twOwnerWants is an array of {id, master}
       if (!IS_OWN() && window.TraxWaxMatchCtx) {
         try { window.__twMatchCtx = await window.TraxWaxMatchCtx(); } catch (e) { window.__twMatchCtx = null; }
-        // #43: AWAIT the owner-wantlist ids so the "they want" count is ready at first paint — never a
-        // transient null that _matchCounts would misread as PRIVATE. Fetch failure → empty set (best-effort
+        // #43: AWAIT the owner-wantlist entries so the "they want" count is ready at first paint — never a
+        // transient null that _matchCounts would misread as PRIVATE. Fetch failure → empty array (best-effort
         // real 0 on a shared list; self-heals on reload), never "PRIVATE" (that's flag-driven).
-        try { window.__twOwnerWantIds = await window.TraxWaxOwnerWantIds(); } catch (e) { window.__twOwnerWantIds = new Set(); }
+        try { window.__twOwnerWants = await window.TraxWaxOwnerWantIds(); } catch (e) { window.__twOwnerWants = []; }
       }
       // Wave 2: a hash-restored WANTLIST tab needs its dataset loaded on a direct reload (the case 'view'
       // lazy-load never ran). Mirror that load; render() below paints the briefly-empty grid, then this
