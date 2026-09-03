@@ -258,7 +258,8 @@ export function trapFocus(container, onEscape) {
    }  */
 const NAV = [
   { id: 'profile', label: 'PROFILE' },
-  { id: 'friends', label: 'FRIENDS' },   // ▸ Wave 1 — live (crate-sharing toggle lives here too, v1.4.1)
+  { id: 'friends', label: 'FRIENDS' },   // ▸ Wave 1 — the invite + friends list (v1.15.0: settings moved to SHARING)
+  { id: 'sharing', label: 'SHARING' },   // v1.15.0: crate/wantlist visibility + matching
   { id: 'discogs', label: 'DISCOGS' },
   { id: 'danger', label: 'DANGER ZONE', danger: true, target: 'discogs' },
 ];
@@ -432,70 +433,20 @@ function statCell(label, value) {
    tab was removed (one concept, one tab). Reads o.profile.crate_visibility. Bare helper names —
    this is inside boot.ui.js; `UI` is boot.js's import alias. */
 function friendsSection(o) {
-  const vis = (o.profile && o.profile.crate_visibility) || 'private';
-  const on = vis === 'friends';
-  const wlOn = ((o.profile && o.profile.wantlist_visibility) || 'private') === 'friends';   // Wave 2 B1
-  const mm = (o.profile && o.profile.match_mode) || 'exact';   // #28: the viewer's own matching preference
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
-    // Intro: eyebrow + title + one full-width description line (no max-width clamp).
+    // Intro: eyebrow + title + one description line. Settings moved to SHARING (v1.15.0).
     '<div style="display:flex; flex-direction:column; gap:5px">' +
       '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
         'color:var(--accent)">FRIENDS</span>' +
       '<h2 style="' + COND + '; font-size:32px; font-weight:700; line-height:1; margin:0; ' +
-        'color:var(--ink)">People who can see your crate</h2>' +
+        'color:var(--ink)">The people you swap crates with</h2>' +
       '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
-        'Your crate is private by default. Turn on visibility to let friends you’ve added browse ' +
-        'it — prices never appear on anyone else’s crate. You can turn it off any time.</span>' +
-    '</div>' +
-    // Shared status line (visibility changes announce here).
-    '<div id="tw-share-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
-      'line-height:1.6; color:var(--accent); min-height:0"></div>' +
-
-    // ── Section 1: VISIBILITY — the master switch. Everything below is inert until this is on.
-    sectionLabel('VISIBILITY') +
-    '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
-      'border:1.5px solid var(--line); padding:16px 18px">' +
-      '<div style="display:flex; flex-direction:column; gap:3px">' +
-        '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; ' +
-          'color:var(--ink)">Friends can see my crate</span>' +
-        '<span id="tw-vis-sub" style="' + MONO + '; font-size:10.5px; color:var(--muted)">' +
-          'Only people you’ve added as friends · currently ' + (on ? 'ON' : 'OFF') + '</span>' +
-      '</div>' +
-      toggle({ id: 'tw-vis-toggle', on, label: 'Friends can see my crate' }) +
-    '</div>' +
-    // Wave 2 B1: a SECOND, independent toggle — wantlist visibility. border-top:0 butts it to the crate one.
-    '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
-      'border:1.5px solid var(--line); border-top:0; padding:16px 18px">' +
-      '<div style="display:flex; flex-direction:column; gap:3px">' +
-        '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; ' +
-          'color:var(--ink)">Friends can see my wantlist</span>' +
-        '<span id="tw-wlvis-sub" style="' + MONO + '; font-size:10.5px; color:var(--muted)">' +
-          'Independent of your crate · currently ' + (wlOn ? 'ON' : 'OFF') + '</span>' +
-      '</div>' +
-      toggle({ id: 'tw-wlvis-toggle', on: wlOn, label: 'Friends can see my wantlist' }) +
+        'Send a link to add someone. Manage who sees your shelves over in ' +
+        '<a href="' + esc(o.hrefFor('sharing')) + '" style="color:var(--accent); text-decoration:underline">Sharing</a>.</span>' +
     '</div>' +
 
-    // ── Section 1b: MATCHING (#28) — the viewer's OWN reading preference (not a visibility/consent switch).
-    // A segmented control (default EXACT). Applies symmetrically to every crate the viewer opens.
-    sectionLabel('MATCHING') +
-    '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
-      'border:1.5px solid var(--line); padding:16px 18px">' +
-      '<div style="display:flex; flex-direction:column; gap:3px">' +
-        '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; ' +
-          'color:var(--ink)">How overlaps are counted</span>' +
-        '<span style="' + MONO + '; font-size:10.5px; color:var(--muted)">' +
-          'Changes how you read matches on everyone’s crate. Doesn’t change what you add.</span>' +
-      '</div>' +
-      '<div id="tw-match-seg" role="group" aria-label="Matching mode" style="display:flex; ' +
-        'border:1.5px solid var(--line); flex:none">' +
-        segBtn('exact', 'EXACT PRESSING', mm) + segBtn('any', 'ANY PRESSING', mm) +
-      '</div>' +
-    '</div>' +
-    '<span style="' + MONO + '; font-size:10px; line-height:1.6; color:var(--faint); margin-top:-12px">' +
-      'EXACT — the same pressing on both lists (the default). ANY — any pressing of the same album counts.</span>' +
-
-    // ── Section 2: INVITE A FRIEND — the link tool, boxed with its caption.
+    // ── INVITE A FRIEND — the link tool, boxed with its caption. (Unchanged.)
     sectionLabel('INVITE A FRIEND') +
     '<div style="border:1.5px solid var(--line); padding:16px 18px; display:flex; ' +
       'flex-direction:column; gap:12px">' +
@@ -515,11 +466,92 @@ function friendsSection(o) {
         'color:var(--faint); display:none">Works once · expires in 14 days</span>' +
     '</div>' +
 
-    // ── Section 3: YOUR FRIENDS · N — the list, one container, heading carries a live count.
+    // ── YOUR FRIENDS · N — the list, one container, heading carries a live count.
     '<div id="tw-friends-head">' +
       sectionLabel('YOUR FRIENDS · <span id="tw-friends-count" style="color:var(--accent)">—</span>') +
     '</div>' +
     '<div id="tw-friends-list"></div>' +
+  '</div>';
+}
+
+/* v1.15.0: one PRIVATE ▸ FRIENDS segment for the 1c visibility control. Same idiom as segBtn (the MATCHING
+   control), keyed on data-vis (the value 'private'|'friends'). padding:8px 12px = pixel-identical to segBtn
+   so the two segmented controls on the SHARING tab read as one language. The wire re-styles on click. */
+function visSegBtn(v, label, cur) {
+  const on = cur === v;
+  return '<button data-vis="' + v + '" aria-pressed="' + on + '" style="' + MONO + '; font-size:10.5px; ' +
+    'letter-spacing:.06em; padding:8px 12px; border:0; cursor:pointer; ' +
+    (on ? 'background:var(--ink); color:var(--panel)' : 'background:var(--panel); color:var(--muted)') + '">' + label + '</button>';
+}
+
+/* v1.15.0 (the SPLIT): crate + wantlist visibility (1c segmented box) + the matching control, moved out of
+   FRIENDS. Reads o.profile.{crate_visibility, wantlist_visibility, match_mode}. Bare helper names (this is
+   inside boot.ui.js; `UI` is boot.js's import alias). */
+function sharingSection(o) {
+  const crateVis = ((o.profile && o.profile.crate_visibility) || 'private');   // 'friends' | 'private'
+  const wlVis    = ((o.profile && o.profile.wantlist_visibility) || 'private');
+  const mm       = (o.profile && o.profile.match_mode) || 'exact';             // #28: matching preference
+  const rowTitle = (t) => '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; color:var(--ink)">' + t + '</span>';
+  const rowSub   = (t) => '<span style="' + MONO + '; font-size:10px; color:var(--muted)">' + t + '</span>';
+  return '' +
+  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
+    // Intro.
+    '<div style="display:flex; flex-direction:column; gap:5px">' +
+      '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
+        'color:var(--accent)">SHARING</span>' +
+      '<h2 style="' + COND + '; font-size:32px; font-weight:700; line-height:1; margin:0; ' +
+        'color:var(--ink)">Who sees what, and how matches read</h2>' +
+      '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
+        'Your shelves are private by default. Open them to the friends you’ve added — prices never appear ' +
+        'on anyone else’s crate. Change it back any time.</span>' +
+    '</div>' +
+    // Shared status line (visibility changes announce here — moved from FRIENDS).
+    '<div id="tw-share-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
+      'line-height:1.6; color:var(--accent); min-height:0"></div>' +
+
+    // ── VISIBILITY — the 1c box: one container, caption row, two hairline-separated shelf rows.
+    sectionLabel('VISIBILITY') +
+    '<div style="border:1.5px solid var(--line)">' +
+      '<div style="padding:11px 18px; border-bottom:1px solid var(--hair)">' +
+        '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.16em; ' +
+          'color:var(--muted)">WHO CAN SEE YOUR SHELVES</span>' +
+      '</div>' +
+      // crate row
+      '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px">' +
+        '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My crate') + rowSub('The records you own') + '</div>' +
+        '<div id="tw-vis-crate-seg" role="group" aria-label="Crate visibility" style="display:flex; ' +
+          'border:1.5px solid var(--line); flex:none">' +
+          visSegBtn('private', 'PRIVATE', crateVis) + visSegBtn('friends', 'FRIENDS', crateVis) +
+        '</div>' +
+      '</div>' +
+      // wantlist row (hairline between)
+      '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
+        'border-top:1px solid var(--hair)">' +
+        '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My wantlist') + rowSub('The records you’re hunting') + '</div>' +
+        '<div id="tw-vis-wl-seg" role="group" aria-label="Wantlist visibility" style="display:flex; ' +
+          'border:1.5px solid var(--line); flex:none">' +
+          visSegBtn('private', 'PRIVATE', wlVis) + visSegBtn('friends', 'FRIENDS', wlVis) +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // ── MATCHING — moved verbatim from friends (#28). Same segmented idiom → the tab reads as one language.
+    sectionLabel('MATCHING') +
+    '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
+      'border:1.5px solid var(--line); padding:16px 18px">' +
+      '<div style="display:flex; flex-direction:column; gap:3px">' +
+        '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; ' +
+          'color:var(--ink)">How overlaps are counted</span>' +
+        '<span style="' + MONO + '; font-size:10.5px; color:var(--muted)">' +
+          'Changes how you read matches on everyone’s crate. Doesn’t change what you add.</span>' +
+      '</div>' +
+      '<div id="tw-match-seg" role="group" aria-label="Matching mode" style="display:flex; ' +
+        'border:1.5px solid var(--line); flex:none">' +
+        segBtn('exact', 'EXACT PRESSING', mm) + segBtn('any', 'ANY PRESSING', mm) +
+      '</div>' +
+    '</div>' +
+    '<span style="' + MONO + '; font-size:10px; line-height:1.6; color:var(--faint); margin-top:-12px">' +
+      'EXACT — the same pressing on both lists (the default). ANY — any pressing of the same album counts.</span>' +
   '</div>';
 }
 
@@ -621,7 +653,7 @@ async function renderFriendsList(root, deps) {
 }
 
 export function accountPageHtml(o) {
-  const section = ['discogs', 'friends'].includes(o.section) ? o.section : 'profile';
+  const section = ['discogs', 'friends', 'sharing'].includes(o.section) ? o.section : 'profile';
   return '' +
   '<div style="max-width:1040px; margin:0 auto; background:var(--panel); ' +
     'border:1.5px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">' +
@@ -647,6 +679,7 @@ export function accountPageHtml(o) {
       accountNav(section, o) +
       (section === 'discogs' ? discogsSection(o)
         : section === 'friends' ? friendsSection(o)
+        : section === 'sharing' ? sharingSection(o)
         : profileSection(o)) +
     '</div>' +
   '</div>';
@@ -755,44 +788,26 @@ export function bindAccountPage(root, deps) {
     });
   }
 
-  // ── Wave 1: SHARING toggle ── re-render on change (toggle() sets inline styles, no class),
-  // so the wiring is a named fn that re-binds the replacement node.
-  function wireVisToggle() {
-    const vt = root.querySelector('#tw-vis-toggle');
-    if (!vt) return;
-    vt.addEventListener('click', async () => {
-      const now = vt.getAttribute('aria-checked') === 'true';
-      const next = now ? 'private' : 'friends';
+  // v1.15.0 (1c): the per-shelf PRIVATE ▸ FRIENDS segmented control — click-delegated on its container.
+  // `setter` is the visibility dep for that shelf; `label` names it in the status line. Same restyle idiom
+  // as wireMatchSeg. Writes 'private'|'friends' — the exact values the old toggles set.
+  function wireVisSeg(segId, setter, label) {
+    const seg = root.querySelector('#' + segId);
+    if (!seg) return;
+    seg.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-vis]');
+      if (!b) return;
+      const next = b.getAttribute('data-vis');   // 'private' | 'friends'
       const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
       try {
-        await deps.onSetVisibility(next);
-        const holder = document.createElement('div');
-        holder.innerHTML = toggle({ id: 'tw-vis-toggle', on: next === 'friends', label: 'Friends can see my crate' });
-        vt.replaceWith(holder.firstElementChild);
-        wireVisToggle();   // the replacement node has no listener yet
-        const sub = $('tw-vis-sub');   // keep the "· currently ON/OFF" line in sync
-        if (sub) sub.textContent = 'Only people you’ve added as friends · currently ' + (next === 'friends' ? 'ON' : 'OFF');
-        smsg(next === 'friends' ? 'Friends can now see your crate.' : 'Your crate is private again.');
-      } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
-    });
-  }
-  // Wave 2 B1: the wantlist-visibility toggle — mirrors wireVisToggle against #tw-wlvis-toggle.
-  function wireWlVisToggle() {
-    const vt = root.querySelector('#tw-wlvis-toggle');
-    if (!vt) return;
-    vt.addEventListener('click', async () => {
-      const now = vt.getAttribute('aria-checked') === 'true';
-      const next = now ? 'private' : 'friends';
-      const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
-      try {
-        await deps.onSetWantlistVisibility(next);
-        const holder = document.createElement('div');
-        holder.innerHTML = toggle({ id: 'tw-wlvis-toggle', on: next === 'friends', label: 'Friends can see my wantlist' });
-        vt.replaceWith(holder.firstElementChild);
-        wireWlVisToggle();
-        const sub = $('tw-wlvis-sub');
-        if (sub) sub.textContent = 'Independent of your crate · currently ' + (next === 'friends' ? 'ON' : 'OFF');
-        smsg(next === 'friends' ? 'Friends can now see your wantlist.' : 'Your wantlist is private again.');
+        await setter(next);
+        seg.querySelectorAll('[data-vis]').forEach((x) => {
+          const isOn = x.getAttribute('data-vis') === next;
+          x.setAttribute('aria-pressed', isOn);
+          x.style.background = isOn ? 'var(--ink)' : 'var(--panel)';
+          x.style.color = isOn ? 'var(--panel)' : 'var(--muted)';
+        });
+        smsg(next === 'friends' ? ('Friends can now see your ' + label + '.') : ('Your ' + label + ' is private again.'));
       } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
     });
   }
@@ -818,8 +833,8 @@ export function bindAccountPage(root, deps) {
       } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
     });
   }
-  wireVisToggle();
-  wireWlVisToggle();
+  wireVisSeg('tw-vis-crate-seg', deps.onSetVisibility, 'crate');
+  wireVisSeg('tw-vis-wl-seg', deps.onSetWantlistVisibility, 'wantlist');
   wireMatchSeg();
 
   // ── Wave 1: FRIENDS ── invite-link button + friend list.

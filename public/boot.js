@@ -896,7 +896,7 @@ async function render() {
   // has already sent a signed-out visitor to the sign-in card. Branch here, before the
   // onboarding/connect gates, so /account is always a place you can land.
   if (segments[0] && segments[0].toLowerCase() === 'account') {
-    const valid = ['profile', 'friends', 'discogs'];   // Wave 1: friends live (sharing merged into it, v1.4.1)
+    const valid = ['profile', 'friends', 'sharing', 'discogs'];   // v1.15.0: SHARING split back out of friends
     const raw = segments[1] ? segments[1].toLowerCase() : 'profile';
     await renderAccount(profile, valid.includes(raw) ? raw : 'profile');
     return;
