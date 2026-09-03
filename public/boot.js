@@ -162,7 +162,7 @@ async function ensureProfile(userId) {
     .from('profiles')
     .upsert(row, { onConflict: 'user_id', ignoreDuplicates: false })
     .select('user_id, discogs_username, import_status, last_import_at, ' +
-      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility, wantlist_visibility')
+      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility, wantlist_visibility, match_mode')
     .single();
   if (error) throw new Error('profile upsert failed: ' + error.message);
   return data;
@@ -332,17 +332,20 @@ function installFriendCrateProviders(owner) {
 
   // #43 (Decision 5): the owner's wantlist IDs — for the set-derived "they want / you have" count (so the
   // count and the filter share one source and can't disagree). ID-only, under the same wantlist RLS gate.
+  // #28: return the owner's wantlist ENTRIES ({id, master}) — the any-pressing "they want / you have"
+  // count iterates these so a record matched both exactly and by master isn't double-counted. Still
+  // wantlist-gated; `master` normalized to null (Discogs' no-master 0 never enters).
   window.TraxWaxOwnerWantIds = async () => {
-    if (owner._canViewWantlist !== true) return new Set();   // wantlist private → unknown, not zero
-    const ids = new Set();
+    if (owner._canViewWantlist !== true) return [];   // wantlist private → unknown, not zero
+    const out = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from('wantlist_items')
-        .select('release_id').eq('user_id', owner.user_id).order('id', { ascending: true }).range(from, from + 999);
+        .select('release_id, releases(master_id)').eq('user_id', owner.user_id).order('id', { ascending: true }).range(from, from + 999);
       if (error) throw new Error('friend wantlist-ids query failed: ' + error.message);
-      for (const it of data ?? []) ids.add(it.release_id);
+      for (const it of data ?? []) out.push({ id: it.release_id, master: (it.releases && it.releases.master_id) || null });
       if (!data || data.length < 1000) break;
     }
-    return ids;
+    return out;
   };
 
   // Wave 2 B2: add/remove on the VIEWER's own wantlist from a friend's crate (writes the viewer's
@@ -371,7 +374,7 @@ function installFriendCrateProviders(owner) {
       artist: it.artist || '', title: it.title || '', year: it.year || 0,
       label: it.label || '', styles: it.styles || [], genres: it.genres || [],
       vinyl: it.vinyl || '', thumb: it.thumb || '', cover_image: it.cover_image || '',
-      added: it.added || '', rating: it.rating || 0,
+      added: it.added || '', rating: it.rating || 0, master_id: it.master_id || null,   // #28
       price: null, crating: null, crcount: null, have: null, want: null,
     }));
   };
@@ -384,7 +387,7 @@ function installFriendCrateProviders(owner) {
       const { data, error } = await supabase
         .from('wantlist_items')
         .select('release_id, added, ' +
-          'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
+          'releases ( artist, title, year, label, styles, genres, thumb, cover_image, master_id )')
         .eq('user_id', owner.user_id)
         .order('id', { ascending: true })
         .range(from, from + 999);
@@ -396,7 +399,7 @@ function installFriendCrateProviders(owner) {
           artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
           label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
           vinyl: '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
-          added: it.added || '', rating: 0,
+          added: it.added || '', rating: 0, master_id: rel.master_id || null,   // #28
           price: null, crating: null, crcount: null, have: null, want: null,
         });
       }
@@ -407,16 +410,28 @@ function installFriendCrateProviders(owner) {
 
   // Wave 2 B1: the VIEWER's own wants + haves as id Sets — the badges match these against the friend's
   // displayed records (own data, no consent gate). MUST scope to the viewer; owner.user_id is the FRIEND.
+  // #28: adds master_id sets (join releases) for any-pressing matching. ALSO fixes a pre-existing bug —
+  // the old body had no .range(), so PostgREST silently capped the viewer's own collection/wantlist at
+  // 1,000 rows (Lane owns ~1,861 → viewerHas was truncated, undercounting YOU-OWN badges + IN COMMON on
+  // every friend's crate). Paginate like the sibling providers. `if (m)` excludes Discogs' no-master 0.
   window.TraxWaxMatchCtx = async () => {
     const me = window.Clerk.user.id;
-    const [w, c] = await Promise.all([
-      supabase.from('wantlist_items').select('release_id').eq('user_id', me),
-      supabase.from('collection_items').select('release_id').eq('user_id', me),
-    ]);
-    if (w.error || c.error) throw new Error('match ctx failed');
+    const pull = async (table) => {
+      const ids = new Set(), masters = new Set();
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase.from(table)
+          .select('release_id, releases(master_id)').eq('user_id', me)
+          .order('id', { ascending: true }).range(from, from + 999);
+        if (error) throw new Error('match ctx failed (' + table + '): ' + error.message);
+        for (const r of data ?? []) { ids.add(r.release_id); const m = r.releases && r.releases.master_id; if (m) masters.add(m); }
+        if (!data || data.length < 1000) break;
+      }
+      return { ids, masters };
+    };
+    const [w, c] = await Promise.all([pull('wantlist_items'), pull('collection_items')]);
     return {
-      viewerWants: new Set((w.data ?? []).map((r) => r.release_id)),
-      viewerHas:   new Set((c.data ?? []).map((r) => r.release_id)),
+      viewerWants: w.ids, viewerWantsMasters: w.masters,
+      viewerHas:   c.ids, viewerHasMasters:   c.masters,
     };
   };
 
@@ -720,6 +735,12 @@ async function renderAccount(profile, section) {
         .update({ wantlist_visibility: v }).eq('user_id', window.Clerk.user.id);
       if (error) throw new Error(error.message);
     },
+    onSetMatchMode: async (mode) => {   // #28: viewer's own reading preference; direct update under profiles_update_own RLS
+      const { error } = await supabase.from('profiles')
+        .update({ match_mode: mode }).eq('user_id', window.Clerk.user.id);
+      if (error) throw new Error(error.message);
+      window.__twMatchMode = mode;   // reflect immediately so a later crate view reads the new mode
+    },
     onListFriends: async () => {
       const { data, error } = await supabase.rpc('list_friends');
       if (error) throw new Error(error.message);
@@ -848,6 +869,10 @@ async function render() {
 
   clearAuthMount();
   const profile = await ensureProfile(window.Clerk.user.id);
+
+  // #28: the VIEWER's any-pressing reading preference, read once per load before routing — it applies
+  // symmetrically to every crate the viewer opens (own OR friend), so it lives here, not per-route.
+  window.__twMatchMode = (profile && profile.match_mode) || 'exact';
 
   // Wave 1: consume an invite code stashed at boot() (from an /i/<code> link, possibly opened
   // while signed out and carried across sign-in). Runs once the user is signed in.

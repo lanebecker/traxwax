@@ -237,7 +237,7 @@ async function handle(req: Request): Promise<Response> {
     id?: number; title?: string; year?: number;
     artists?: Array<{ name?: string }>; labels?: Array<{ name?: string }>;
     styles?: string[]; genres?: string[]; formats?: Array<{ text?: string }>;
-    thumb?: string; cover_image?: string;
+    thumb?: string; cover_image?: string; master_id?: number;
   };
   const items: Array<Record<string, unknown>> = [];
   const seeds = new Map<number, Record<string, unknown>>();
@@ -265,6 +265,7 @@ async function handle(req: Request): Promise<Response> {
         genres: bi.genres ?? [],
         thumb: bi.thumb ?? '',
         cover_image: bi.cover_image ?? '',
+        master_id: bi.master_id || null,   // #28: Discogs sends 0 for no-master → || null keeps it exact-only
         // tracks/country/released/videos deliberately absent: seeds have tracks = null,
         // which is exactly what enrich-release keys on.
       });

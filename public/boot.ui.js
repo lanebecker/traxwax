@@ -250,6 +250,8 @@ export function trapFocus(container, onEscape) {
      onResync(), onDisconnect(), onDelete(),
      // Wave 1 (friends section):
      onSetVisibility(v),      // async -> set crate_visibility 'private' | 'friends'
+     onSetWantlistVisibility(v),  // async -> set wantlist_visibility 'private' | 'friends'
+     onSetMatchMode(mode),    // #28: async -> set the viewer's own match_mode 'exact' | 'any'
      onListFriends(),         // async -> [{user_id, discogs_username, display_name, avatar_url, crate_visibility}]
      onCreateInvite(),        // async -> a shareable /i/<code> URL
      onRemoveFriend(userId),  // async -> remove the friendship both directions
@@ -433,6 +435,7 @@ function friendsSection(o) {
   const vis = (o.profile && o.profile.crate_visibility) || 'private';
   const on = vis === 'friends';
   const wlOn = ((o.profile && o.profile.wantlist_visibility) || 'private') === 'friends';   // Wave 2 B1
+  const mm = (o.profile && o.profile.match_mode) || 'exact';   // #28: the viewer's own matching preference
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
     // Intro: eyebrow + title + one full-width description line (no max-width clamp).
@@ -473,6 +476,25 @@ function friendsSection(o) {
       toggle({ id: 'tw-wlvis-toggle', on: wlOn, label: 'Friends can see my wantlist' }) +
     '</div>' +
 
+    // ── Section 1b: MATCHING (#28) — the viewer's OWN reading preference (not a visibility/consent switch).
+    // A segmented control (default EXACT). Applies symmetrically to every crate the viewer opens.
+    sectionLabel('MATCHING') +
+    '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
+      'border:1.5px solid var(--line); padding:16px 18px">' +
+      '<div style="display:flex; flex-direction:column; gap:3px">' +
+        '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; ' +
+          'color:var(--ink)">How overlaps are counted</span>' +
+        '<span style="' + MONO + '; font-size:10.5px; color:var(--muted)">' +
+          'Changes how you read matches on everyone’s crate. Doesn’t change what you add.</span>' +
+      '</div>' +
+      '<div id="tw-match-seg" role="group" aria-label="Matching mode" style="display:flex; ' +
+        'border:1.5px solid var(--line); flex:none">' +
+        segBtn('exact', 'EXACT PRESSING', mm) + segBtn('any', 'ANY PRESSING', mm) +
+      '</div>' +
+    '</div>' +
+    '<span style="' + MONO + '; font-size:10px; line-height:1.6; color:var(--faint); margin-top:-12px">' +
+      'EXACT — the same pressing on both lists (the default). ANY — any pressing of the same album counts.</span>' +
+
     // ── Section 2: INVITE A FRIEND — the link tool, boxed with its caption.
     sectionLabel('INVITE A FRIEND') +
     '<div style="border:1.5px solid var(--line); padding:16px 18px; display:flex; ' +
@@ -499,6 +521,14 @@ function friendsSection(o) {
     '</div>' +
     '<div id="tw-friends-list"></div>' +
   '</div>';
+}
+
+/* #28: one segment of the MATCHING control. Selected = ink fill; the wire re-styles on click. */
+function segBtn(v, label, cur) {
+  const on = cur === v;
+  return '<button data-mm="' + v + '" aria-pressed="' + on + '" style="' + MONO + '; font-size:10.5px; ' +
+    'letter-spacing:.06em; padding:8px 12px; border:0; cursor:pointer; ' +
+    (on ? 'background:var(--ink); color:var(--panel)' : 'background:var(--panel); color:var(--muted)') + '">' + label + '</button>';
 }
 
 /* Populate #tw-friends-list from deps.onListFriends(). Reused on first render and after a
@@ -766,8 +796,31 @@ export function bindAccountPage(root, deps) {
       } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
     });
   }
+  // #28: the MATCHING segmented control — click-delegated on #tw-match-seg. Writes the viewer's own
+  // match_mode (not a consent switch); re-styles both segments on success.
+  function wireMatchSeg() {
+    const seg = root.querySelector('#tw-match-seg');
+    if (!seg) return;
+    seg.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-mm]');
+      if (!b) return;
+      const mode = b.getAttribute('data-mm');
+      const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
+      try {
+        await deps.onSetMatchMode(mode);
+        seg.querySelectorAll('[data-mm]').forEach((x) => {
+          const isOn = x.getAttribute('data-mm') === mode;
+          x.setAttribute('aria-pressed', isOn);
+          x.style.background = isOn ? 'var(--ink)' : 'var(--panel)';
+          x.style.color = isOn ? 'var(--panel)' : 'var(--muted)';
+        });
+        smsg(mode === 'any' ? 'Now matching any pressing of the same album.' : 'Now matching exact pressings only.');
+      } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
+    });
+  }
   wireVisToggle();
   wireWlVisToggle();
+  wireMatchSeg();
 
   // ── Wave 1: FRIENDS ── invite-link button + friend list.
   const inviteBtn = $('tw-invite-btn');

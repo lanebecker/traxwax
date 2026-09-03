@@ -203,6 +203,7 @@ async function handle(req: Request): Promise<Response> {
       country: (rel.country as string) ?? '',
       released: (rel.released_formatted as string) || (rel.released as string) || '',
       videos,
+      master_id: (rel.master_id as number) || null,   // #28: || null normalizes Discogs' no-master 0 to NULL
       enriched_at: new Date().toISOString(),
       gone_at: null,   // Phase 2 (#3): a success clears any tombstone.
     }).eq('release_id', rid);

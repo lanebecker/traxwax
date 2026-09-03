@@ -421,6 +421,10 @@ input::placeholder { color:var(--faint); }
 .tw-badge-you  { background:var(--accent); color:var(--on-accent); }
 .tw-badge-both { background:var(--ink);    color:var(--bg); }
 .tw-badge-else { background:var(--panel);  color:var(--ink); border:1.5px solid var(--line); padding:2px 6px; }
+/* #28: any-pressing-only matches — panel fill + a colored rule (a match on the MASTER, not the exact release).
+   "A PRESSING YOU WANT" (accent rule) · "YOU OWN A PRESSING" (ink rule). 2px pad offsets the 1.5px border. */
+.tw-badge-you-outline  { background:var(--panel); color:var(--accent); border:1.5px solid var(--accent); padding:2px 6px; }
+.tw-badge-both-outline { background:var(--panel); color:var(--ink);    border:1.5px solid var(--ink);    padding:2px 6px; }
 
 /* ── Clerk sign-in / sign-up card (S2 / S3) ────────────────────────────────────
    Clerk's current build outlines every control with a box-shadow RING (not a
