@@ -398,7 +398,7 @@ function card(r){
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.vinylShort)}</span>
       </button>
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:6px; border-top:1.5px solid var(--line); padding-top:6px; margin-top:auto">
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0">${esc(r.year)} · ${esc(r.style1)}</span>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0">${esc(r.year)}<span class="tw-card-style"> · ${esc(r.style1)}</span></span>
         ${metaCellHtml(r)}
       </div>
     </div>
@@ -518,6 +518,41 @@ function lockedPanelHtml(section){
   '</div>';
 }
 
+// 2A: the shared-taste overlap records for a friend's LEDGER (exact mode; #28 adds any-pressing variants later).
+//  (a) THEIR crate ∩ YOUR wants  → 'you'  → ON YOUR WANTLIST (accent)  [from RECORDS + viewerWants]
+//  (b) THEIR wantlist ∩ YOUR haves → 'both' → YOU OWN THIS   (ink)     [from WANTLIST_RECORDS + viewerHas]
+// (b) needs the friend's wantlist DISPLAY rows; the ledger triggers that load (case 'view'/bootCrate). Until
+// they arrive (b) is empty — IN COMMON's COUNT is still exact (it uses __twOwnerWantIds, awaited at boot).
+function _overlapRecords(){
+  const ctx = window.__twMatchCtx; if (!ctx) return [];
+  const out = [];
+  if (ctx.viewerWants) for (const r of (RECORDS||[])) if (ctx.viewerWants.has(r.id)) out.push({ rec:r, kind:'you' });
+  if (ctx.viewerHas && Array.isArray(WANTLIST_RECORDS))
+    for (const r of WANTLIST_RECORDS) if (ctx.viewerHas.has(r.id)) out.push({ rec:r, kind:'both' });
+  return out;
+}
+/* 2A: the friend LEDGER's second panel — the records you both care about (exact mode; #28 adds any-pressing). */
+function overlapPanelHtml(){
+  const rows = _overlapRecords();
+  const badge = (kind) => kind==='both'
+    ? '<span style="font-family:\'IBM Plex Mono\',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px; background:var(--ink); color:var(--bg)">YOU OWN THIS</span>'
+    : '<span style="font-family:\'IBM Plex Mono\',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px; background:var(--accent); color:var(--on-accent)">ON YOUR WANTLIST</span>';
+  const list = rows.length ? rows.map(({rec,kind})=>{ const r=deco(rec); return `
+            <button data-act="open" data-arg="${r.id}" style="display:flex; align-items:center; gap:12px; padding:8px 0; border:0; border-bottom:1px solid var(--hair); background:transparent; text-align:left; width:100%">
+              <div role="img" aria-label="${esc(r.coverAlt)}" style="width:38px; height:38px; flex:none; border:1px solid var(--line); background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
+              <span style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</span>
+                <span style="font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:600; line-height:1.05">${esc(r.title)}</span>
+              </span>
+              ${badge(kind)}
+            </button>`; }).join('')
+    : `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">No shared records yet.</span>`;
+  return `<div style="padding:22px 24px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Where you overlap</span>
+          <div style="display:flex; flex-direction:column; margin-top:14px">${list}</div>
+        </div>`;
+}
+
 /* #2 · THE BADGE SLOT (S19) — ▸ RESERVED FOR WAVE 2. Nothing calls these yet.
    Grammar: 'you' accent (true about YOU) · 'both' ink (true about BOTH) · 'else' panel
    (action lives ELSEWHERE). Two badges max; wantlist/you-own are mutually exclusive so the
@@ -588,12 +623,17 @@ function computeVals(){
 
   return { all, filtered, visible, counts, topGenres, total, newCount, coloredCount,
     active, timeline, styleBars, priciest,
-    bigStats:[
+    bigStats: IS_OWN() ? [
       {label:'Records', value:all.length.toLocaleString('en-US'), note:'Counted honestly. Twice.', color:'var(--ink)'},
       {label:'Estimated value', value:state.headerValue||valueLabel(total), note:priced.length?'Median of Discogs lows.':'Live Discogs estimate.', color:'var(--accent)'},
       {label:'On colored wax', value:coloredCount+'', note:Math.round((coloredCount/all.length)*100)+'% of the shelf.', color:'var(--ink)'},
       {label:'Added this month', value:newCount+'', note:'A restrained month, relatively.', color:'var(--ink)'},
-    ],
+    ] : (()=>{ const _mc=_matchCounts(); const _ic=(_mc.youWant||0)+(_mc.theyWant||0); return [
+      {label:'Records', value:all.length.toLocaleString('en-US'), note:'In their crate.', color:'var(--ink)'},
+      {label:'In common', value:_ic.toLocaleString('en-US'), note:'Where your shelves meet.', color:'var(--accent)'},
+      {label:'On colored wax', value:coloredCount+'', note:Math.round((coloredCount/all.length)*100)+'% of their shelf.', color:'var(--ink)'},
+      {label:'Added this month', value:newCount+'', note:'Their latest finds.', color:'var(--ink)'},
+    ]; })(),
   };
 }
 
@@ -657,7 +697,7 @@ function render(){
         <div style="width:150px; flex:none; display:flex; flex-direction:column; gap:3px; padding-top:2px">
           <span style="font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; line-height:1">${esc(grp.label)}</span>
           <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:var(--muted)">${grp.countLabel}</span>
-          <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint)">${grp.valueLabel}</span>
+          ${IS_OWN() ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint)">${grp.valueLabel}</span>` : ''}
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:10px">${grp.items.map(r=>`
           <button data-act="open" data-arg="${r.id}" title="${esc(r.coverAlt)}" style="padding:0; border:1.5px solid var(--line); background:transparent; box-shadow:2px 2px 0 var(--shadow)">
@@ -683,7 +723,7 @@ function render(){
               <span style="width:26px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${b.count}</span>
             </div>`).join('')}</div>
         </div>
-        <div style="padding:22px 24px">
+        ${IS_OWN() ? `<div style="padding:22px 24px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">The expensive end</span>
           <div style="display:flex; flex-direction:column; margin-top:14px">${
             v.priciest.length ? v.priciest.map(r=>`
@@ -697,7 +737,7 @@ function render(){
             </button>`).join('')
             : `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">Per-record prices return in a future update. Open any record for its live lowest sale.</span>`
           }</div>
-        </div>
+        </div>` : overlapPanelHtml()}
       </div>
     </div>`;
   } else if(showEmpty){
@@ -724,22 +764,26 @@ function render(){
       const owner=(o.displayName||o.ownerUsername||'A friend');
       const mc=_matchCounts();
       const nameSpan = `<span style="color:#fff">${esc(owner.toUpperCase())}</span>`;
-      let sentence;
-      if (mc.youWant !== null && mc.theyWant !== null){                    // both shared
-        sentence = `${nameSpan} HAS ` + _matchPart(mc.youWant,'YOU WANT','matchYouWant')
-                 + ', AND YOU HAVE ' + _matchPart(mc.theyWant,'THEY WANT','matchTheyWant') + '.';
-      } else if (mc.youWant !== null){                                     // wantlist private
-        sentence = `${nameSpan} HAS ` + _matchPart(mc.youWant,'YOU WANT','matchYouWant')
-                 + '. THEIR WANTLIST IS PRIVATE.';
-      } else if (mc.theyWant !== null){                                    // crate private
-        sentence = `${nameSpan}’S CRATE IS PRIVATE. YOU HAVE `
-                 + _matchPart(mc.theyWant,'THEY WANT','matchTheyWant') + '.';
-      } else {                                                             // both private — unreachable (→ S16); belt-and-suspenders
-        sentence = `${nameSpan}’S CRATE IS PRIVATE. THEIR WANTLIST IS PRIVATE.`;
-      }
+      const bothShared = (mc.youWant !== null && mc.theyWant !== null);
+      // Two standalone clauses (each reads alone → each can be its own mobile row). Private → plain, no link (#43).
+      const c1 = (mc.youWant !== null)
+        ? `${nameSpan} HAS ` + _matchPart(mc.youWant,'YOU WANT','matchYouWant')
+        : `${nameSpan}’S CRATE IS PRIVATE`;
+      const c2 = (mc.theyWant !== null)
+        ? 'YOU HAVE ' + _matchPart(mc.theyWant,'THEY WANT','matchTheyWant')
+        : 'THEIR WANTLIST IS PRIVATE';
+      // Desktop: one flowing sentence — ", AND " joins two shared clauses; ". " otherwise. (Byte-identical to
+      // the prior #43 4-branch output for every state.)
+      const desktop = `${c1}${bothShared ? ', AND ' : '. '}${c2}.`;
+      // Mobile: two rows; the "AND" connective rides row 2 only when both are shared (per the kit render).
+      const row2 = `${bothShared ? 'AND ' : ''}${c2}`;
       return `<div class="tw-friend-strip" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 24px; background:#16171a; color:rgba(255,255,255,.62); font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase">
-      <span>${sentence}</span>
-      <a href="/app" style="color:#fff; text-decoration:underline; white-space:nowrap">← Back to your crate</a>
+      <span class="tw-fs-desktop">${desktop}</span>
+      <div class="tw-fs-mobile">
+        <div class="tw-fs-row">${c1}</div>
+        <div class="tw-fs-row">${row2}</div>
+      </div>
+      <a class="tw-fs-back" href="/app" style="color:#fff; text-decoration:underline; white-space:nowrap">← Back to your crate</a>
     </div>`;})():''}
 
     <header class="tw-header" style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:22px 24px 18px; background:var(--accent); border-bottom:3px solid var(--line)">
@@ -752,9 +796,9 @@ function render(){
               const name=(o.displayName||o.ownerUsername||'A friend');
               const since=o.collectingSince ? (' · COLLECTING SINCE ' + esc(String(o.collectingSince))) : '';
               return `<div style="display:flex; align-items:center; gap:12px; padding-bottom:2px">
-                <span style="width:46px; height:46px; flex:none; border:1.5px solid #16171a; border-radius:50%; overflow:hidden; background:#fff; display:inline-flex; align-items:center; justify-content:center">${av?`<img src="${esc(av)}" alt="" style="width:100%; height:100%; object-fit:cover; display:block">`:glyph}</span>
+                <span class="tw-friend-avatar" style="width:46px; height:46px; flex:none; border:1.5px solid #16171a; border-radius:50%; overflow:hidden; background:#fff; display:inline-flex; align-items:center; justify-content:center">${av?`<img src="${esc(av)}" alt="" style="width:100%; height:100%; object-fit:cover; display:block">`:glyph}</span>
                 <span style="display:flex; flex-direction:column; gap:3px">
-                  <span style="font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:700; line-height:1; color:#fff">${esc(name)}’s Crate</span>
+                  <span class="tw-friend-name" style="font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:700; line-height:1; color:#fff">${esc(name)}’s Crate</span>
                   <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.85)">@${esc(o.ownerUsername||'')}${since}</span>
                 </span>
               </div>`;})()}
@@ -1270,7 +1314,7 @@ function onClick(e){
       track('view_change', { view: arg });
       // Wave 2 B1: lazy-load THE WANTLIST dataset on first switch. WANTLIST_RECORDS: null=not loaded,
       // []=loaded (guards re-entry while the async load is in flight; [] shows an empty grid, not RECORDS).
-      if (arg==='wantlist' && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
+      if ((arg==='wantlist' || (arg==='ledger' && !IS_OWN())) && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
         WANTLIST_RECORDS=[];
         window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; render(); })
           .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; });
@@ -1409,7 +1453,7 @@ async function bootCrate(){
       // Wave 2: a hash-restored WANTLIST tab needs its dataset loaded on a direct reload (the case 'view'
       // lazy-load never ran). Mirror that load; render() below paints the briefly-empty grid, then this
       // fills it. Own+DB only — guaranteed by _validTabs above.
-      if (state.view==='wantlist' && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
+      if ((state.view==='wantlist' || (state.view==='ledger' && !IS_OWN())) && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
         WANTLIST_RECORDS=[];
         window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; render(); })
           .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; });

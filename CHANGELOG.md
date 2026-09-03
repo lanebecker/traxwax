@@ -13,6 +13,33 @@ _Nothing yet._
 
 ---
 
+## [1.12.0] — 2026-09-03
+
+Open design items — **Wave A** (frontend only): a friend's LEDGER/TIMELINE go social, the friend header + card
+get mobile passes, and the landing theme flash is gone. (Design kit: `traxwax-remaining-design-issues`.)
+
+### Added
+- **A friend's LEDGER is social, not financial.** `ESTIMATED VALUE → IN COMMON` (your shared-taste overlap
+  count, "Where your shelves meet"); `The expensive end → WHERE YOU OVERLAP` (the records you both care about,
+  each badged `ON YOUR WANTLIST` / `YOU OWN THIS`); the most-filed-styles chart stays. All notes recast to
+  third-person guest voice. Overlap is exact-pressing for now; #28 (any-pressing) will upgrade the same surface.
+
+### Changed
+- **A friend's TIMELINE drops the value line** (count-per-month only — prices are Restricted on someone else's
+  crate). The owner's ledger + timeline are unchanged.
+- **Friend header on mobile (≤640px):** the match sentence stacks into two ≥44px tappable rows (`← BACK` on its
+  own row on top); the friend avatar pins top-right; the stat pill trims to `{n} IN CRATE`.
+- **Friend card at 2 columns (≤599px):** the meta footer stays one row — the style category drops (still on the
+  vinyl-color row + modal); year + the compact `+ WANT` / `✕ REMOVE` control stay; cover badges shrink a notch.
+
+### Fixed
+- **Landing-page theme flash (#37).** The theme is now applied **pre-paint** (a synchronous script at the top of
+  `<body>`) instead of on `DOMContentLoaded`, so dark-preference visitors no longer see a light→dark flash; the
+  same guard is added to the app shell. Closes #37 — its search-label (v1.8.3), modal-inert (v1.9.1), and
+  sub-44px tap-target (declined) sub-items were already resolved.
+
+---
+
 ## [1.11.0] — 2026-09-03
 
 Friend-crate **visibility (#43)** — what a visitor sees when a friend shares one shelf and closes the other

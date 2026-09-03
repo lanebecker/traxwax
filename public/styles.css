@@ -50,6 +50,14 @@ input::placeholder { color:var(--faint); }
 @media (max-width:1099px){ :root{ --columns:4; } }
 @media (max-width:819px) { :root{ --columns:3; } }
 @media (max-width:599px) { :root{ --columns:2; } }
+/* 2C: at 2-up keep the card meta one row — drop the style category; shrink the cover badges one notch. */
+@media (max-width:599px){
+  .tw-card-style { display:none; }
+  .tw-badge { font-size:7.5px; padding:2px 5px; }
+}
+
+/* #43/2B: the friend-strip mobile rows are hidden by default (desktop shows the flowing sentence). */
+.tw-fs-mobile { display:none; }
 
 /* ── Mobile (≤640px) ──────────────────────────────────────────────────────────
    The design was inline-styled for desktop; these override the structural rows so
@@ -62,9 +70,19 @@ input::placeholder { color:var(--faint); }
   .tw-header { flex-direction:column !important; align-items:stretch !important; justify-content:flex-start !important; gap:12px !important; padding:16px 14px 14px !important; }
   /* v1.3.x: the floating avatar hugs the tighter mobile padding and clears the wordmark. */
   .tw-avatar { top:12px !important; right:14px !important; }
-  .tw-headL { flex-wrap:wrap; }
+  .tw-headL { flex-direction:column !important; align-items:flex-start !important; gap:8px; padding-right:56px; }   /* 2B: stack wordmark→name/handle; clear the pinned avatar */
   .tw-headR { justify-content:flex-start !important; }
   .tw-hide-mobile { display:none !important; }
+
+  /* 2B: friend match-sentence stacks into two tappable rows; BACK on top; friend avatar pinned top-right. */
+  .tw-friend-strip { flex-direction:column !important; align-items:stretch !important; gap:0 !important; padding:0 !important; }
+  .tw-fs-desktop { display:none; }
+  .tw-fs-mobile { display:block; }
+  .tw-fs-back { order:-1; padding:11px 14px; }
+  .tw-fs-row { display:flex; align-items:center; min-height:44px; padding:10px 14px; border-top:1px solid rgba(255,255,255,.14); }
+  .tw-fs-row a { display:inline-flex; align-items:center; min-height:44px; }
+  .tw-friend-avatar { position:absolute; top:12px; right:14px; }
+  .tw-friend-name { text-wrap:balance; }
 
   .tw-filterbar { padding:10px 14px !important; }
 
