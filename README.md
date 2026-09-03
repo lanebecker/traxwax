@@ -25,11 +25,10 @@ traxwax/
 ├── functions/api/
 │   └── release/[id].js       # legacy CC0 proxy — last-resort modal fallback only
 ├── supabase/
-│   ├── migrations/           # 0001–0010: schema, RLS, RPCs (see CLAUDE.md for the map)
-│   └── functions/            # 8 Edge Functions — the real backend (see DEPLOY.md)
+│   ├── migrations/           # 0001–0025: schema, RLS, RPCs (see CLAUDE.md for the map)
+│   └── functions/            # 9 Edge Functions — the real backend (see DEPLOY.md)
 ├── build/
 │   ├── refresh_collection.py # legacy single-user data builder (manual dispatch only)
-│   ├── build_collection.py   # legacy: discogs_records.json → collection.json
 │   └── seed_catalog.py       # one-shot: emitted the CC0 catalog seed for Supabase (Phase 0)
 ├── .github/workflows/
 │   ├── refresh-collection.yml  # RETIRED from cron; workflow_dispatch only (dev fixture)
@@ -71,8 +70,11 @@ verified Clerk session completes them (`finalize-connect`), closing the link-CSR
 `/` is the landing page. `/app` and `/app/<username>` both serve `public/app/index.html` via
 a `_redirects` rewrite, and `boot.js` reads the path to decide what to render: the Clerk
 sign-in card when signed out, a connect prompt when Discogs is not linked, or the crate when
-the signed-in user owns that username. **Crates are private** — `/app/<username>` resolves
-only for its owner.
+the signed-in user owns that username. **Crates are private by default** — but since the friends
+wave, an owner can share their crate and/or wantlist with accepted friends (`crate_visibility` /
+`wantlist_visibility`), so `/app/<username>` also resolves for a consented friend, who reads a
+Restricted-data-free projection via the `get_friend_crate` RPC + friend-read RLS (gated on
+`private.can_view_crate` / `can_view_wantlist`).
 
 `boot.js` and `app.js` deliberately live at the `public/` root rather than under `/app/`.
 Cloudflare Pages follows redirects "regardless of whether or not an asset matches the incoming
@@ -98,12 +100,17 @@ above to match and warns if the changelog was not updated in the same push.
 
 ## Status
 
-**Shipped through v1.2.0** (2026-08-29): the full single-user redesign (v0.x), then
-multi-user launch — Clerk auth, per-user Discogs OAuth (tokens AES-256-GCM at rest),
-client-driven import + background CC0 enrichment, live-only Restricted data (v1.0.0);
-post-launch bug batch (v1.0.1); account controls + the authenticated finalize closing the
-link-CSRF (v1.1.0); the self-healing catalog (v1.2.0). Full history in `CHANGELOG.md`,
-release-by-release detail in `docs/roadmap.md`.
+**Shipped through v1.14.0** (2026-09-03): the full single-user redesign (v0.x); multi-user launch —
+Clerk auth, per-user Discogs OAuth (tokens AES-256-GCM at rest), client-driven import + background CC0
+enrichment, live-only Restricted data (v1.0.0); account controls + link-CSRF-safe finalize (v1.1.0);
+the self-healing catalog (v1.2.0); accessibility polish (v1.3.x); analytics (v1.4.7); wantlists + the
+match matrix (v1.5.0) and THE OVERLAP (v1.6.0); a full cold audit remediated across frontend/security/
+backend/perf (v1.8.3–v1.9.1); the friends & consented-crate social wave — friend-card redesign, the
+`get_friend_crate` projection, friend-crate header + visibility states (v1.10.0–v1.11.0); the open-design
+items wave incl. the landing FOUC fix (v1.12.0); optional any-pressing (master-level) matching (#28,
+v1.13.0); the CSP flipped to enforced (#38, v1.13.0); and an end-of-phase cold audit — wantlist_items
+write lockdown, RLS initplan perf, want-control fixes, doc refresh (v1.14.0). Full history in
+`CHANGELOG.md`, release-by-release detail in `docs/roadmap.md`.
 
-**Next** — accessibility polish (modal focus-trap and focus restore, roving grid focus,
-`aria-live` on the result count, `cover_image` for the modal cover). See `docs/roadmap.md`.
+**Next** — remaining backlog is small: friend link-sharing (#10, parked) and future social waves.
+See `docs/social-roadmap.md`.

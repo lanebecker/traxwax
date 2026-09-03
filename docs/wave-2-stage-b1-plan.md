@@ -1,6 +1,6 @@
 # Wave 2 — Stage B1 plan: the match matrix + THE WANTLIST view (read path)
 
-**Status:** DRAFT — awaiting the verification pass, then Lane's review + break-glass.
+**Status:** EXECUTED — shipped (match matrix, v1.5.0). Historical plan record. (Was: DRAFT — awaiting the verification pass, then Lane's review + break-glass.)
 **Scope:** Stage B1 = the entire **read** path that makes the wantlist visible. **ADD TO WANTLIST
 (the first Discogs write) is Stage B2** — not here.
 

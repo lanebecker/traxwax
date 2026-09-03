@@ -1,6 +1,6 @@
 # Wave 2 — Stage A plan (backend): wantlist schema, import, enrich redesign
 
-**Status:** DRAFT — awaiting the verification pass, then Lane's review + break-glass.
+**Status:** EXECUTED — shipped (wantlist data path, v1.5.0). Historical plan record. (Was: DRAFT — awaiting the verification pass, then Lane's review + break-glass.)
 **Scope:** Stage A of Wave 2 (backend-first, de-risk). Ships the wantlist data path end to end —
 schema, import, and the enrich work-discovery/gate redesign — with **no user-facing surface**.
 The match RPC, WANT/HAVE badges, MATCHES stat block, THE WANTLIST view, ADD TO WANTLIST, and

@@ -306,7 +306,7 @@ function deco(r){
     : '';
   return { ...r,
     swatch:swatchFor(r.vinyl), vinylShort:shortVinyl(r.vinyl),
-    style1:r.styles[0]||r.genres[0]||'—',
+    style1:(r.styles||[])[0]||(r.genres||[])[0]||'—',   // guard: a provider omitting styles must not throw + blank the whole grid
     isNew:(r.added||'').slice(0,7)===THIS_MONTH,
     priceLabel:r.price==null?'—':money(r.price),
     coverBg: coverUrl ? "url('"+coverUrl+"')" : 'none',  // single quotes: the div's style="" is double-quoted
@@ -382,24 +382,26 @@ function metaCellHtml(r){
     // #47 follow-up: a friend's wantlist offers the VIEWER's OWN +WANT/✕REMOVE toggle (data-act="want" →
     // friendAdd/friendRemove; never touches the friend's list). Owned (a "they want, you have" match) → no
     // control. #28: _viewerOwns also covers any-pressing ("you own a pressing" → no inline want).
+    // Close-audit fix: EXACT want first (✕ REMOVE, matches the badge), THEN own-suppression, else + WANT.
     const ctx = window.__twMatchCtx;
+    if (ctx && ctx.viewerWants && ctx.viewerWants.has(r.id))
+      return `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
     if (_viewerOwns(r)) return '';
-    return (ctx && ctx.viewerWants && ctx.viewerWants.has(r.id))
-      ? `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`
-      : `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;
+    return `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;
   }
   if (IS_OWN())
     return SETTINGS.showPrices
       ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`
       : '';
   const ctx = window.__twMatchCtx;
-  // #28 (kit §1.4): a "you own it" card hides the inline + WANT — exact OR any-pressing. (Consistency fix:
-  // the exact case wasn't suppressed on the crate card before, though the badge, wantlist tab + modal all did.)
-  if (_viewerOwns(r)) return '';
   const wanted = ctx && ctx.viewerWants && ctx.viewerWants.has(r.id);
+  // #28 (close-audit fix): EXACT want wins first — a record you want-exactly shows ✕ REMOVE, matching its
+  // "ON YOUR WANTLIST" badge (the prior order suppressed it via _viewerOwns when you also owned a pressing).
+  // Then a record you own (exact OR, any-mode, a pressing) hides the inline + WANT (kit §1.4). Else + WANT.
   if (wanted)   // State B — wanted: the wantlist ✕ REMOVE control, verbatim (ink, underline, hover accent)
     return `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
-  return `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;   // State A — not wanted
+  if (_viewerOwns(r)) return '';
+  return `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;   // State A — not wanted/owned
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────────── */

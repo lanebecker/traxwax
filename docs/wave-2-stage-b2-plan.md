@@ -1,6 +1,6 @@
 # Wave 2 — Stage B2 plan: ADD / REMOVE to wantlist (the first Discogs *write*)
 
-Status: DRAFT for Lane's review. Needs break-glass (one new Edge Function deploy). No migration.
+Status: EXECUTED — shipped (wantlist-write Edge Function, v1.5.x). Historical plan record. (Was: DRAFT for Lane's review. Needs break-glass — one new Edge Function deploy. No migration.)
 
 ## What ships
 
