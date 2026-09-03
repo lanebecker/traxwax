@@ -40,13 +40,23 @@ anyone until they flip it.
   collections over 1,000 (Lane's ~1,861 included). Now paginated like the sibling providers. Pre-existing; found
   in the #28 audit, fixed here.
 
+### Security
+- **CSP flipped from report-only to enforced (#38).** The Content-Security-Policy has run report-only since
+  v1.8.4; validated against the live production console and flipped to enforcing. Allowlist gained the runtime
+  origins report-only surfaced: `static.cloudflareinsights.com` (Cloudflare Pages' auto-injected Web Analytics
+  beacon), `gateway.umami.is` (umami sends events here, distinct from the `cloud.umami.is` it loads from), and
+  Cloudflare Turnstile `challenges.cloudflare.com` (script+frame+connect) — Clerk bot-protection is enabled on
+  the production instance, so the sign-in captcha depends on it — plus `clerk-telemetry.com`. HSTS +
+  Permissions-Policy were already enforced. Rollback if anything breaks: rename the header back to
+  `Content-Security-Policy-Report-Only`.
+
 ### Notes
 - The friend-crate match **filter** (the two match-sentence links) is now mode-aware, so the grid it opens always
   matches the count and badges (found in audit).
 - On a friend's crate, a record you already own no longer shows a stray `+ WANT` — the exact-owned case now
   matches the wantlist tab, the modal, and the card's own "YOU OWN THIS" badge.
 
-Closes #28, #49.
+Closes #28, #49, #38.
 
 ---
 

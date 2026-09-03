@@ -1,17 +1,23 @@
-# Baseline security headers (Phase 1 cold audit #35) + Wave 2 hardening (#38, 2026-08-31): a
-# REPORT-ONLY CSP (validates the allowlist without blocking anything — flip the header name to
-# Content-Security-Policy once the browser console is clean of violations), plus HSTS and
-# Permissions-Policy (both safe to enforce for an all-HTTPS site). The CSP keeps 'unsafe-inline' for
-# script/style for now (the app is inline-style heavy and has a few inline guard scripts); tighten to
-# hashes/nonces when going enforcing. SRI is intentionally omitted — Clerk @6 / supabase-js @2 /
-# umami script.js are moving version tags where a pinned integrity hash breaks on their next update;
-# the script-src allowlist is the supply-chain mitigation instead. Likely report-only additions to
-# check for in the console before enforcing: clerk-telemetry.com, challenges.cloudflare.com (Clerk).
+# Baseline security headers (Phase 1 cold audit #35) + Wave 2 hardening (#38): CSP now ENFORCED
+# (2026-09-03) after a report-only cycle. The allowlist was validated against the live report-only
+# console: every code-referenced origin (clerk.traxwax.com, cloud.umami.is, cdn.jsdelivr.net, fonts,
+# supabase, img.clerk.com/Discogs CDN via img-src https:) plus these RUNTIME origins the console/Clerk
+# env surfaced — static.cloudflareinsights.com (Cloudflare Pages auto-injects its Web Analytics beacon
+# SCRIPT; its beacon POST is same-origin /cdn-cgi/rum so needs no connect entry); gateway.umami.is
+# (umami LOADS from cloud.umami.is but SENDS events to gateway.umami.is — connect-src); and Cloudflare
+# Turnstile — challenges.cloudflare.com — because Clerk bot-protection IS enabled on the production
+# instance (captchaProvider=turnstile, signUpCaptcha=true), so the "smart" widget loads a SCRIPT +
+# FRAME + posts on sign-up/sign-in; clerk-telemetry.com (Clerk telemetry POST, harmless) is allowed to
+# keep the enforced console clean. 'unsafe-inline' stays for script/style (the app is inline-style heavy
+# + a few inline guard scripts); tighten to hashes/nonces later. SRI intentionally omitted — Clerk @6 /
+# supabase-js @2 / umami script.js are moving version tags where a pinned hash breaks on update; the
+# script-src allowlist is the supply-chain mitigation instead. ROLLBACK: if sign-in ever breaks, rename
+# the header back to Content-Security-Policy-Report-Only (unblocks everything, keeps reporting).
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://clerk.traxwax.com https://cloud.umami.is https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is; frame-src 'self' https://clerk.traxwax.com; form-action 'self' https://clerk.traxwax.com
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://clerk.traxwax.com https://cloud.umami.is https://cdn.jsdelivr.net https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is https://gateway.umami.is https://challenges.cloudflare.com https://clerk-telemetry.com; frame-src 'self' https://clerk.traxwax.com https://challenges.cloudflare.com; form-action 'self' https://clerk.traxwax.com
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
 
