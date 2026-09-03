@@ -57,15 +57,13 @@
       var m = document.cookie.match(/(?:^|;\s*)__client_uat=([^;]*)/);
       if (m && parseInt(decodeURIComponent(m[1]), 10) > 0) { location.replace('/app'); return; }
     } catch(e){}
-    /* Theme before first paint — mirrors initTheme() in app.js. Without this the landing
-       page renders light-only regardless of preference, then the crate snaps to dark. */
-    var t; try { t = localStorage.getItem('tw_theme'); } catch(e){}
-    if(!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
-    document.addEventListener('DOMContentLoaded', function(){ document.body.dataset.theme = t; });
+    /* #37: theme is applied PRE-PAINT by the body-top script (see <body>) — mirrors initTheme() in app.js. */
   })();
 </script>
 </head>
 <body>
+<script>/* #37: apply theme BEFORE the body paints — kills the light→dark flash for dark-preference visitors */
+(function(){try{var t=localStorage.getItem('tw_theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.body.dataset.theme=t;}catch(e){}})();</script>
 <div class="tw-land">
   <div class="tw-land-panel">
 

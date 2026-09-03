@@ -48,6 +48,8 @@
   data-before-send="twUmamiBeforeSend"></script>
 </head>
 <body>
+<script>/* #37: apply theme BEFORE the body paints — kills the light→dark flash (mirrors index.html + initTheme) */
+(function(){try{var t=localStorage.getItem('tw_theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.body.dataset.theme=t;}catch(e){}})();</script>
   <div id="app" style="min-height:100vh; background:var(--bg); padding:26px 26px 60px"></div>
 
   <script defer crossorigin="anonymous"
