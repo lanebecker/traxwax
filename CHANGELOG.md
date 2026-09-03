@@ -13,6 +13,29 @@ _Nothing yet._
 
 ---
 
+## [1.15.0] — 2026-09-03
+
+Account page restructure (design kit: `traxwax-account-page-redesign`): the sharing/matching settings split
+out of FRIENDS into their own tab, and the visibility control rebuilt as one segmented box.
+
+### Added
+- **New SHARING tab** (nav order: PROFILE · FRIENDS · SHARING · DISCOGS · DANGER ZONE). It holds crate +
+  wantlist visibility and the matching control. Routed at `/account/sharing` (added to both the boot.js
+  section allowlist and the `accountPageHtml` router).
+- **Visibility as one segmented box (design option 1c).** The two butted toggle-boxes become a single
+  bordered container — a `WHO CAN SEE YOUR SHELVES` caption over two hairline-separated rows (My crate / My
+  wantlist), each with a **PRIVATE ▸ FRIENDS segmented control** in the exact idiom as the MATCHING control
+  below it, so the whole tab reads as one segmented language. The selected segment names the audience outright
+  instead of leaving it to a switch position. New `visSegBtn` helper + a generic `wireVisSeg` wire; same
+  `'private'`/`'friends'` values the toggles set — no backend or dep-signature change.
+
+### Changed
+- **FRIENDS slims to just people:** intro (“The people you swap crates with” — with a link to Sharing), the
+  invite tool, and the friends list. The visibility toggles + matching control moved to SHARING; the old
+  toggle path (`wireVisToggle`/`wireWlVisToggle`, `tw-vis-toggle`/`tw-wlvis-toggle`) is fully retired.
+
+---
+
 ## [1.14.1] — 2026-09-03
 
 The three deferred close-audit findings (#50, #51, #52), fixed.
