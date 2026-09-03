@@ -327,7 +327,23 @@ function installFriendCrateProviders(owner) {
     return r.json().catch(() => null);
   };
 
-  window.TraxWaxViewer = { isOwn: false, ownerUserId: owner.user_id, ownerProfile: owner };
+  window.TraxWaxViewer = { isOwn: false, ownerUserId: owner.user_id, ownerProfile: owner,
+    canViewCrate: owner._canViewCrate === true, canViewWantlist: owner._canViewWantlist === true };  // #43 (both fail-closed)
+
+  // #43 (Decision 5): the owner's wantlist IDs — for the set-derived "they want / you have" count (so the
+  // count and the filter share one source and can't disagree). ID-only, under the same wantlist RLS gate.
+  window.TraxWaxOwnerWantIds = async () => {
+    if (owner._canViewWantlist !== true) return new Set();   // wantlist private → unknown, not zero
+    const ids = new Set();
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('wantlist_items')
+        .select('release_id').eq('user_id', owner.user_id).order('id', { ascending: true }).range(from, from + 999);
+      if (error) throw new Error('friend wantlist-ids query failed: ' + error.message);
+      for (const it of data ?? []) ids.add(it.release_id);
+      if (!data || data.length < 1000) break;
+    }
+    return ids;
+  };
 
   // Wave 2 B2: add/remove on the VIEWER's own wantlist from a friend's crate (writes the viewer's
   // wantlist regardless of whose crate is shown). Uses module _pipeCall so errors throw (the friend
@@ -402,12 +418,6 @@ function installFriendCrateProviders(owner) {
       viewerWants: new Set((w.data ?? []).map((r) => r.release_id)),
       viewerHas:   new Set((c.data ?? []).map((r) => r.release_id)),
     };
-  };
-  // MATCHES stat counts (consent-gated server-side; nulls when the owner has not shared that direction).
-  window.TraxWaxMatchCounts = async () => {
-    const { data, error } = await supabase.rpc('crate_match', { p_owner_username: owner.discogs_username });
-    if (error) return null;
-    return data;
   };
 
   window.TraxWaxReleaseData = async (id) => {
@@ -1059,7 +1069,11 @@ async function render() {
     let friendOwner = null;
     try {
       const { data } = await supabase.rpc('get_crate_owner', { p_username: routeUsername });
-      if (data && data.status === 'ok') friendOwner = data.owner;
+      if (data && data.status === 'ok') {
+        friendOwner = data.owner;
+        friendOwner._canViewCrate = data.can_view_crate === true;      // #43 visibility flags
+        friendOwner._canViewWantlist = data.can_view_wantlist === true;
+      }
     } catch (e) { friendOwner = null; }
     if (friendOwner) {
       installFriendCrateProviders(friendOwner);

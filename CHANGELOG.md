@@ -13,6 +13,33 @@ _Nothing yet._
 
 ---
 
+## [1.11.0] — 2026-09-03
+
+Friend-crate **visibility (#43)** — what a visitor sees when a friend shares one shelf and closes the other
+(design kit: `traxwax-issue-43-redesign`). Frontend + migration `0023` (break-glass).
+
+### Fixed
+- **A friend who shared only their wantlist (crate kept private) can now load the page.** `get_crate_owner`
+  authorized only on `can_view_crate`, so it returned "no crate" to a wantlist-only visitor; it now authorizes
+  on crate **OR** wantlist and returns both visibility flags. Both-private still returns "no crate" (no
+  existence probe).
+
+### Added
+- **Locked tabs.** A section you can't see stays in the tab bar as a greyed, lock-glyphed, **clickable** tab
+  that lands an inline "private" panel (third-person, no add CTA). THE TIMELINE & THE LEDGER lock with the crate.
+- **First-shared landing.** You land on whichever section is shared (the wantlist if the crate's private); the
+  locked tab stays visible.
+- **Private-aware match sentence.** A closed direction now reads *"…'S CRATE IS PRIVATE"* / *"…THEIR WANTLIST
+  IS PRIVATE"* instead of a false *"NO ALBUMS."* Match counts are derived from the overlap sets, so a count can
+  never disagree with the filter it links to (this retires the server match RPC; the post-add/remove recount is
+  now instant, client-side).
+- **Friend-voiced empty state** for a shared-but-empty wantlist (*"{name} isn't hunting anything"*).
+
+### Notes
+- New `--lock` / `--lockbg` design tokens; the dark values are derived (the kit specified light only).
+
+---
+
 ## [1.10.0] — 2026-09-02
 
 Friend-crate **header redesign (#47)** — the header shown while viewing someone else's crate (design kit:

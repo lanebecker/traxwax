@@ -6,12 +6,14 @@
   --bg:#eceef0; --panel:#ffffff; --bar:#d8dade; --ink:#16171a; --muted:#54585f;
   --faint:#666a72; --line:#16171a; --hair:#d6d8dc; --accent:#e8194b; --on-accent:#ffffff;
   --shadow:#16171a; --tape:rgba(150,155,163,.26); --skel:#e4e6e9;
+  --lock:#b4b7bd; --lockbg:#f0f1f3;   /* #43: locked-tab label + faint fill */
   --columns:6;
 }
 body[data-theme="dark"] {
   --bg:#0e0f11; --panel:#17181b; --bar:#212329; --ink:#f0efed; --muted:#b4b7bd;
   --faint:#9ea2a9; --line:#3a3d44; --hair:#2b2d33; --accent:#e01046; --on-accent:#ffffff;
   --shadow:#000000; --tape:rgba(255,255,255,.12); --skel:#212329;
+  --lock:#6b6f77; --lockbg:#202227;   /* #43: dark equivalents (kit gave only light) */
 }
 
 * { box-sizing:border-box; }
