@@ -248,6 +248,21 @@ function installCrateProviders(profile) {
     return rows;
   };
 
+  // Wave 4 Stage 1: the caller's OWN for-sale listings — release_id → listing_id (own-select RLS).
+  // Drives the FOR SALE badge, the FOR SALE facet, the ledger stat, and the modal's listed-state.
+  window.TraxWaxInventory = async () => {
+    const map = new Map();   // release_id → listing_id
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('inventory_items')
+        .select('release_id, listing_id').eq('user_id', profile.user_id)
+        .order('id', { ascending: true }).range(from, from + 999);
+      if (error) throw new Error('inventory query failed: ' + error.message);
+      for (const it of data ?? []) map.set(it.release_id, it.listing_id);
+      if (!data || data.length < 1000) break;
+    }
+    return map;
+  };
+
   // Modal tracklist tier 0: the shared CC0 catalog (covers the whole catalog independently
   // of the baked static files). Public-read RLS; shape matches the static files.
   window.TraxWaxReleaseData = async (id) => {
@@ -537,6 +552,25 @@ async function wantlistImportLoop() {
   } while (page <= pages && page <= 500);
 }
 
+/* Wave 4 Stage 1: silent inventory (for-sale) import — same page-loop as wantlistImportLoop but
+   kind='inventory'. No progress UI, client-driven adaptive pacing. Throws on give-up; caller logs. */
+async function inventoryImportLoop() {
+  let page = 1, pages = 1, startedAt = null;
+  do {
+    const t0 = Date.now();
+    const d = await _pipeAttempt(() => _pipeCall('import-collection',
+      Object.assign({ page, kind: 'inventory' }, startedAt ? { started_at: startedAt } : {})));
+    pages = Number.isFinite(d.pages) ? d.pages : pages;   // as importLoop — d.done terminates, not an absent `pages`
+    startedAt = d.started_at;
+    if (d.done) break;
+    page++;
+    const elapsed = Date.now() - t0;
+    const rr = Number(d.rate_remaining ?? NaN);   // null/absent → NaN → normal pace, not budget-low
+    const gap = (Number.isFinite(rr) && rr < 15) ? 2500 : Math.max(0, 1100 - elapsed);
+    await new Promise((r) => setTimeout(r, gap));
+  } while (page <= pages && page <= 500);
+}
+
 /* Background enrichment drain: silent (console only), at most one loop at a time.
    Rate-limited rounds wait 30s and do NOT count toward the stall guard (audit #10). */
 let _enrichRunning = false;
@@ -606,6 +640,20 @@ function triggerWantlistSync() {
     .finally(() => { _wlSyncing = false; backgroundEnrich(); });
 }
 
+// Wave 4 Stage 1: the inventory (for-sale) sync — exact mirror of triggerWantlistSync. Every collection
+// import owes an inventory sync too (runImport sets the flag); consumed at most once at a time under the
+// caller's own token. The flag clears only on a clean import, so a failed/interrupted run stays owed.
+let _invSyncing = false;
+function _invOwed() { try { return sessionStorage.getItem('tw_inventory_due') === '1'; } catch (e) { return false; } }
+function triggerInventorySync() {
+  if (!_invOwed() || _invSyncing) return;
+  _invSyncing = true;
+  inventoryImportLoop()
+    .then(() => { try { sessionStorage.removeItem('tw_inventory_due'); } catch (e) {} })
+    .catch((e) => console.warn('inventory import stopped:', e))
+    .finally(() => { _invSyncing = false; backgroundEnrich(); });
+}
+
 async function runImport() {
   const setProgress = (page, pages, items) => {
     _lastImportPage = page; _lastImportPages = pages; _importedItems = items;
@@ -664,7 +712,9 @@ async function runImport() {
   // bare backgroundEnrich() that used to race the wantlist insert). A caller that reloads (account
   // onResync) kills the in-flight sync; the flag persists and render()'s early consumer re-fires it.
   try { sessionStorage.setItem('tw_wantlist_due', '1'); } catch (e) {}
+  try { sessionStorage.setItem('tw_inventory_due', '1'); } catch (e) {}   // Wave 4: also owes a for-sale sync
   triggerWantlistSync();
+  triggerInventorySync();
   track('import_completed', { items: _importedItems });   // a count, not which records
   return true;
 }
@@ -682,12 +732,19 @@ async function renderAccount(profile, section) {
       .select('*', { count: 'exact', head: true }).eq('user_id', profile.user_id);   // own rows only (v1.4.2)
     count = res.count;
   } catch (e) { /* the connection panel shows an em-dash if the count is unavailable */ }
+  let invCount = null;   // Wave 4: for-sale listing count for the DISCOGS-tab "LISTED" stat
+  try {
+    const res = await supabase.from('inventory_items')
+      .select('*', { count: 'exact', head: true }).eq('user_id', profile.user_id);
+    invCount = res.count;
+  } catch (e) { /* em-dash if unavailable */ }
   const el = app();
   el.className = 'tw-acct-wrap';
   el.innerHTML = UI.accountPageHtml({
     profile,
     clerkUser: window.Clerk.user,
     recordCount: count == null ? null : count,
+    inventoryCount: invCount == null ? null : invCount,
     lastSyncedLabel: profile.last_import_at
       ? new Date(profile.last_import_at).toLocaleString() : 'Never',
     section,
@@ -719,7 +776,7 @@ async function renderAccount(profile, section) {
       const ok = await runImport();
       // Wave 2 Stage A: flag a wantlist re-sync for AFTER the reload (the reload would kill an
       // in-flight background import). Picked up in the own-crate render path below.
-      if (ok) { try { sessionStorage.setItem('tw_wantlist_due', '1'); } catch (e) {} window.location.reload(); }
+      if (ok) { try { sessionStorage.setItem('tw_wantlist_due', '1'); sessionStorage.setItem('tw_inventory_due', '1'); } catch (e) {} window.location.reload(); }
     },
     onDisconnect: async () => { await _pipeCall('disconnect-discogs', {}); track('discogs_disconnected'); window.location.href = '/app'; },
     onDelete: async () => { await _pipeCall('delete-account', { confirm: 'DELETE' }); track('account_deleted'); await window.Clerk.signOut({ redirectUrl: '/' }); },
@@ -889,6 +946,7 @@ async function render() {
   // it here on ANY signed-in load, before routing, so the account-page RE-SYNC path no longer defers to
   // the next /app visit. Guarded + flag-gated: a no-op on a normal load where nothing is owed.
   triggerWantlistSync();
+  triggerInventorySync();   // Wave 4: same pre-routing consumption for the for-sale sync
 
   // S13–S16: the account surface lives at /account and /account/discogs, OUTSIDE the
   // /app/<username> grammar — no reserved-word carve-out, no collision (surfaces spec §6,
@@ -1145,6 +1203,7 @@ async function render() {
   //    what makes "items exist" mean "the CURRENT account's items". ──
   if (!profile.last_import_at) {
     try { sessionStorage.setItem('tw_wantlist_due', '1'); } catch (e) {}   // Wave 2 B1: first-connect wantlist import (read by the own-crate flag-check below)
+    try { sessionStorage.setItem('tw_inventory_due', '1'); } catch (e) {}   // Wave 4: first-connect for-sale import
     if (profile.import_status === 'running') {
       const ok = await runImport();        // resume an interrupted first import
       if (!ok) return;                     // runImport rendered the error state itself
@@ -1175,6 +1234,7 @@ async function render() {
   // render()'s early consumer ran before the first-connect flag (set in the block above) existed, so this
   // is where that case lands. Guarded + idempotent: a no-op if a sync from runImport is already in flight.
   triggerWantlistSync();
+  triggerInventorySync();   // Wave 4: the for-sale sync lands on the same first-connect count>0 sub-path
 
   // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
   window.TraxWaxViewer = { isOwn: true, ownerUserId: null, ownerProfile: null };

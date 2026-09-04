@@ -390,6 +390,7 @@ function discogsSection(o) {
       '</div>' +
       '<div style="display:flex; gap:26px; flex-wrap:wrap">' +
         statCell('RECORDS', o.recordCount == null ? '—' : Number(o.recordCount).toLocaleString()) +
+        statCell('LISTED', o.inventoryCount == null ? '—' : Number(o.inventoryCount).toLocaleString()) +   // Wave 4 (G): for-sale count; same one Re-sync pulls it
         statCell('LAST SYNCED', o.lastSyncedLabel || '—') +
       '</div>' +
       btn('Re-sync now', { id: 'tw-acct-resync', variant: 'secondary' }) +

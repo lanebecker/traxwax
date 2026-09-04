@@ -46,6 +46,32 @@ function cleanName(s: string): string {
   return s.replace(/\s*\(\d+\)\s*$/, '').trim();
 }
 
+type Bi = {
+  id?: number; title?: string; year?: number;
+  artists?: Array<{ name?: string }>; labels?: Array<{ name?: string }>;
+  styles?: string[]; genres?: string[]; formats?: Array<{ text?: string }>;
+  thumb?: string; cover_image?: string; master_id?: number;
+};
+
+/** The shared catalog seed for collection + wantlist, built from basic_information — identical for both
+ *  kinds (Wave 2). Inventory has its own seedRow (built from listing.release, Wave 4). seed_releases (0010)
+ *  empty-guards every field, so '' / 0 / [] never stomp a real value, and seeds carry no deep fields. */
+function biSeedRow(r: Record<string, unknown>): Record<string, unknown> {
+  const bi = (r.basic_information ?? {}) as Bi;
+  return {
+    release_id: Number(r.id ?? bi.id),
+    artist: (bi.artists ?? []).map((a) => cleanName(a.name ?? '')).filter(Boolean).join(', '),
+    title: (bi.title ?? '').trim(),
+    year: bi.year ?? 0,
+    label: bi.labels?.[0]?.name ?? '',
+    styles: bi.styles ?? [],
+    genres: bi.genres ?? [],
+    thumb: bi.thumb ?? '',
+    cover_image: bi.cover_image ?? '',
+    master_id: bi.master_id || null,   // #28: Discogs sends 0 for no-master → || null keeps it exact-only
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   try {
@@ -85,8 +111,10 @@ async function handle(req: Request): Promise<Response> {
   if (!Number.isInteger(page) || page < 1 || page > 500) {
     return json({ error: 'bad_request' }, 400);
   }
-  // Wave 2 Stage A: one function, two kinds. Default preserves today's collection behavior.
-  const kind = body.kind === 'wantlist' ? 'wantlist' : 'collection';
+  // Wave 2 Stage A: one function, multiple kinds. Wave 4 adds 'inventory'. Default preserves collection.
+  // (CRITICAL: this gate is derived BEFORE the KIND object — an unlisted value here makes its whole branch
+  // dead code, so 'inventory' must be admitted here or every inventory request silently re-imports collection.)
+  const kind = body.kind === 'wantlist' ? 'wantlist' : body.kind === 'inventory' ? 'inventory' : 'collection';
 
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -107,6 +135,41 @@ async function handle(req: Request): Promise<Response> {
           user_id: userId, release_id: releaseId,
           added: typeof r.date_added === 'string' ? r.date_added.slice(0, 10) : null,
         }),
+        seedRow: biSeedRow,
+      }
+    : kind === 'inventory'
+    ? {
+        // Wave 4 Stage 1: the caller's for-sale listings. Path is BARE — the shared page-URL builder appends
+        // the query string (incl. &status=For+Sale, so only ACTIVE listings are imported; the final-page sweep
+        // drops anything delisted since the last sync). Catalog data comes from listing.release; seed_releases
+        // empty-guards, and enrich fills deep fields for owned/wanted rows. NO price is ever fetched or stored.
+        path: (u: string) => `https://api.discogs.com/users/${encodeURIComponent(u)}/inventory`,
+        listKey: 'listings',
+        table: 'inventory_items',
+        conflict: 'user_id,listing_id',
+        wmCol: 'import_started_inventory',
+        needsInstanceId: false,
+        mapItem: (r: Record<string, unknown>, releaseId: number): Record<string, unknown> => ({
+          user_id: userId, release_id: releaseId,
+          listing_id: Number(r.id),   // r.id is the LISTING id here; the release id is r.release.id (see loop)
+          status: 'for_sale',
+        }),
+        seedRow: (r: Record<string, unknown>): Record<string, unknown> => {
+          const rel = (r.release ?? {}) as Record<string, unknown>;
+          const imgs = (rel.images ?? []) as Array<{ uri?: string }>;
+          return {
+            release_id: Number(rel.id),
+            artist: cleanName(String(rel.artist ?? '')),
+            title: String(rel.title ?? '').trim(),
+            year: (rel.year as number) ?? 0,
+            label: '',
+            styles: [],
+            genres: [],
+            thumb: String(rel.thumbnail ?? ''),
+            cover_image: imgs[0]?.uri ?? '',   // inventory release DOES carry 600px images; keep the cover
+            master_id: null,                    // label/styles/genres/master left to enrich — empty-guarded
+          };
+        },
       }
     : {
         path: (u: string) => `https://api.discogs.com/users/${encodeURIComponent(u)}/collection/folders/0/releases`,
@@ -123,6 +186,7 @@ async function handle(req: Request): Promise<Response> {
           added: typeof r.date_added === 'string' ? r.date_added.slice(0, 10) : null,
           vinyl: ((r.basic_information as Record<string, unknown>)?.formats as Array<{ text?: string }>)?.[0]?.text ?? '',
         }),
+        seedRow: biSeedRow,
       };
 
   // ── The caller's own credentials + username ─────────────────────────────────
@@ -197,8 +261,13 @@ async function handle(req: Request): Promise<Response> {
   //    means a DELETION on Discogs mid-import shifts later pages up and can skip one item,
   //    which the final sweep then removes until the next re-import. Rare and self-limiting;
   //    accepted. Additions mid-import are safe (they land on page 1 of the NEXT run). ──
+  // Wave 4: the inventory endpoint's valid sorts do NOT include 'added' (that's a collection sort); it sorts by
+  // 'listed'. It also needs the status filter so only live for-sale listings import. Both are kind-gated here;
+  // the KIND path stays bare so a '?' in it can't collide with this '?'.
+  const sortParam   = kind === 'inventory' ? 'listed' : 'added';
+  const statusParam = kind === 'inventory' ? '&status=For+Sale' : '';
   const pageUrl = `${KIND.path(prof.discogs_username)}` +
-    `?page=${page}&per_page=100&sort=added&sort_order=desc`;
+    `?page=${page}&per_page=100&sort=${sortParam}&sort_order=desc${statusParam}`;
   const res = await fetch(pageUrl, {
     headers: {
       'User-Agent': DISCOGS_UA,
@@ -225,6 +294,7 @@ async function handle(req: Request): Promise<Response> {
     pagination?: { pages?: number; items?: number };
     releases?: Array<Record<string, unknown>>;
     wants?: Array<Record<string, unknown>>;
+    listings?: Array<Record<string, unknown>>;
   };
   try { d = JSON.parse(await res.text()); }
   catch { console.error(kind + ' page non-JSON body'); return json({ error: 'discogs_failed' }, 502); }
@@ -236,42 +306,27 @@ async function handle(req: Request): Promise<Response> {
 
   // ── Map rows. A missing instance_id is a HARD error: silently importing null
   //    instance keys would collapse rows into one under the unique constraint. ──
-  type Bi = {
-    id?: number; title?: string; year?: number;
-    artists?: Array<{ name?: string }>; labels?: Array<{ name?: string }>;
-    styles?: string[]; genres?: string[]; formats?: Array<{ text?: string }>;
-    thumb?: string; cover_image?: string; master_id?: number;
-  };
   const items: Array<Record<string, unknown>> = [];
   const seeds = new Map<number, Record<string, unknown>>();
   for (const r of entries) {
     const bi = (r.basic_information ?? {}) as Bi;
-    const releaseId = Number(r.id ?? bi.id);
+    // Wave 4: for inventory the release id is r.release.id (r.id is the LISTING id); else r.id ?? bi.id.
+    const releaseId = kind === 'inventory'
+      ? Number((r.release as Record<string, unknown> | undefined)?.id)
+      : Number(r.id ?? bi.id);
     const instanceId = Number(r.instance_id);
-    if (!Number.isInteger(releaseId) || (KIND.needsInstanceId && !Number.isInteger(instanceId))) {
-      console.error('entry missing release/instance id; kind', kind, 'fields:',
+    const listingOk = kind !== 'inventory' || Number.isInteger(Number(r.id));   // inventory needs a listing id
+    if (!Number.isInteger(releaseId) || !listingOk || (KIND.needsInstanceId && !Number.isInteger(instanceId))) {
+      console.error('entry missing release/instance/listing id; kind', kind, 'fields:',
         Object.keys(r as object).join(','));
       return json({ error: 'unexpected_shape' }, 502);
     }
-    // Row mapping is per-kind (collection carries instance_id/folder/rating/vinyl — defaults
-    // mirror build/refresh_collection.py; wantlist carries user_id/release_id/added). The seeds
-    // below are IDENTICAL for both, built from basic_information. updated_at: the trigger stamps it.
+    // Row mapping AND the catalog seed are per-kind now (KIND.seedRow): collection/wantlist seed from
+    // basic_information (biSeedRow), inventory from listing.release. updated_at: the trigger stamps it.
+    // Seeds carry no deep fields, so tracks stays null — exactly what enrich-release keys on.
     items.push(KIND.mapItem(r, releaseId));
     if (!seeds.has(releaseId)) {
-      seeds.set(releaseId, {
-        release_id: releaseId,
-        artist: (bi.artists ?? []).map((a) => cleanName(a.name ?? '')).filter(Boolean).join(', '),
-        title: (bi.title ?? '').trim(),
-        year: bi.year ?? 0,
-        label: bi.labels?.[0]?.name ?? '',
-        styles: bi.styles ?? [],
-        genres: bi.genres ?? [],
-        thumb: bi.thumb ?? '',
-        cover_image: bi.cover_image ?? '',
-        master_id: bi.master_id || null,   // #28: Discogs sends 0 for no-master → || null keeps it exact-only
-        // tracks/country/released/videos deliberately absent: seeds have tracks = null,
-        // which is exactly what enrich-release keys on.
-      });
+      seeds.set(releaseId, KIND.seedRow(r));
     }
   }
 
