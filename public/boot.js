@@ -162,7 +162,7 @@ async function ensureProfile(userId) {
     .from('profiles')
     .upsert(row, { onConflict: 'user_id', ignoreDuplicates: false })
     .select('user_id, discogs_username, import_status, last_import_at, ' +
-      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility, wantlist_visibility, match_mode')
+      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility, wantlist_visibility, match_mode, forsale_visibility')
     .single();
   if (error) throw new Error('profile upsert failed: ' + error.message);
   return data;
@@ -361,6 +361,18 @@ function installFriendCrateProviders(owner) {
       if (!data || data.length < 1000) break;
     }
     return out;
+  };
+
+  // Wave 4 Stage 2: the friend's CONSENTED for-sale listings → Map<release_id, listing_id>. The RPC is
+  // can_view_forsale-gated server-side (returns [] unless friends + crate friends-visible + forsale=friends),
+  // and we also short-circuit on the flag, so a private/un-consented friend yields an empty Map (no exposure).
+  window.TraxWaxFriendForSale = async () => {
+    if (owner._canViewForSale !== true) return new Map();   // not shared → empty (never guess)
+    const { data, error } = await supabase.rpc('get_friend_forsale', { p_username: owner.discogs_username });
+    if (error) throw new Error('friend for-sale query failed: ' + error.message);
+    const map = new Map();
+    for (const it of (Array.isArray(data) ? data : [])) map.set(it.release_id, it.listing_id);
+    return map;
   };
 
   // Wave 2 B2: add/remove on the VIEWER's own wantlist from a friend's crate (writes the viewer's
@@ -786,10 +798,20 @@ async function renderAccount(profile, section) {
       const { error } = await supabase.from('profiles')
         .update({ crate_visibility: v }).eq('user_id', window.Clerk.user.id);
       if (error) throw new Error(error.message);
+      // Wave 4 Stage 2: crate visibility GATES the for-sale row (E1 — for-sale rides under crate). Re-render
+      // the SHARING page so the for-sale control's locked/unlocked state tracks the new crate value without a
+      // manual reload. (The DB gate protects either way; this keeps the consent UI honest.)
+      profile.crate_visibility = v;
+      renderAccount(profile, 'sharing');
     },
     onSetWantlistVisibility: async (v) => {   // Wave 2 B1: independent wantlist consent
       const { error } = await supabase.from('profiles')
         .update({ wantlist_visibility: v }).eq('user_id', window.Clerk.user.id);
+      if (error) throw new Error(error.message);
+    },
+    onSetForsaleVisibility: async (v) => {   // Wave 4 Stage 2: for-sale consent (rides under crate visibility)
+      const { error } = await supabase.from('profiles')
+        .update({ forsale_visibility: v }).eq('user_id', window.Clerk.user.id);
       if (error) throw new Error(error.message);
     },
     onSetMatchMode: async (mode) => {   // #28: viewer's own reading preference; direct update under profiles_update_own RLS
@@ -1160,6 +1182,7 @@ async function render() {
         friendOwner = data.owner;
         friendOwner._canViewCrate = data.can_view_crate === true;      // #43 visibility flags
         friendOwner._canViewWantlist = data.can_view_wantlist === true;
+        friendOwner._canViewForSale = data.can_view_forsale === true;   // Wave 4 Stage 2 (fail-closed)
       }
     } catch (e) { friendOwner = null; }
     if (friendOwner) {
