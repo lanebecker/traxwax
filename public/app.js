@@ -261,14 +261,14 @@ function _matchPart(n, tail, act){   // tail: 'YOU WANT' | 'THEY WANT'
 }
 function matches(r){
   const s=state;
-  // Wave 2 B1: the wantlist has no vinyl variant (every row vinyl:''), so the colored/color facets are
-  // meaningless there and would zero the whole tab — skip them on the wantlist view.
-  if(s.coloredOnly && s.view!=='wantlist' && !isColored(r.vinyl)) return false;
+  // 0030: the wantlist now carries the real vinyl variant, so the colored/color facets apply on it too
+  // (they were skipped on the wantlist while every row was vinyl:'').
+  if(s.coloredOnly && !isColored(r.vinyl)) return false;
   // Wave 4: FOR SALE facet — query the __twInventory Map directly (O(1)); skip on wantlist (for-sale is about
   // the collection, not the wantlist rows), matching the coloredOnly guard.
   if(s.forSaleOnly && window.__twInventory && s.view!=='wantlist' && !window.__twInventory.has(r.id)) return false;   // __twInventory-first: a null inventory (friend crate) makes the clause inert, never zeroing the crate
   if(s.artist && r.artist!==s.artist) return false;
-  if(s.color && s.view!=='wantlist' && shortVinyl(r.vinyl)!==s.color) return false;
+  if(s.color && shortVinyl(r.vinyl)!==s.color) return false;   // 0030: color-swatch filter now works on the wantlist too
   if(s.genres.length && !s.genres.some(g=>(r.styles||[]).includes(g))) return false;   // #33: chips are ranked/counted from styles, so filter on styles too — count and result now agree (and guard non-array styles)
   if(s.query){
     const q=s.query.toLowerCase();
@@ -670,10 +670,10 @@ function computeVals(){
 
   const active=[];
   s.genres.forEach(g=>active.push({kind:'STYLE',value:g}));
-  if(s.coloredOnly && s.view!=='wantlist') active.push({kind:'WAX',value:'Colored only'});   // #27: matches() ignores wax on wantlist — don't show an inert chip
+  if(s.coloredOnly) active.push({kind:'WAX',value:'Colored only'});   // 0030: colored facet now active on the wantlist too
   if(s.forSaleOnly && s.view!=='wantlist') active.push({kind:'FORSALE',value:'For sale'});   // Wave 4: same wantlist guard
   if(s.artist) active.push({kind:'ARTIST',value:s.artist});
-  if(s.color && s.view!=='wantlist') active.push({kind:'COLOR',value:s.color});               // #27: ditto for the color facet
+  if(s.color) active.push({kind:'COLOR',value:s.color});               // 0030: color facet now active on the wantlist too
   if(s.query) active.push({kind:'SEARCH',value:s.query});
   if(s.matchFilter==='youWant') active.push({kind:'MATCH',value:'YOU WANT · THEY HAVE'});
   else if(s.matchFilter==='theyWant') active.push({kind:'MATCH',value:'THEY WANT · YOU HAVE'});

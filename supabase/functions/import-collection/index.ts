@@ -72,6 +72,15 @@ function biSeedRow(r: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
+/** The pressing's variant descriptor for the card swatch/label: the FIRST format entry that carries a `text`
+ *  (color / edition), else ''. Better than formats[0].text — a multi-format release often puts the color on a
+ *  deeper entry (e.g. formats[2].text="Clear" while formats[0] is textless), which formats[0].text missed and
+ *  fell back to "Black". Used by both the collection and wantlist mapItems so they stay consistent. */
+function firstFormatText(bi: Record<string, unknown> | undefined): string {
+  const fmts = Array.isArray(bi?.formats) ? (bi.formats as Array<{ text?: string }>) : [];   // never throw on a non-array shape
+  return fmts.find((f) => f && f.text)?.text ?? '';
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   try {
@@ -136,7 +145,7 @@ async function handle(req: Request): Promise<Response> {
           added: typeof r.date_added === 'string' ? r.date_added.slice(0, 10) : null,
           // Fix (0030): capture the pressing's variant the SAME way the collection does (basic_information
           // formats[0].text) so the wantlist card shows the real color/format, not a fallback "Black".
-          vinyl: ((r.basic_information as Record<string, unknown>)?.formats as Array<{ text?: string }>)?.[0]?.text ?? '',
+          vinyl: firstFormatText(r.basic_information as Record<string, unknown> | undefined),
         }),
         seedRow: biSeedRow,
       }
@@ -187,7 +196,7 @@ async function handle(req: Request): Promise<Response> {
           folder: r.folder_id != null ? String(r.folder_id) : '',
           rating: Number(r.rating ?? 0) || 0,
           added: typeof r.date_added === 'string' ? r.date_added.slice(0, 10) : null,
-          vinyl: ((r.basic_information as Record<string, unknown>)?.formats as Array<{ text?: string }>)?.[0]?.text ?? '',
+          vinyl: firstFormatText(r.basic_information as Record<string, unknown> | undefined),
         }),
         seedRow: biSeedRow,
       };

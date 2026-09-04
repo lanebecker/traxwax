@@ -13,6 +13,24 @@ _Nothing yet._
 
 ---
 
+## [1.18.0] — 2026-09-04
+
+Two follow-ups to the wantlist-vinyl fix (#55). `import-collection` redeploy via break-glass + frontend.
+
+### Changed
+- **Variant extraction now reads the first format with text** (both collection + wantlist) — a shared
+  `firstFormatText(bi)` helper replaces `formats[0].text`. A multi-format release that carries its color on a
+  deeper `formats[]` entry (e.g. `formats[2].text="Clear"` while `formats[0]` is textless) previously fell back
+  to "Black" in both the crate and the wantlist; now it resolves correctly. Strict superset of the old behavior
+  (returns `formats[0].text` when present). Takes effect per kind on the next re-sync.
+
+### Added
+- **Colored-wax + color facets on the wantlist** — now that the wantlist carries real vinyl (0030), the
+  `COLORED WAX` toggle and the color-swatch filter work on the WANTLIST tab too (previously crate-only). The
+  removable active chips + CLEAR ALL apply there as well. (The header COLORED/EST. stats stay crate-only.)
+
+---
+
 ## [1.17.2] — 2026-09-04
 
 Fix: wantlist cards showed every record as "Black" (#55). Migration `0030` + `import-collection` redeploy via
