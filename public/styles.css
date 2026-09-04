@@ -421,6 +421,10 @@ input::placeholder { color:var(--faint); }
 .tw-badge-you  { background:var(--accent); color:var(--on-accent); }
 .tw-badge-both { background:var(--ink);    color:var(--bg); }
 .tw-badge-else { background:var(--panel);  color:var(--ink); border:1.5px solid var(--line); padding:2px 6px; }
+/* Wave 4 (decision I): the FOR SALE badge is the one interactive badge — a link to the Discogs listing.
+   Invert on hover/focus so it reads as clickable; only the <a> variant gets it (a plain span else-badge stays inert). */
+a.tw-badge-else { cursor:pointer; transition:background .12s, color .12s; }
+a.tw-badge-else:hover, a.tw-badge-else:focus-visible { background:var(--ink); color:var(--panel); border-color:var(--ink); }
 /* #28: any-pressing-only matches — panel fill + a colored rule (a match on the MASTER, not the exact release).
    "A PRESSING YOU WANT" (accent rule) · "YOU OWN A PRESSING" (ink rule). 2px pad offsets the 1.5px border. */
 .tw-badge-you-outline  { background:var(--panel); color:var(--accent); border:1.5px solid var(--accent); padding:2px 6px; }

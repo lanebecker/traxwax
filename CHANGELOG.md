@@ -13,6 +13,48 @@ _Nothing yet._
 
 ---
 
+## [1.16.0] — 2026-09-03
+
+Wave 4 **Stage 1** — "Selling, via Discogs" (foundation + your own listings). Your Discogs for-sale
+inventory becomes a first-class, terms-clean layer of your own crate. **No price is ever fetched, stored, or
+shown** — every surface links out to the Discogs listing, where the price lives. The social half (friend
+for-sale visibility, the consent switch, the compound "selling N you want") is Stage 2. Migration `0027` +
+`import-collection` redeploy via break-glass.
+
+### Added
+- **`inventory_items` table** (migration `0027`) — `(user_id, release_id, listing_id, status)`, hardened from
+  the start like `collection_items`: RLS on, own-`SELECT` only, all client DML revoked (service-role writes
+  only via the import). FK to `releases`, `unique(user_id, listing_id)`, an `updated_at` touch trigger for the
+  stale-sweep, and a `profiles.import_started_inventory` watermark column.
+- **`import-collection` gains an `inventory` kind** — imports the caller's active For-Sale listings
+  (`/users/{u}/inventory?status=For+Sale`, `sort=listed`) alongside collection + wantlist, under the same
+  chunked page-loop, watermark, and stale-sweep. The shared catalog seed was refactored into a per-kind
+  `seedRow` (collection/wantlist from `basic_information`, inventory from `listing.release`) — the
+  collection/wantlist seed is byte-identical to before (regression-verified). NO price captured.
+- **FOR SALE cover badge** — on your own crate, a listed record shows a `FOR SALE ↗` badge that links straight
+  to the Discogs listing (the one interactive badge; inverts on hover). Clicking it opens the listing, not the
+  detail modal.
+- **Sell action in the detail modal** — `LIST FOR SALE ↗` (unlisted → `/sell/post/{release}`) or
+  `EDIT LISTING ↗` (listed → `/sell/item/{listing}`), own crate only, hidden on the wantlist. A `FOR SALE ●`
+  marker also rides the modal header for a listed record.
+- **`FOR SALE n` facet** in the filter bar (own crate, when you have listings in your crate) — composes AND
+  with the genre/colored/search facets, with a removable active chip + CLEAR ALL support.
+- **Ledger stat** — "N LISTED FOR SALE" (hidden at 0) + a `MANAGE ON DISCOGS ↗` link. The ledger stat and the
+  facet count agree (both = records in your crate that are listed).
+- **DISCOGS-tab inventory row** — a `LISTED` count beside RECORDS / LAST SYNCED; the one Re-sync pulls
+  collection, wantlist, and inventory together.
+
+### Changed
+- Disconnect + account-deletion now purge `inventory_items` too (`unlink_discogs_account` / `delete_account`
+  amended in `0027`) — imported ownership data dies with the Discogs link, per the terms split.
+
+### Notes
+- Stage-1 is own-data only; a friend crate shows no for-sale surface (`window.__twInventory` stays `null`
+  off the own crate). Verified by an independent adversarial pass: no catalog-wipe path (the `seed_releases`
+  empty-guard is proven to preserve enriched fields), no cross-user read, no price anywhere.
+
+---
+
 ## [1.15.1] — 2026-09-03
 
 Sharing on by default (migration 0026, applied via break-glass).

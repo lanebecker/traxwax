@@ -215,7 +215,7 @@ function recordById(id){
   return src.find(r=>r.id===id);
 }
 const state = {
-  theme:'light', view:'crate', query:'', genres:[], coloredOnly:false,
+  theme:'light', view:'crate', query:'', genres:[], coloredOnly:false, forSaleOnly:false,   // Wave 4: FOR SALE facet
   artist:null, color:null, sort:'added', dir:-1, detailId:null, headerValue:null,
   matchFilter:null,   // #47: null | 'youWant' (crate ∩ viewerWants) | 'theyWant' (wantlist ∩ viewerHas)
 };
@@ -261,6 +261,9 @@ function matches(r){
   // Wave 2 B1: the wantlist has no vinyl variant (every row vinyl:''), so the colored/color facets are
   // meaningless there and would zero the whole tab — skip them on the wantlist view.
   if(s.coloredOnly && s.view!=='wantlist' && !isColored(r.vinyl)) return false;
+  // Wave 4: FOR SALE facet — query the __twInventory Map directly (O(1)); skip on wantlist (for-sale is about
+  // the collection, not the wantlist rows), matching the coloredOnly guard.
+  if(s.forSaleOnly && window.__twInventory && s.view!=='wantlist' && !window.__twInventory.has(r.id)) return false;   // __twInventory-first: a null inventory (friend crate) makes the clause inert, never zeroing the crate
   if(s.artist && r.artist!==s.artist) return false;
   if(s.color && s.view!=='wantlist' && shortVinyl(r.vinyl)!==s.color) return false;
   if(s.genres.length && !s.genres.some(g=>(r.styles||[]).includes(g))) return false;   // #33: chips are ranked/counted from styles, so filter on styles too — count and result now agree (and guard non-array styles)
@@ -410,7 +413,11 @@ function card(r){
   // #27: compute badges once — the same list drives the visual badge AND the card's accessible name, so a
   // screen reader announces "ON YOUR WANTLIST" / "YOU OWN THIS" as part of the card rather than as a
   // detached span after it. Badge labels are static strings (no user data), safe to inline in the label.
-  const _badges = badgesFor(r, window.__twMatchCtx || null);
+  // Wave 4: own crate has no match ctx (that's friend-only), so synthesize a minimal ctx from __twInventory
+  // (a Map<release_id,listing_id>) to drive the FOR SALE badge. On a friend crate __twInventory is null →
+  // falls back to the match ctx, unchanged from before.
+  const _ctx = window.__twMatchCtx || (window.__twInventory ? { forSale: window.__twInventory } : null);
+  const _badges = badgesFor(r, _ctx);
   const _badgeAria = _badges.length ? ' (' + _badges.map(b => b.label).join(', ') + ')' : '';
   return `<div class="tw-card" style="min-width:0; background:var(--panel); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow); display:flex; flex-direction:column">
     <div style="position:relative; padding:6px 6px 0">
@@ -418,7 +425,7 @@ function card(r){
         <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
       </button>
       ${(r.isNew && state.view!=='wantlist')?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
-      ${badgesHtml(_badges)}
+      ${badgesHtml(_badges, r.title)}
     </div>
     <div style="min-width:0; flex:1; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
       <button class="tw-artist" data-act="artist" data-arg="${esc(r.artist)}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</button>
@@ -601,11 +608,25 @@ function overlapPanelHtml(){
    cap is safe. Classes ship in styles.css (.tw-badge*). */
 const BADGE_CLASS = { you: 'tw-badge-you', both: 'tw-badge-both', else: 'tw-badge-else',
   'you-outline': 'tw-badge-you-outline', 'both-outline': 'tw-badge-both-outline' };   // #28: any-pressing variants
-function badgesHtml(badges){
+// Wave 4: the FOR SALE badge is a real outbound link to the listing (there is no price — the link IS the
+// price). Own crate reads listing_id from __twInventory; a friend map arrives in Stage 2. null → no href.
+function forSaleHref(id){
+  const inv = window.__twInventory;
+  const lid = inv && inv.get(id);
+  return lid ? ('https://www.discogs.com/sell/item/' + lid) : null;
+}
+function badgesHtml(badges, title){
   if (!badges || !badges.length) return '';
-  return badges.slice(0, 2).map((b, i) =>
-    '<span class="tw-badge ' + (BADGE_CLASS[b.kind] || BADGE_CLASS.you) + ' tw-badge-' + (i + 1) + '">' +
-      esc(b.label) + '</span>').join('');
+  return badges.slice(0, 2).map((b, i) => {
+    const cls = 'tw-badge ' + (BADGE_CLASS[b.kind] || BADGE_CLASS.you) + ' tw-badge-' + (i + 1);
+    // FOR SALE (kind 'else' with an href) renders as a link — a click on it has no [data-act] ancestor, so the
+    // card's delegated open-handler early-returns and the modal does NOT open; the link just navigates.
+    if (b.kind === 'else' && b.href)
+      return '<a href="' + esc(b.href) + '" target="_blank" rel="noopener" class="' + cls + '" ' +
+        'style="text-decoration:none" aria-label="' + esc((title || '') + ' — for sale on Discogs') + '">' +
+        esc(b.label) + '</a>';
+    return '<span class="' + cls + '">' + esc(b.label) + '</span>';
+  }).join('');
 }
 // #28: exact-first — an exact release match wins the solid badge; else (any mode) a master-only match gets
 // the outlined variant. In exact mode the two `any &&` branches are dead, so this reduces to the prior logic.
@@ -617,7 +638,7 @@ function badgesFor(rec, ctx){
   else if (any && m && ctx.viewerWantsMasters && ctx.viewerWantsMasters.has(m)) out.push({ kind: 'you-outline',  label: 'A PRESSING YOU WANT' });
   else if (ctx.viewerHas && ctx.viewerHas.has(rec.id))                          out.push({ kind: 'both',         label: 'YOU OWN THIS' });
   else if (any && m && ctx.viewerHasMasters && ctx.viewerHasMasters.has(m))     out.push({ kind: 'both-outline', label: 'YOU OWN A PRESSING' });
-  if (ctx.forSale && ctx.forSale.has(rec.id))                                   out.push({ kind: 'else',         label: 'FOR SALE' });
+  if (ctx.forSale && ctx.forSale.has(rec.id))                                   out.push({ kind: 'else',         label: 'FOR SALE ↗', href: forSaleHref(rec.id) });
   return out;
 }
 
@@ -647,6 +668,7 @@ function computeVals(){
   const active=[];
   s.genres.forEach(g=>active.push({kind:'STYLE',value:g}));
   if(s.coloredOnly && s.view!=='wantlist') active.push({kind:'WAX',value:'Colored only'});   // #27: matches() ignores wax on wantlist — don't show an inert chip
+  if(s.forSaleOnly && s.view!=='wantlist') active.push({kind:'FORSALE',value:'For sale'});   // Wave 4: same wantlist guard
   if(s.artist) active.push({kind:'ARTIST',value:s.artist});
   if(s.color && s.view!=='wantlist') active.push({kind:'COLOR',value:s.color});               // #27: ditto for the color facet
   if(s.query) active.push({kind:'SEARCH',value:s.query});
@@ -671,12 +693,14 @@ function computeVals(){
 
   return { all, filtered, visible, counts, topGenres, total, newCount, coloredCount,
     active, timeline, styleBars, priciest,
-    bigStats: IS_OWN() ? [
+    bigStats: IS_OWN() ? (()=>{ const _fs=window.__twInventory?all.filter(r=>window.__twInventory.has(r.id)).length:0; return [   // crate∩listed — agrees with the FOR SALE facet count
       {label:'Records', value:all.length.toLocaleString('en-US'), note:'Counted honestly. Twice.', color:'var(--ink)'},
       {label:'Estimated value', value:state.headerValue||valueLabel(total), note:priced.length?'Median of Discogs lows.':'Live Discogs estimate.', color:'var(--accent)'},
       {label:'On colored wax', value:coloredCount+'', note:Math.round((coloredCount/all.length)*100)+'% of the shelf.', color:'var(--ink)'},
       {label:'Added this month', value:newCount+'', note:'A restrained month, relatively.', color:'var(--ink)'},
-    ] : (()=>{ const _mc=_matchCounts(); const _ic=(_mc.youWant||0)+(_mc.theyWant||0); return [
+      // Wave 4 (F2): only when you actually have listings — hidden at 0. Count + a manage link, never a value.
+      ...(_fs>0 ? [{label:'Listed for sale', value:_fs.toLocaleString('en-US'), note:'Managed on Discogs.', color:'var(--ink)', manage:true}] : []),
+    ]; })() : (()=>{ const _mc=_matchCounts(); const _ic=(_mc.youWant||0)+(_mc.theyWant||0); return [
       {label:'Records', value:all.length.toLocaleString('en-US'), note:'In their crate.', color:'var(--ink)'},
       {label:'In common', value:_ic.toLocaleString('en-US'), note:'Where your shelves meet.', color:'var(--accent)'},
       {label:'On colored wax', value:coloredCount+'', note:Math.round((coloredCount/all.length)*100)+'% of their shelf.', color:'var(--ink)'},
@@ -754,11 +778,12 @@ function render(){
       </div>`).join('')}</div>`;
   } else if(showStats){
     content=`<div style="display:flex; flex-direction:column; gap:0">
-      <div class="tw-ledger-stats" style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--hair)">
+      <div class="tw-ledger-stats" style="display:grid; grid-template-columns:repeat(${v.bigStats.length},1fr); border-bottom:1px solid var(--hair)">
         ${v.bigStats.map(st=>`<div style="padding:20px 22px; border-right:1px solid var(--hair); display:flex; flex-direction:column; gap:6px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">${esc(st.label)}</span>
           <span style="font-family:'Barlow Condensed',sans-serif; font-size:40px; font-weight:700; line-height:1; color:${st.color}">${esc(st.value)}</span>
           <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint); line-height:1.5">${esc(st.note)}</span>
+          ${st.manage?`<a href="https://www.discogs.com/sell/manage" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.06em; color:var(--ink); text-decoration:none; border-bottom:1.5px solid var(--accent); align-self:flex-start; margin-top:2px">MANAGE ON DISCOGS ↗</a>`:''}
         </div>`).join('')}
       </div>
       <div class="tw-ledger-panels" style="display:grid; grid-template-columns:1fr 1fr; gap:0">
@@ -881,6 +906,7 @@ function render(){
       <span style="margin-left:auto; display:flex; align-items:center; gap:8px">
         <input id="tw-search" value="${esc(s.query)}" placeholder="SEARCH THE CRATE ⌕" aria-label="Search the crate" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 12px; width:210px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); border-radius:0" />
         <button data-act="colored" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:6px 10px; border:1.5px solid var(--line); ${s.coloredOnly?chipOn:chipOff}; box-shadow:2px 2px 0 var(--shadow)">COLORED WAX ●</button>
+        ${(()=>{ const _n=window.__twInventory?v.all.filter(r=>window.__twInventory.has(r.id)).length:0; return _n>0?`<span style="width:1px; height:20px; background:var(--hair)"></span><button data-act="forSale" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:6px 10px; border:1.5px solid var(--line); ${s.forSaleOnly?chipOn:chipOff}; box-shadow:2px 2px 0 var(--shadow)">FOR SALE ${_n}</button>`:''; })()}
       </span>
     </div>
 
@@ -974,6 +1000,7 @@ function modalHtml(){
           <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint)">${esc(rec.artist)}</span>
           <span id="tw-modal-title" style="font-family:'Barlow Condensed',sans-serif; font-size:38px; font-weight:700; line-height:1; text-wrap:pretty">${esc(rec.title)}</span>
           <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted)">${esc(subLine)}</span>
+          ${(IS_OWN() && window.__twInventory && window.__twInventory.has(rec.id))?`<span style="align-self:flex-start; margin-top:5px; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.12em; padding:3px 7px; border:1.5px solid var(--ink); background:var(--panel); color:var(--ink)">FOR SALE ●</span>`:''}
           <div style="display:flex; align-items:center; gap:8px; margin-top:2px">
             <span style="display:flex; align-items:center; gap:7px; border:1.5px solid var(--line); padding:4px 9px">
               <span style="width:10px; height:10px; border:1.5px solid var(--line); background:${d.swatch}"></span>
@@ -1015,6 +1042,7 @@ function modalHtml(){
           <div style="display:flex; flex-direction:column; gap:7px; margin-top:auto">
             ${wantControlHtml(rec, true)}
             <a href="https://www.discogs.com/release/${rec.id}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); color:var(--ink); text-align:center">VIEW ON DISCOGS ↗</a>
+            ${(IS_OWN() && state.view!=='wantlist')?(()=>{ const lid=window.__twInventory&&window.__twInventory.get(rec.id); const href=lid?('https://www.discogs.com/sell/item/'+lid):('https://www.discogs.com/sell/post/'+rec.id); const label=lid?'EDIT LISTING ↗':'LIST FOR SALE ↗'; return `<a href="${href}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); background:var(--ink); color:var(--panel); text-align:center">${label}</a>`; })():''}
             <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(rec.artist+' '+rec.title)}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); background:var(--accent); color:var(--on-accent); text-align:center">▶ LISTEN</a>
           </div>
         </div>
@@ -1382,13 +1410,14 @@ function onClick(e){
     case 'genre': track('filter_used', { kind: 'genre' }); toggleGenre(arg); render(); break;
     case 'clearGenres': state.genres=[]; render(); break;
     case 'colored': track('filter_used', { kind: 'colored' }); state.coloredOnly=!state.coloredOnly; render(); break;
+    case 'forSale': track('filter_used', { kind: 'forsale' }); state.forSaleOnly=!state.forSaleOnly; render(); break;   // Wave 4 (F1)
     case 'artist': state.artist=arg; state.detailId=null; render(); break;
     case 'color': track('filter_used', { kind: 'color' }); state.color=arg; state.detailId=null; render(); break;
     case 'open': track('record_opened', { source: state.view }); openDetail(Number(arg)); break;
     case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; renderModal(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
-    case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; state.matchFilter=null; render(); break;
+    case 'clearAll': state.genres=[]; state.coloredOnly=false; state.forSaleOnly=false; state.artist=null; state.color=null; state.query=''; state.matchFilter=null; render(); break;
     case 'closeDetail': state.detailId=null; renderModal(); break;
     case 'matchYouWant':   // #47: their crate, narrowed to records you want that they have
       state.view='crate'; state.matchFilter='youWant'; track('match_filter', { dir: 'youWant' });
@@ -1411,6 +1440,7 @@ function onClick(e){
 function removeFacet(kind, val){
   if(kind==='STYLE') toggleGenre(val);
   else if(kind==='WAX') state.coloredOnly=false;
+  else if(kind==='FORSALE') state.forSaleOnly=false;   // Wave 4 (F1): removable FOR SALE chip
   else if(kind==='ARTIST') state.artist=null;
   else if(kind==='COLOR') state.color=null;
   else if(kind==='SEARCH') state.query='';
@@ -1499,12 +1529,16 @@ async function bootCrate(){
       // Wave 2 B1: reset first (defensive) so a stale friend ctx never renders badges on the own crate;
       // then, on a FRIEND crate only, load the viewer's own wants/haves (badges) + the match counts (stat).
       window.__twMatchCtx = null; window.__twOwnerWants = null;   // #28: __twOwnerWants is an array of {id, master}
+      window.__twInventory = null;   // Wave 4: own-crate for-sale map (release_id → listing_id); null on friend crate
       if (!IS_OWN() && window.TraxWaxMatchCtx) {
         try { window.__twMatchCtx = await window.TraxWaxMatchCtx(); } catch (e) { window.__twMatchCtx = null; }
         // #43: AWAIT the owner-wantlist entries so the "they want" count is ready at first paint — never a
         // transient null that _matchCounts would misread as PRIVATE. Fetch failure → empty array (best-effort
         // real 0 on a shared list; self-heals on reload), never "PRIVATE" (that's flag-driven).
         try { window.__twOwnerWants = await window.TraxWaxOwnerWantIds(); } catch (e) { window.__twOwnerWants = []; }
+      }
+      if (IS_OWN() && window.TraxWaxInventory) {   // Wave 4: load the caller's for-sale listings for badges/facet/ledger/modal
+        try { window.__twInventory = await window.TraxWaxInventory(); } catch (e) { window.__twInventory = new Map(); }   // never strand the render
       }
       // Wave 2: a hash-restored WANTLIST tab needs its dataset loaded on a direct reload (the case 'view'
       // lazy-load never ran). Mirror that load; render() below paints the briefly-empty grid, then this
