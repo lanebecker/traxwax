@@ -1,6 +1,6 @@
 # TraxWax
 
-[![version](https://img.shields.io/badge/version-1.17.1-blueviolet)](VERSION)
+[![version](https://img.shields.io/badge/version-1.17.2-blueviolet)](VERSION)
 
 **Live at [traxwax.com](https://traxwax.com)** — anyone's Discogs vinyl collection as a
 browsable, filterable crate. Sign in, connect Discogs, and your records import in about a
