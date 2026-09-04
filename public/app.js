@@ -249,6 +249,9 @@ function setTheme(t, persist=true){
 /* ── Derivations (mirror the kit's matches/sorted/deco) ─────────────────────── */
 // #47: friend-crate match sentence pieces (spec §3). `n` is a match count from _matchCounts() (set-derived, #43).
 function _matchAlbums(n){ return n === 1 ? 'ONE ALBUM' : (n === 0 ? 'NO ALBUMS' : n + ' ALBUMS'); }
+// Wave 4 Stage 2 (D): prose number form — spell 1–9, numerals 10+. Callout-only (the #47 match sentence keeps
+// its established numeral form; do not retrofit _matchAlbums).
+function _num(n){ const w=['zero','one','two','three','four','five','six','seven','eight','nine']; return (n>=0 && n<10) ? w[n] : String(n); }
 function _matchPart(n, tail, act){   // tail: 'YOU WANT' | 'THEY WANT'
   const label = _matchAlbums(n) + ' ' + tail;
   const link = "color:#fff; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,.5)";
@@ -849,15 +852,29 @@ function render(){
       const c2 = (mc.theyWant !== null)
         ? 'YOU HAVE ' + _matchPart(mc.theyWant,'THEY WANT','matchTheyWant')
         : 'THEIR WANTLIST IS PRIVATE';
-      // Desktop: one flowing sentence — ", AND " joins two shared clauses; ". " otherwise. (Byte-identical to
-      // the prior #43 4-branch output for every state.)
-      const desktop = `${c1}${bothShared ? ', AND ' : '. '}${c2}.`;
-      // Mobile: two rows; the "AND" connective rides row 2 only when both are shared (per the kit render).
+      // Wave 4 Stage 2 (D1): the for-sale subset of "albums you want". Counted with the SAME predicate the
+      // matchSellingYouWant filter applies (forSale ∩ youWant, master-aware) over RECORDS, so the callout
+      // count EQUALS the filtered set (#43 link-integrity). In-app link, NO ↗ (SPEC I). Renders only ≥1 (D3).
+      const _fsWant = (window.__twInventory && window.__twMatchCtx && window.__twMatchCtx.viewerWants)
+        ? (RECORDS||[]).filter(r => window.__twInventory.has(r.id) && (
+            window.__twMatchCtx.viewerWants.has(r.id) ||
+            (MATCH_ANY() && r.master_id && window.__twMatchCtx.viewerWantsMasters && window.__twMatchCtx.viewerWantsMasters.has(r.master_id))
+          )).length : 0;
+      const sellCallout = (_fsWant >= 1 && mc.youWant !== null)
+        ? `<a href="#" data-act="matchSellingYouWant" title="Show the ones they're selling that you want" style="background:#fff; color:#16171a; font-weight:700; padding:2px 7px; text-decoration:underline; text-underline-offset:2px">${_num(_fsWant)} FOR SALE</a>`
+        : '';
+      // Desktop: one flowing sentence — ", AND " joins two shared clauses; ". " otherwise. The for-sale callout,
+      // when present, folds in em-dash-set between the two clauses. (No-callout path is byte-identical to #43.)
+      const desktop = sellCallout
+        ? `${c1} — ${sellCallout} — ${bothShared ? 'AND ' : ''}${c2}.`
+        : `${c1}${bothShared ? ', AND ' : '. '}${c2}.`;
+      // Mobile: two rows; the callout rides row 1 (the clause it modifies); the "AND" connective rides row 2.
+      const c1m = sellCallout ? `${c1} — ${sellCallout}` : c1;
       const row2 = `${bothShared ? 'AND ' : ''}${c2}`;
       return `<div class="tw-friend-strip" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 24px; background:#16171a; color:rgba(255,255,255,.62); font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase">
       <span class="tw-fs-desktop">${desktop}</span>
       <div class="tw-fs-mobile">
-        <div class="tw-fs-row">${c1}</div>
+        <div class="tw-fs-row">${c1m}</div>
         <div class="tw-fs-row">${row2}</div>
       </div>
       <a class="tw-fs-back" href="/app" style="color:#fff; text-decoration:underline; white-space:nowrap">← Back to your crate</a>
@@ -1000,7 +1017,7 @@ function modalHtml(){
           <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint)">${esc(rec.artist)}</span>
           <span id="tw-modal-title" style="font-family:'Barlow Condensed',sans-serif; font-size:38px; font-weight:700; line-height:1; text-wrap:pretty">${esc(rec.title)}</span>
           <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted)">${esc(subLine)}</span>
-          ${(IS_OWN() && window.__twInventory && window.__twInventory.has(rec.id))?`<span style="align-self:flex-start; margin-top:5px; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.12em; padding:3px 7px; border:1.5px solid var(--ink); background:var(--panel); color:var(--ink)">FOR SALE ●</span>`:''}
+          ${(window.__twInventory && window.__twInventory.has(rec.id))?`<span style="align-self:flex-start; margin-top:5px; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700; letter-spacing:.12em; padding:3px 7px; border:1.5px solid var(--ink); background:var(--panel); color:var(--ink)">FOR SALE ●</span>`:''}
           <div style="display:flex; align-items:center; gap:8px; margin-top:2px">
             <span style="display:flex; align-items:center; gap:7px; border:1.5px solid var(--line); padding:4px 9px">
               <span style="width:10px; height:10px; border:1.5px solid var(--line); background:${d.swatch}"></span>
@@ -1423,6 +1440,10 @@ function onClick(e){
       state.view='crate'; state.matchFilter='youWant'; track('match_filter', { dir: 'youWant' });
       try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
       render(); break;
+    case 'matchSellingYouWant':   // Wave 4 Stage 2 (D): the compound shortcut — YOU WANT + FOR SALE at once (two existing composable filters)
+      state.view='crate'; state.matchFilter='youWant'; state.forSaleOnly=true; track('match_filter', { dir: 'sellingYouWant' });
+      try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+      render(); break;
     case 'matchTheyWant':  // #47: their wantlist, narrowed to records they want that you have
       state.view='wantlist'; state.matchFilter='theyWant'; track('match_filter', { dir: 'theyWant' });
       try { history.replaceState(null, '', location.pathname + location.search + '#wantlist'); } catch(e){}
@@ -1536,6 +1557,12 @@ async function bootCrate(){
         // transient null that _matchCounts would misread as PRIVATE. Fetch failure → empty array (best-effort
         // real 0 on a shared list; self-heals on reload), never "PRIVATE" (that's flag-driven).
         try { window.__twOwnerWants = await window.TraxWaxOwnerWantIds(); } catch (e) { window.__twOwnerWants = []; }
+        // Wave 4 Stage 2: the FRIEND's consented for-sale (empty Map unless friends + crate-friends + forsale=friends).
+        // Wire it as ctx.forSale so badgesFor lights the FOR SALE badge; __twInventory also drives forSaleHref
+        // (→ the friend's /sell/item/{listing}) + the FOR SALE facet — the Stage 1 own-crate surfaces, reused.
+        try { window.__twInventory = window.TraxWaxFriendForSale ? await window.TraxWaxFriendForSale() : new Map(); }
+        catch (e) { window.__twInventory = new Map(); }
+        if (window.__twMatchCtx) window.__twMatchCtx.forSale = window.__twInventory;
       }
       if (IS_OWN() && window.TraxWaxInventory) {   // Wave 4: load the caller's for-sale listings for badges/facet/ledger/modal
         try { window.__twInventory = await window.TraxWaxInventory(); } catch (e) { window.__twInventory = new Map(); }   // never strand the render

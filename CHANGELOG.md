@@ -13,6 +13,43 @@ _Nothing yet._
 
 ---
 
+## [1.17.0] — 2026-09-04
+
+Wave 4 **Stage 2** — the social half of "Selling, via Discogs." A friend's for-sale listings become visible on
+their crate — **opt-in, gated under crate visibility, and still priceless** (every link goes to Discogs). Builds
+on Stage 1's inventory machinery. Migration `0028` + RPCs via break-glass. (D2, the friends-list "Selling N you
+want" line, is deferred to a small follow-up.)
+
+### Added
+- **For-sale consent (`forsale_visibility`, migration `0028`)** — a third visibility axis, `∈ {private,
+  friends}`, **default private (opt-in)**. Effective only when `crate_visibility='friends'` — a for-sale badge
+  has nowhere to render on a crate a friend can't see.
+- **`private.can_view_forsale` gate + `get_friend_forsale` RPC** — a viewer reads a friend's for-sale
+  (release_id + listing_id only, `status='for_sale'`, NO price) solely through the consent-gated definer RPC;
+  it returns `[]` unless the viewer is a friend AND the owner's crate + for-sale are both friends-visible.
+  `get_crate_owner` now also reports `can_view_forsale`. (Verified live: the gate is false on every leak path —
+  crate-private, forsale-private, non-friend — and every current user is private, so nothing is exposed yet.)
+- **SHARING — the gated "My records for sale" row (E)** — a third VISIBILITY row, default PRIVATE, **locked
+  while your crate is private** (lock glyph + "Open your crate to friends first — that's where for-sale
+  shows."). Widened the SHARING intro to name for-sale + the prices-live-on-Discogs promise.
+- **Friend-crate for-sale (B/C/F1, reused from Stage 1)** — a friend's listed records show the `FOR SALE ↗`
+  badge (→ their Discogs listing), the `FOR SALE n` facet appears, and the modal header carries the FOR SALE ●
+  marker. All driven by loading the friend's consented inventory into the crate context.
+- **The compound (D1)** — the friend match sentence folds in a black-on-white **"— n FOR SALE —"** in-app
+  callout (no ↗) when they're selling records you want; clicking it applies YOU WANT + FOR SALE together. The
+  callout count is computed with the exact filter predicate (master-aware), so count == the filtered set.
+
+### Changed
+- Changing your crate visibility on the SHARING page now re-renders the for-sale row's locked/unlocked state
+  live (it rides under crate visibility), instead of waiting for a reload.
+
+### Notes
+- Own-crate for-sale (Stage 1) is unchanged. The modal LIST/EDIT action stays own-only — you can't list a
+  friend's record. Independent adversarial audit: consent gate proven leak-free on every path, no price
+  anywhere, no stale-own-inventory self-leak, D1 count == filtered set in both match modes.
+
+---
+
 ## [1.16.0] — 2026-09-03
 
 Wave 4 **Stage 1** — "Selling, via Discogs" (foundation + your own listings). Your Discogs for-sale

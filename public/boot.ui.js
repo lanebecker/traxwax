@@ -491,6 +491,8 @@ function visSegBtn(v, label, cur) {
 function sharingSection(o) {
   const crateVis = ((o.profile && o.profile.crate_visibility) || 'private');   // 'friends' | 'private'
   const wlVis    = ((o.profile && o.profile.wantlist_visibility) || 'private');
+  const fsVis    = ((o.profile && o.profile.forsale_visibility) || 'private'); // Wave 4 Stage 2: for-sale consent
+  const crateFriends = crateVis === 'friends';                                 // E1 gate: for-sale row locked unless crate is friends-visible
   const mm       = (o.profile && o.profile.match_mode) || 'exact';             // #28: matching preference
   const rowTitle = (t) => '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; color:var(--ink)">' + t + '</span>';
   const rowSub   = (t) => '<span style="' + MONO + '; font-size:10px; color:var(--muted)">' + t + '</span>';
@@ -503,8 +505,8 @@ function sharingSection(o) {
       '<h2 style="' + COND + '; font-size:32px; font-weight:700; line-height:1; margin:0; ' +
         'color:var(--ink)">Who sees what, and how matches read</h2>' +
       '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
-        'Your shelves are private by default. Open them to the friends you’ve added — prices never appear ' +
-        'on anyone else’s crate. Change it back any time.</span>' +
+        'Your shelves are private by default. Open them to the friends you’ve added — including what you’ve ' +
+        'listed for sale. Prices always live on Discogs, never here.</span>' +
     '</div>' +
     // Shared status line (visibility changes announce here — moved from FRIENDS).
     '<div id="tw-share-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
@@ -533,6 +535,33 @@ function sharingSection(o) {
           'border:1.5px solid var(--line); flex:none">' +
           visSegBtn('private', 'PRIVATE', wlVis) + visSegBtn('friends', 'FRIENDS', wlVis) +
         '</div>' +
+      '</div>' +
+      // Wave 4 Stage 2 (E): for-sale row, gated UNDER crate visibility. Live segmented control when the crate is
+      // friends-visible; LOCKED (aria-disabled, greyed, inline reason) otherwise — a for-sale badge has nowhere
+      // to render on a crate a friend can't see. wireVisSeg only fires when #tw-vis-forsale-seg exists (unlocked).
+      '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
+        'border-top:1px solid var(--hair)">' +
+        '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My records for sale') +
+          rowSub('The records you’ve listed on Discogs') +
+          ((crateFriends && o.inventoryCount === 0)
+            ? '<span style="' + MONO + '; font-size:10px; color:var(--faint)">Nothing listed yet</span>' : '') +
+        '</div>' +
+        (crateFriends
+          ? '<div id="tw-vis-forsale-seg" role="group" aria-label="For-sale visibility" style="display:flex; ' +
+              'border:1.5px solid var(--line); flex:none">' +
+              visSegBtn('private', 'PRIVATE', fsVis) + visSegBtn('friends', 'FRIENDS', fsVis) +
+            '</div>'
+          : '<div role="group" aria-label="For-sale visibility" aria-disabled="true" style="display:flex; ' +
+              'flex-direction:column; align-items:flex-end; gap:5px; flex:none; max-width:236px">' +
+              '<div style="display:flex; border:1.5px solid var(--hair); opacity:.55">' +
+                '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.06em; padding:8px 12px; ' +
+                  'color:var(--faint)">🔒 PRIVATE</span>' +
+                '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.06em; padding:8px 12px; ' +
+                  'color:var(--faint)">FRIENDS</span>' +
+              '</div>' +
+              '<span style="' + MONO + '; font-size:9.5px; color:var(--faint); text-align:right; ' +
+                'line-height:1.4">Open your crate to friends first — that’s where for-sale shows.</span>' +
+            '</div>') +
       '</div>' +
     '</div>' +
 
@@ -836,6 +865,7 @@ export function bindAccountPage(root, deps) {
   }
   wireVisSeg('tw-vis-crate-seg', deps.onSetVisibility, 'crate');
   wireVisSeg('tw-vis-wl-seg', deps.onSetWantlistVisibility, 'wantlist');
+  wireVisSeg('tw-vis-forsale-seg', deps.onSetForsaleVisibility, 'records for sale');   // Wave 4 Stage 2 (no-op when the row is locked)
   wireMatchSeg();
 
   // ── Wave 1: FRIENDS ── invite-link button + friend list.
