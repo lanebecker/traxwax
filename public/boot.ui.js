@@ -640,9 +640,16 @@ async function renderFriendsList(root, deps) {
           nameHtml + '</a>'
         : '<span style="' + COND + '; font-size:19px; font-weight:700; line-height:1; ' +
           'color:var(--ink)">' + nameHtml + '</span>';
-      const status = sharing
-        ? '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--muted)">Sharing their crate</span>'
-        : '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--faint)">Not sharing right now</span>';
+      // Wave 4 D2: a friend selling >=1 record you want gets the actionable "Selling N you want" line (accent,
+      // in-app link, NO ↗) that opens their crate pre-filtered to for-sale ∩ your wants; else the base line.
+      // (SPEC's middle "activity pulse" tier is skipped — Lane's scope call.) sellN is consent-gated server-side.
+      const sellN = Number(f.selling_you_want || 0);
+      const status = (sharing && sellN > 0)
+        ? '<a href="/app/' + encodeURIComponent(uname) + '#selling" style="' + MONO + '; font-size:10.5px; ' +
+          'font-weight:700; letter-spacing:.04em; color:var(--accent); text-decoration:none">Selling ' + sellN + ' you want</a>'
+        : (sharing
+          ? '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--muted)">Sharing their crate</span>'
+          : '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--faint)">Not sharing right now</span>');
       const viewCrate = sharing
         ? '<a href="/app/' + encodeURIComponent(uname) + '" style="' + MONO + '; font-size:10.5px; ' +
           'font-weight:700; letter-spacing:.1em; color:var(--accent); text-decoration:none; flex:none">VIEW CRATE →</a>'

@@ -13,6 +13,39 @@ _Nothing yet._
 
 ---
 
+## [1.19.1] — 2026-09-04
+
+### Fixed
+- **The FOR SALE active-filter chip** in the SHOWING rail read "FORSALE For sale" (the raw internal kind + the
+  value, redundant and unspaced). It now reads **"STATUS For sale"** — a proper dimension label like the other
+  chips (`WAX Colored only`, `STYLE …`). Added a display `label` on the chip object, rendered as `label||kind`,
+  so the internal `kind:'FORSALE'` that removal is keyed on is unchanged.
+
+---
+
+## [1.19.0] — 2026-09-04
+
+Wave 4 **D2** — the friends-list "Selling N you want" line (the last deferred piece of the selling wave).
+Migration `0031` (list_friends) via break-glass + frontend. (The SPEC's activity-pulse tier is intentionally
+skipped — ladder is selling → base.)
+
+### Added
+- **`list_friends.selling_you_want`** (migration `0031`) — a per-friend count of the records the friend is
+  selling that you want, consent-gated (`can_view_forsale`) and computed to **equal what the friend's crate
+  shows** on click-through: their collection cards that are for-sale ∩ your wants (exact, plus master-match in
+  your `any` mode). Counted per collection card (matching the crate + D1's header), not per distinct release.
+- **"Selling N you want" on the FRIENDS list** — replaces the "Sharing their crate" line (accent, in-app link,
+  no ↗) when a friend is selling ≥1 record you want; clicking it opens their crate pre-filtered via a
+  `#selling` deep-link that applies the YOU WANT + FOR SALE filters (reusing the D1 shortcut). Falls back to the
+  base line otherwise. The deep-link is gated on both crate and for-sale consent.
+
+### Notes
+- Independent adversarial audit to convergence: the count equals the filtered crate across the duplicate-copy,
+  not-in-collection, and not-for-sale cases (#43); consent gate airtight (0 for a non-consented friend); no
+  price; the deep-link can't empty a crate or fire on your own. **Wave 4 is now complete end to end.**
+
+---
+
 ## [1.18.0] — 2026-09-04
 
 Two follow-ups to the wantlist-vinyl fix (#55). `import-collection` redeploy via break-glass + frontend.

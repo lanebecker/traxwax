@@ -671,7 +671,7 @@ function computeVals(){
   const active=[];
   s.genres.forEach(g=>active.push({kind:'STYLE',value:g}));
   if(s.coloredOnly) active.push({kind:'WAX',value:'Colored only'});   // 0030: colored facet now active on the wantlist too
-  if(s.forSaleOnly && s.view!=='wantlist') active.push({kind:'FORSALE',value:'For sale'});   // Wave 4: same wantlist guard
+  if(s.forSaleOnly && s.view!=='wantlist') active.push({kind:'FORSALE',label:'STATUS',value:'For sale'});   // Wave 4: 'STATUS' display label (align with WAX/STYLE); kind stays FORSALE for removeFacet
   if(s.artist) active.push({kind:'ARTIST',value:s.artist});
   if(s.color) active.push({kind:'COLOR',value:s.color});               // 0030: color facet now active on the wantlist too
   if(s.query) active.push({kind:'SEARCH',value:s.query});
@@ -755,7 +755,7 @@ function render(){
   const genreChips=v.topGenres.map(g=>`<button data-act="genre" data-arg="${esc(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1.5px solid var(--line); ${s.genres.includes(g)?chipOn:chipOff}">${esc(g.toUpperCase())} ${v.counts[g]}</button>`).join('');
 
   const activeChips=v.active.map(c=>`<button data-act="rm" data-kind="${c.kind}" data-arg="${esc(c.value)}" style="display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:4px 8px; background:var(--accent); color:var(--on-accent); border:0">
-      <span style="opacity:.72; letter-spacing:.1em">${c.kind}</span>
+      <span style="opacity:.72; letter-spacing:.1em">${c.label||c.kind}</span>
       <span style="font-weight:600">${esc(c.value)}</span>
       <span style="opacity:.8">✕</span></button>`).join('');
 
@@ -1528,10 +1528,22 @@ async function bootCrate(){
   // both-private never reaches here — boot.js served the S16 no-crate card.
   let _bootView = CAN_VIEW_CRATE() ? 'crate' : 'wantlist';
   try { const h=(location.hash||'').replace(/^#/,''); if (_validTabs.has(h) && !(!IS_OWN() && _viewLocked(h))) _bootView = h; } catch(e){}
+  // Wave 4 D2: the FRIENDS-list "Selling N you want" link deep-links to /app/{u}#selling. Open the crate
+  // pre-filtered to for-sale ∩ your wants (the same matchSellingYouWant filter D1's header applies). Only on a
+  // viewable FRIEND crate (for-sale renders on the crate); #selling isn't a valid tab so the line above ignores
+  // it. __twInventory + __twMatchCtx load below (awaited) before the first render, so the filter applies to real
+  // data at first paint.
+  let _bootSelling = false;
+  try {
+    const _vf = window.TraxWaxViewer && window.TraxWaxViewer.canViewForSale === true;   // for-sale consent, not just crate
+    if ((location.hash||'') === '#selling' && !IS_OWN() && CAN_VIEW_CRATE() && _vf) { _bootView = 'crate'; _bootSelling = true; }
+  } catch(e){}
   state.view = _bootView;
+  if (_bootSelling) { state.matchFilter = 'youWant'; state.forSaleOnly = true; }
   // Normalize the URL to the actual tab — strips a stale/invalid hash (e.g. #wantlist carried onto a
   // friend crate, which falls back to 'crate') so what's in the address bar always matches what's shown.
-  try { history.replaceState(null, '', location.pathname + location.search + (_bootView==='crate'?'':'#'+_bootView)); } catch(e){}
+  // #selling is preserved so a reload re-applies the deep-linked filter.
+  try { history.replaceState(null, '', location.pathname + location.search + (_bootSelling ? '#selling' : (_bootView==='crate'?'':'#'+_bootView))); } catch(e){}
   initTheme();
   if (window.TraxWaxOwner && window.TraxWaxOwner.ownerLine) {
     SETTINGS.ownerLine = window.TraxWaxOwner.ownerLine;

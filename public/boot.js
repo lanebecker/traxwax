@@ -343,7 +343,8 @@ function installFriendCrateProviders(owner) {
   };
 
   window.TraxWaxViewer = { isOwn: false, ownerUserId: owner.user_id, ownerProfile: owner,
-    canViewCrate: owner._canViewCrate === true, canViewWantlist: owner._canViewWantlist === true };  // #43 (both fail-closed)
+    canViewCrate: owner._canViewCrate === true, canViewWantlist: owner._canViewWantlist === true,
+    canViewForSale: owner._canViewForSale === true };  // #43 (all fail-closed); D2 deep-link reads canViewForSale
 
   // #43 (Decision 5): the owner's wantlist IDs — for the set-derived "they want / you have" count (so the
   // count and the filter share one source and can't disagree). ID-only, under the same wantlist RLS gate.
