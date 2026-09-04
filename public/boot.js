@@ -226,7 +226,7 @@ function installCrateProviders(profile) {
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase
         .from('wantlist_items')
-        .select('release_id, added, ' +
+        .select('release_id, added, vinyl, ' +
           'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
         .eq('user_id', profile.user_id)
         .order('id', { ascending: true })
@@ -238,7 +238,7 @@ function installCrateProviders(profile) {
           id: it.release_id,
           artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
           label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
-          vinyl: '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
+          vinyl: it.vinyl || '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',   // 0030: real variant, was hardcoded ''
           added: it.added || '', rating: 0,
           price: null, crating: null, crcount: null, have: null, want: null,
         });

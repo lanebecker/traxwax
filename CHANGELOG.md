@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.17.2] — 2026-09-04
+
+Fix: wantlist cards showed every record as "Black" (#55). Migration `0030` + `import-collection` redeploy via
+break-glass.
+
+### Fixed
+- **Wantlist vinyl variant** — `wantlist_items` never had a `vinyl` column, so the provider hardcoded `vinyl: ''`
+  and `shortVinyl('')` fell back to `'Black'` for every card. Added `wantlist_items.vinyl` (migration `0030`),
+  the wantlist import now captures `basic_information.formats[0].text` exactly like the collection, and
+  `TraxWaxWantlistData` reads it. Existing rows repopulate on the next wantlist re-sync (verified live — real
+  variants like White/Red/Clear/Pink now landing). No collection change (`rating` remains the only other
+  collection-only field, intentionally — you don't rate records you don't own).
+
+---
+
 ## [1.17.1] — 2026-09-04
 
 For-sale sharing ON by default (migration `0029`, applied via break-glass). Supersedes the Stage 2 opt-in
