@@ -13,6 +13,23 @@ _Nothing yet._
 
 ---
 
+## [1.17.1] — 2026-09-04
+
+For-sale sharing ON by default (migration `0029`, applied via break-glass). Supersedes the Stage 2 opt-in
+default.
+
+### Changed
+- **For-sale now defaults to friends-visible**, not private: `profiles.forsale_visibility` column default
+  flipped `'private'` → `'friends'`, mirroring the 0026 crate/wantlist flip. New profiles pick it up
+  automatically (the `ensureProfile` upsert omits the column, so the default applies on insert) — no frontend
+  change.
+- **Existing users opened up:** a one-time backfill set all 4 existing profiles to `forsale_visibility='friends'`.
+  Since for-sale rides under crate visibility and every user's crate is already friends-visible (0026), their
+  listings are now visible to their friends. Verified: 4/4 friends, 0 private, default `'friends'`. (On a fresh
+  `db reset` the backfill touches 0 rows — no-op — so the migration is safe to keep in the tree.)
+
+---
+
 ## [1.17.0] — 2026-09-04
 
 Wave 4 **Stage 2** — the social half of "Selling, via Discogs." A friend's for-sale listings become visible on
