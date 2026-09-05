@@ -77,19 +77,19 @@ input::placeholder { color:var(--faint); }
   /* Header: stack the wordmark row above the stats/toggle row, and drop the two
      least-vital counters (COLORED, THIS MONTH) so the strip + toggle fit one line. */
   .tw-header { flex-direction:column !important; align-items:stretch !important; justify-content:flex-start !important; gap:12px !important; padding:16px 14px 14px !important; }
-  .tw-headL { flex-direction:column !important; align-items:flex-start !important; gap:8px; padding-right:56px; }   /* 2B: stack wordmark→name/handle; clear the pinned action circles top-right */
+  .tw-headL { flex-direction:column !important; align-items:flex-start !important; gap:8px; }   /* header redesign §5: stack wordmark row → identity row (avatar now flows inline in that row, so no pinned-circle clearance) */
   .tw-headR { justify-content:flex-start !important; }
-  .tw-head-actions { top:12px !important; right:14px !important; }   /* v1.23: the pinned SHARE/LIGHTS/ACCOUNT trio hugs the tighter mobile padding */
   .tw-hide-mobile { display:none !important; }
 
-  /* 2B: friend match-sentence stacks into two tappable rows; BACK on top; friend avatar pinned top-right. */
+  /* Header redesign §5: the universal strip stacks — the utility cluster (.tw-strip-actions) promotes to its
+     own top row; the sentence follows as tappable rows. (The avatar is part of the identity row now, not pinned.) */
   .tw-friend-strip { flex-direction:column !important; align-items:stretch !important; gap:0 !important; padding:0 !important; }
   .tw-fs-desktop { display:none; }
   .tw-fs-mobile { display:block; }
-  .tw-fs-back { order:-1; padding:11px 14px; }
+  .tw-strip-actions { order:-1; justify-content:space-between !important; padding:8px 14px; min-height:44px; }   /* utilities row on top; circles right, links/button left */
+  .tw-fs-back { padding:0; display:inline-flex; align-items:center; min-height:44px; }
   .tw-fs-row { display:flex; align-items:center; min-height:44px; padding:10px 14px; border-top:1px solid rgba(255,255,255,.14); }
   .tw-fs-row a { display:inline-flex; align-items:center; min-height:44px; }
-  .tw-friend-avatar { position:absolute; top:12px; right:14px; }
   .tw-friend-name { text-wrap:balance; }
 
   .tw-filterbar { padding:10px 14px !important; }
