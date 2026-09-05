@@ -222,11 +222,15 @@ function recordById(id){
 }
 const state = {
   theme:'light', view:'crate', query:'', genres:[], coloredOnly:false, forSaleOnly:false,   // Wave 4: FOR SALE facet
+  stylesOpen:false, styleFind:'',   // Wave 5c: FILED UNDER tray — open state + find query, both session-only (not URL)
   artist:null, color:null, sort:'added', dir:-1, detailId:null, headerValue:null,
   matchFilter:null,   // #47: null | 'youWant' (crate ∩ viewerWants) | 'theyWant' (wantlist ∩ viewerHas)
   dnaOpen:false, dnaPick:null,   // Wave 5a: picker modal open state + in-modal selection (committed to localStorage only on export)
 };
 let _searchDebounce = null;   // issue #5: pending debounced render, if any
+let _stylesOpenedByUser = false;   // Wave 5c: focus the tray's FIND box only after a click/keypress open (spec D3), never on load
+let _stylesFocusTrigger = false;   // Wave 5c: after closing the tray, return focus to the trigger
+let _findDebounce = 0;             // Wave 5c: debounce the FIND-a-style re-render
 
 /* ── A11y: modal focus management + roving grid focus (W0.4) ──────────────────
    app.js is deliberately dependency-free (boot.js dynamically imports it; it cannot
@@ -669,6 +673,7 @@ function computeVals(){
   const counts={};
   all.forEach(r=>(r.styles||[]).forEach(g=>{counts[g]=(counts[g]||0)+1;}));
   const topGenres=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).slice(0,5);
+  const allStyles=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);   // Wave 5c: every style, count desc — the FILED UNDER tray's full list
 
   const priced=all.filter(r=>r.price!=null);
   const total=priced.reduce((n,r)=>n+r.price,0);
@@ -728,7 +733,7 @@ function computeVals(){
   const topArtist=_topA?{name:_topA, count:_artC[_topA]}:null;
   const topLabel=_topL?{name:_topL, count:_labC[_topL]}:null;
 
-  return { all, filtered, visible, counts, topGenres, total, newCount, coloredCount,
+  return { all, filtered, visible, counts, topGenres, allStyles, total, newCount, coloredCount,
     active, timeline, styleBars, topArtist, topLabel, decades, decadeStats,
     bigStats: IS_OWN() ? (()=>{ const _fs=window.__twInventory?all.filter(r=>window.__twInventory.has(r.id)).length:0; return [   // crate∩listed — agrees with the FOR SALE facet count
       {label:'Records', value:all.length.toLocaleString('en-US'), note:'Counted honestly. Twice.', color:'var(--ink)'},
@@ -870,14 +875,34 @@ function render(){
   const showStats=!lockedSection && s.view==='ledger' && v.filtered.length>0;
   const showEmpty=!lockedSection && v.filtered.length===0;
 
-  const genreChips=v.topGenres.map(g=>`<button data-act="genre" data-arg="${esc(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1.5px solid var(--line); ${s.genres.includes(g)?chipOn:chipOff}">${esc(g.toUpperCase())} ${v.counts[g]}</button>`).join('');
+  // Wave 5c: FILED UNDER tray — the bar shows a count trigger + the selected styles; the tray holds every style.
+  const nSel=s.genres.length;
+  const trigLabel = nSel===0 ? 'ALL STYLES' : nSel===1 ? '1 STYLE' : nSel+' STYLES';
+  const stylesTrigger=`<button data-act="stylesToggle" aria-expanded="${s.stylesOpen}" aria-controls="tw-styletray" style="display:inline-flex; align-items:center; gap:10px; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:5px 10px; border:1.5px solid var(--line); background:var(--ink); color:var(--on-accent)"><span>${trigLabel}</span><span>${s.stylesOpen?'▴':'▾'}</span></button>`;
+  const _shownSel=s.genres.slice(0,2), _restSel=s.genres.slice(2);
+  const selectedChips=_shownSel.map(g=>`<button data-act="genre" data-arg="${esc(g)}" aria-label="Remove ${esc(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1.5px solid var(--line); ${chipOn}">${esc(g.toUpperCase())} ×</button>`).join('')
+    + (_restSel.length?`<button data-act="stylesToggle" title="${esc(_restSel.join(', '))} — open to edit" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1.5px dashed var(--line); background:transparent; color:var(--ink)">+${_restSel.length}</button>`:'');
+  const emptyNote = nSel===0 ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:var(--faint); margin-left:4px">${v.allStyles.length} STYLES · ${v.all.length.toLocaleString('en-US')} RECORDS</span>` : '';
+  // The tray: full style list as a wrapping chip grid (top 20 when the find box is empty; full filtered list while typing; selected always shown first).
+  const TRAY_CAP=20;
+  const _sq=s.styleFind.trim().toLowerCase();
+  let _trayList = _sq ? v.allStyles.filter(g=>g.toLowerCase().includes(_sq)) : v.allStyles.slice(0,TRAY_CAP);
+  _trayList = s.genres.concat(_trayList.filter(g=>!s.genres.includes(g)));
+  const _hidden = _sq ? 0 : Math.max(0, v.allStyles.length - _trayList.length);
+  const _matchN = _trayList.length - s.genres.length;   // matching UNSELECTED styles
+  const trayNote = _sq ? (_matchN>0 ? _matchN+' MATCH' : 'NO MATCH') : '+'+_hidden+' MORE · TYPE TO NARROW';
+  const trayChips=_trayList.map(g=>`<button data-act="genre" data-arg="${esc(g)}" aria-pressed="${s.genres.includes(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:4px 8px; border:1px solid var(--line); ${s.genres.includes(g)?chipOn:chipOff}">${esc(g.toUpperCase())} ${v.counts[g]||0}</button>`).join('');
+  const styleTray = s.stylesOpen ? `<div id="tw-styletray" role="group" aria-label="Filter by style" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:10px 24px 12px; background:var(--bar); border-top:1px dashed var(--line); border-bottom:2px solid var(--line)">
+      <input id="tw-stylefind" class="tw-field" value="${esc(s.styleFind)}" placeholder="FIND A STYLE…" aria-label="Find a style" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:4px 8px; width:150px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); border-radius:0; margin-right:6px" />
+      ${trayChips}
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; color:var(--faint); margin-left:6px">${trayNote} · <button data-act="clearGenres" style="font:inherit; letter-spacing:inherit; padding:0; border:0; background:transparent; color:var(--ink); text-decoration:underline; text-underline-offset:3px">CLEAR ALL</button></span>
+      <button data-act="stylesToggle" aria-label="Close styles" style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.1em; padding:5px 10px; border:1.5px solid var(--line); background:var(--ink); color:var(--on-accent)">CLOSE ▴</button>
+    </div>` : '';
 
   const activeChips=v.active.map(c=>`<button data-act="rm" data-kind="${c.kind}" data-arg="${esc(c.value)}" style="display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:4px 8px; background:var(--accent); color:var(--on-accent); border:0">
       <span style="opacity:.72; letter-spacing:.1em">${c.label||c.kind}</span>
       <span style="font-weight:600">${esc(c.value)}</span>
       <span style="opacity:.8">✕</span></button>`).join('');
-
-  const noGenres=s.genres.length===0;
 
   let content='';
   if(lockedSection){   // #43: a private section → the inline locked panel (kit Decision 1/3-B)
@@ -1071,17 +1096,16 @@ function render(){
       <span style="position:absolute; top:-8px; right:58px; width:92px; height:20px; background:rgba(255,255,255,.32); border-left:1px dashed rgba(0,0,0,.2); border-right:1px dashed rgba(0,0,0,.2); transform:rotate(2.5deg); pointer-events:none"></span>
     </header>
 
-    <div class="tw-filterbar" style="display:flex; align-items:center; gap:8px; padding:12px 24px; background:var(--bar); border-bottom:2px solid var(--line); flex-wrap:wrap">
+    <div class="tw-filterbar" style="display:flex; align-items:center; gap:8px; padding:12px 24px; background:var(--bar); border-bottom:${s.stylesOpen?'1px':'2px'} solid var(--line)">
       <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:var(--muted); margin-right:4px">FILED UNDER</span>
-      <button data-act="clearGenres" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1.5px solid var(--line); ${noGenres?chipOn.replace('var(--accent)','var(--ink)'):chipOff}">ALL ${v.all.length.toLocaleString('en-US')}</button>
-      ${genreChips}
+      ${stylesTrigger}${selectedChips}${emptyNote}
       <span style="margin-left:auto; display:flex; align-items:center; gap:8px">
-        <input id="tw-search" value="${esc(s.query)}" placeholder="SEARCH THE CRATE ⌕" aria-label="Search the crate" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 12px; width:210px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); border-radius:0" />
+        <input id="tw-search" class="tw-field" value="${esc(s.query)}" placeholder="SEARCH THE CRATE ⌕" aria-label="Search the crate" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 12px; width:210px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); border-radius:0" />
         <button data-act="colored" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:6px 10px; border:1.5px solid var(--line); ${s.coloredOnly?chipOn:chipOff}; box-shadow:2px 2px 0 var(--shadow)">COLORED WAX ●</button>
         ${(()=>{ const _n=window.__twInventory?v.all.filter(r=>window.__twInventory.has(r.id)).length:0; return _n>0?`<span style="width:1px; height:20px; background:var(--hair)"></span><button data-act="forSale" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:6px 10px; border:1.5px solid var(--line); ${s.forSaleOnly?chipOn:chipOff}; box-shadow:2px 2px 0 var(--shadow)">FOR SALE ${_n}</button>`:''; })()}
       </span>
     </div>
-
+    ${styleTray}
     <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
       ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
@@ -1121,16 +1145,18 @@ function render(){
   // least of all behind an open dialog.
   const _ae=document.activeElement;
   const _wasSearch=!!(_ae && _ae.id==='tw-search');
-  const _caret=_wasSearch ? _ae.selectionStart : null;
+  const _wasFind=!!(_ae && _ae.id==='tw-stylefind');   // Wave 5c: the tray's FIND box
+  const _caret=(_wasSearch||_wasFind) ? _ae.selectionStart : null;
   app.innerHTML=html;   // shell only — the modal lives in #tw-modal-root now (renderModal owns its focus capture)
-  if(_wasSearch && !state.detailId){
-    const si=document.getElementById('tw-search');
-    if(si){
-      si.focus();
-      const p = _caret==null ? si.value.length : Math.min(_caret, si.value.length);
-      si.setSelectionRange(p, p);
-    }
+  const _restore=(id)=>{ const el=document.getElementById(id); if(!el) return; el.focus(); const p=_caret==null?el.value.length:Math.min(_caret,el.value.length); el.setSelectionRange(p,p); };
+  if(!state.detailId){
+    if(_wasSearch) _restore('tw-search');
+    else if(_wasFind && state.stylesOpen) _restore('tw-stylefind');                                                    // keep caret while typing in FIND
+    else if(_stylesOpenedByUser && state.stylesOpen){ const f=document.getElementById('tw-stylefind'); if(f) f.focus(); }   // Wave 5c D3: focus FIND only on a user-initiated open, never on load
+    else if(_stylesFocusTrigger){ const t=document.querySelector('[data-act="stylesToggle"]'); if(t) t.focus(); }           // return focus to the trigger on close
+    else if(state.stylesOpen){ const f=document.getElementById('tw-stylefind'); if(f) f.focus(); }   // Wave 5c: a tray chip toggle destroys the clicked button → keep the user in the tray (focus FIND) instead of dropping to <body>
   }
+  _stylesOpenedByUser=false; _stylesFocusTrigger=false;
   // Wave 5a: reflect the live filter/sort state in the URL (query string only; the tab keeps its #hash).
   // Guarded to replaceState only on an actual change, so the many non-filter re-renders (stats load, modal
   // open/close, tracklist fill, roving focus) don't churn history. No listener reacts to replaceState, so
@@ -1320,6 +1346,17 @@ function onKeydown(e){
       else if (!e.shiftKey && i===list.length-1){ e.preventDefault(); list[0].focus(); }
     }
     return;
+  }
+  // Wave 5c: FILED UNDER tray — Escape closes it (checked after the DNA/modal branches, which take priority); Enter in FIND toggles a lone match on.
+  if (state.stylesOpen){
+    if (e.key==='Escape'){ state.stylesOpen=false; state.styleFind=''; _stylesFocusTrigger=true; render(); return; }
+    if (e.key==='Enter' && document.activeElement && document.activeElement.id==='tw-stylefind'){
+      const q=state.styleFind.trim().toLowerCase(); if(!q) return;
+      const vv=computeVals();
+      const m=vv.allStyles.filter(g=>g.toLowerCase().includes(q) && !state.genres.includes(g));
+      if(m.length===1){ e.preventDefault(); toggleGenre(m[0]); _filterToCrate(); render(); }
+      return;
+    }
   }
   // Roving grid (crate view only), when focus is on a grid cover cell.
   if ((state.view==='crate' || state.view==='wantlist') && GRID_KEYS.has(e.key)){
@@ -1699,7 +1736,11 @@ function onClick(e){
     case 'sort': state.sort=arg; render(); break;
     case 'dir': state.dir*=-1; render(); break;
     case 'genre': track('filter_used', { kind: 'genre' }); toggleGenre(arg); if(state.genres.includes(arg)) _filterToCrate(); render(); break;   // #57: switch only when ADDING a genre, not deselecting
-    case 'clearGenres': state.genres=[]; render(); break;
+    case 'clearGenres': state.genres=[]; render(); break;   // Wave 5c: CLEAR ALL in the tray — styles only; tray stays open (stylesOpen untouched)
+    case 'stylesToggle':   // Wave 5c: open/close the FILED UNDER tray
+      state.stylesOpen=!state.stylesOpen;
+      if(state.stylesOpen){ _stylesOpenedByUser=true; } else { state.styleFind=''; _stylesFocusTrigger=true; }
+      render(); break;
     case 'colored': track('filter_used', { kind: 'colored' }); state.coloredOnly=!state.coloredOnly; if(state.coloredOnly) _filterToCrate(); render(); break;   // #57: switch only when turning the toggle ON
     case 'forSale': track('filter_used', { kind: 'forsale' }); state.forSaleOnly=!state.forSaleOnly; if(state.forSaleOnly) _filterToCrate(); render(); break;   // Wave 4 (F1); #57: switch only when turning ON
     case 'artist': state.artist=arg; state.detailId=null; _filterToCrate(); render(); break;
@@ -1760,6 +1801,11 @@ function onInput(e){
     clearTimeout(_searchDebounce);
     _searchDebounce = setTimeout(render, 150);
   }
+  if(e.target.id==='tw-stylefind'){   // Wave 5c: FIND a style — re-renders the tray only (debounced), caret restored in render()
+    state.styleFind = e.target.value;
+    clearTimeout(_findDebounce);
+    _findDebounce = setTimeout(render, 100);
+  }
 }
 
 /* ── Re-sync (DB mode) ─────────────────────────────────────────────────────── */
@@ -1796,6 +1842,7 @@ async function bootCrate(){
   state.matchFilter=null;  // #47: match filter is per-crate context — never inherit it across a (re)boot
   state.detailId = null;   // #44/#37: never inherit a stale open modal across a (re)boot
   state.dnaOpen = false; state.dnaPick = null;   // Wave 5a: never inherit a stale-open DNA picker across a (re)boot
+  state.stylesOpen = false; state.styleFind = '';   // Wave 5c: same — never inherit a stale-open FILED UNDER tray/find across a (re)boot
   { const _d = document.getElementById('tw-dna-root'); if (_d) _d.innerHTML = ''; }
   { const _a = document.getElementById('app'); if (_a){ _a.inert = false; _a.removeAttribute('aria-hidden'); } }
   { const _m = document.getElementById('tw-modal-root'); if (_m) _m.innerHTML = ''; }

@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.21.0] — 2026-09-05
+
+### Changed
+- **FILED UNDER redesigned as a tray (Wave 5c).** The style filter used to render `ALL` plus the top-5 style
+  chips inline — eating most of the bar and only ever exposing 5 of ~200 styles. Now the bar shows a compact
+  count trigger (`ALL STYLES ▾` / `1 STYLE ▾` / `N STYLES ▾`) with the selected styles beside it (first two,
+  then a dashed `+N`), and a faint `N STYLES · N RECORDS` note when nothing's selected. The trigger opens a
+  full-width tray holding **every** style as a wrapping chip grid, with a FIND box that narrows the list as you
+  type (top 20 shown until you do), an inline CLEAR ALL (styles only), and a CLOSE button. Selecting a style
+  still switches to THE CRATE and keeps the tray open; Esc closes it and returns focus to the trigger. Text
+  fields (search + FIND) now show a 2px accent border on focus. Multi-select and the shareable-URL styles are
+  unchanged. (Design kit: Wave 5c.)
+
+---
+
 ## [1.20.11] — 2026-09-05
 
 ### Fixed
