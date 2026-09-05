@@ -699,10 +699,24 @@ function computeVals(){
   const styleBars=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).slice(0,7)
     .map(g=>({label:g,count:counts[g],width:Math.round((counts[g]/maxCount)*100)+'%'}));
 
-  const priciest=all.slice().filter(r=>r.price!=null).sort((a,b)=>b.price-a.price).slice(0,5).map(deco);
+  // Wave 5a: BY DECADE ledger panel — the same effective year the DNA card uses (master/original-release
+  // year, pressing year as fallback), over the whole crate. >1900 guards junk/0 years.
+  const _yrs=all.map(r=>Number(r.releaseYear ?? r.year)).filter(y=>y>1900);
+  const _dec={}; _yrs.forEach(y=>{ const d=Math.floor(y/10)*10; _dec[d]=(_dec[d]||0)+1; });
+  const decades=Object.keys(_dec).map(Number).sort((a,b)=>a-b).map(d=>({decade:d, label:String(d).slice(2)+'s', count:_dec[d]}));
+  const peakDecade=decades.slice().sort((a,b)=>b.count-a.count)[0]||null;
+  const _sortedYrs=_yrs.slice().sort((a,b)=>a-b);
+  const decadeStats={
+    peak: peakDecade,
+    peakPct: (peakDecade && all.length) ? Math.round(peakDecade.count/all.length*100) : 0,
+    minYear: _yrs.length?Math.min(..._yrs):null,
+    maxYear: _yrs.length?Math.max(..._yrs):null,
+    medianYear: _sortedYrs.length?_sortedYrs[Math.floor((_sortedYrs.length-1)/2)]:null,
+    maxCount: decades.length?Math.max(...decades.map(d=>d.count)):0,
+  };
 
   return { all, filtered, visible, counts, topGenres, total, newCount, coloredCount,
-    active, timeline, styleBars, priciest,
+    active, timeline, styleBars, decades, decadeStats,
     bigStats: IS_OWN() ? (()=>{ const _fs=window.__twInventory?all.filter(r=>window.__twInventory.has(r.id)).length:0; return [   // crate∩listed — agrees with the FOR SALE facet count
       {label:'Records', value:all.length.toLocaleString('en-US'), note:'Counted honestly. Twice.', color:'var(--ink)'},
       {label:'Estimated value', value:state.headerValue||valueLabel(total), note:priced.length?'Median of Discogs lows.':'Live Discogs estimate.', color:'var(--accent)'},
@@ -890,21 +904,27 @@ function render(){
               <span style="width:26px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${b.count}</span>
             </div>`).join('')}</div>
         </div>
-        ${IS_OWN() ? `<div style="padding:22px 24px">
-          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">The expensive end</span>
-          <div style="display:flex; flex-direction:column; margin-top:14px">${
-            v.priciest.length ? v.priciest.map(r=>`
-            <button data-act="open" data-arg="${r.id}" style="display:flex; align-items:center; gap:12px; padding:8px 0; border:0; border-bottom:1px solid var(--hair); background:transparent; text-align:left">
-              <div role="img" aria-label="${esc(r.coverAlt)}" style="width:38px; height:38px; flex:none; border:1px solid var(--line); background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
-              <span style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">
-                <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</span>
-                <span style="font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:600; line-height:1.05">${esc(r.title)}</span>
-              </span>
-              <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700">${r.priceLabel}</span>
-            </button>`).join('')
-            : `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">Per-record prices return in a future update. Open any record for its live lowest sale.</span>`
-          }</div>
-        </div>` : overlapPanelHtml()}
+        ${IS_OWN() ? (()=>{ const ds=v.decadeStats; const mx=ds.maxCount||1; return `<div style="padding:22px 24px; display:flex; flex-direction:column">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">By decade</span>
+          <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:6px; height:170px; margin-top:16px">${v.decades.map(d=>{ const pk=ds.peak && d.decade===ds.peak.decade; const h=Math.max(3,Math.round(d.count/mx*120)); return `
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; white-space:nowrap; ${pk?'font-weight:700; color:var(--accent)':'color:var(--faint)'}; margin-bottom:4px">${d.count.toLocaleString('en-US')}</span>
+              <span style="width:100%; height:${h}px; background:${pk?'var(--accent)':'var(--ink)'}"></span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; ${pk?'font-weight:700; color:var(--accent)':'color:var(--ink)'}; margin-top:7px">${esc(d.label)}</span>
+            </div>`; }).join('') || '<span style="font-family:\'IBM Plex Mono\',monospace; font-size:11px; color:var(--faint); line-height:1.6">No release years on file yet.</span>'}</div>
+          <div style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Peak</span>
+              <span style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1; color:var(--ink)">${ds.peak?ds.peak.decade+'s':'—'}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted)">${ds.peakPct}% of the shelf</span>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Span</span>
+              <span style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1; color:var(--ink)">${ds.minYear!=null?ds.minYear+'–'+String(ds.maxYear).slice(2):'—'}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted)">${ds.medianYear!=null?'median '+ds.medianYear:''}</span>
+            </div>
+          </div>
+        </div>`; })() : overlapPanelHtml()}
       </div>
       ${IS_OWN() ? `<div class="tw-dna-band" style="display:flex; align-items:center; justify-content:space-between; gap:32px; padding:22px 24px 26px; border-top:1px solid var(--hair); background:var(--bar)">
         <div style="display:flex; flex-direction:column; gap:8px; max-width:520px">

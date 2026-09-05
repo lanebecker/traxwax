@@ -403,7 +403,7 @@ function discogsSection(o) {
       btn('Re-sync now', { id: 'tw-acct-resync', variant: 'secondary' }) +
     '</div>' +
     sectionLabel('DISCONNECT') +
-    '<div style="border:1.5px solid var(--hair); padding:16px 18px; display:flex; ' +
+    '<div style="border:1.5px solid var(--line); padding:16px 18px; display:flex; ' +
       'flex-direction:column; gap:12px">' +
       '<span style="' + BODY + '; font-size:12.5px; line-height:1.65; color:var(--muted); ' +
         'max-width:66ch">Disconnecting removes your imported collection from TraxWax. Your ' +

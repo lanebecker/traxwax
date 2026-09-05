@@ -13,6 +13,23 @@ _Nothing yet._
 
 ---
 
+## [1.20.8] — 2026-09-05
+
+### Added
+- **BY DECADE chart in THE LEDGER.** The own-crate ledger's right panel — a placeholder ever since "the
+  expensive end" was retired — now shows a by-decade column chart of the whole collection, the peak decade
+  drawn in accent, above a Peak / Span stat strip (peak decade and its share of the shelf; earliest–latest
+  years and the median). Built on the same effective release year the DNA card uses (original-release / master
+  year, pressing year as fallback), so it agrees with Card A. Friend crates keep the shelf-overlap panel. (Lane
+  request.)
+
+### Fixed
+- **Account DISCOGS "Disconnect" box border now matches the other black account boxes.** It was drawn with the
+  faint grey `--hair` token while every sibling box uses the near-black `--line`; switched it to `--line`.
+  DANGER ZONE intentionally keeps its red `--accent` border. (#56, Lane report.)
+
+---
+
 ## [1.20.7] — 2026-09-05
 
 ### Fixed
