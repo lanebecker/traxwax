@@ -84,8 +84,8 @@ functions**, all `verify_jwt: false` with in-handler `jose.jwtVerify` against Cl
 | `finalize-connect` | Completes a pending link: code hash + verified Clerk sub (closes the link-CSRF) |
 | `disconnect-discogs` | Unlink: credential + imported items deleted, profile reset |
 | `delete-account` | Purge all TraxWax data (never the Clerk identity); server re-checks the typed `DELETE` |
-| `import-collection` | One page (collection OR wantlist) per invocation; seeds the catalog via `seed_releases` (v1.2.0); captures `master_id` (0024) |
-| `enrich-release` | Budgeted CC0 enrichment + refresh drain (7d tombstone retry, 180d TTL); captures `master_id` (0024) |
+| `import-collection` | One page (collection, wantlist, OR inventory/for-sale) per invocation; seeds the catalog via `seed_releases` (v1.2.0); captures `master_id` (0024) |
+| `enrich-release` | Budgeted CC0 enrichment + refresh drain (7d tombstone retry, 180d TTL); captures `master_id` (0024) + backfills `master_year` (0032, v9) |
 | `live-stats` | Restricted data, live under the caller's token, ≤6h in-instance cache; price suppressed on friend crates |
 | `wantlist-write` | Add/remove on the caller's OWN wantlist under their Discogs token, then mirror the row (the only client wantlist writer — direct table DML is locked down, 0025) |
 
@@ -93,9 +93,12 @@ functions**, all `verify_jwt: false` with in-handler `jose.jwtVerify` against Cl
 `DISCOGS_CONSUMER_SECRET` (the `TraxWax` Discogs app), `DISCOGS_TOKEN_ENC_KEY` (32-byte
 base64; AES-256-GCM at rest — rotating it orphans stored tokens, forcing reconnects),
 `APP_ORIGIN` (`https://traxwax.com`), `CLERK_ISSUER` (the **production** Clerk instance).
-The in-code fallbacks for the last two point at the dev/preview values — env always wins.
+`APP_ORIGIN` and `CLERK_ISSUER` are **required**: since v1.14.1 (#52) every jwtVerify function **fails
+closed** (throws at boot) if either is unset — there are no dev/preview fallbacks any more.
 
-**Deploying:** via the Supabase MCP connector (`deploy_edge_function`, file layout
+**Deploying:** via the **break-glass** Supabase MCP connector — the standing `Supabase — TraxWax` connector
+is read-only; Lane arms `Supabase — TraxWax — Break-Glass` for a deploy, then disarms it (see `CLAUDE.md`).
+Then `deploy_edge_function` (file layout
 `{<fn>/index.ts, _shared/discogs.ts}`, entrypoint `<fn>/index.ts`, `verify_jwt: false`) or
 `supabase functions deploy <fn>` with the CLI. Supabase keeps every version — rollback is
 redeploying the previous one. **After any deploy, verify the 401 gate:** POST with a forged
@@ -105,12 +108,14 @@ verification runs).
 ## Surface 3 — Database
 
 Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids; RLS policies use the
-`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0025` applied; the migration
-map lives in `CLAUDE.md`. Apply via the MCP `apply_migration` (or
+`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0032` applied; the migration
+map lives in `CLAUDE.md`. Apply via the **break-glass** MCP `apply_migration` (or
 `supabase db push`), verify with the checks each migration's plan documents, then commit the
 file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
 `unlink_discogs_account`, `delete_account`, `pending_enrichment`, `seed_releases`, `db_now`)
-are SECURITY DEFINER and granted to `service_role` only.
+are SECURITY DEFINER and `service_role`-only; the friend-read RPCs (`get_friend_crate` 0021,
+`get_crate_owner` 0023, `get_friend_forsale` 0028, `list_friends` 0031, and the `private.can_view_*`
+gates) are SECURITY DEFINER granted to `authenticated`.
 
 ## Auth (Clerk)
 
@@ -119,9 +124,9 @@ never the deprecated JWT-template method). The session token **must** carry
 `"role": "authenticated"` — its absence files every request as `anon` and breaks profile
 writes (launch-day incident 2, 2026-08-29). NOTE: `public/app/index.html` hardcodes the **production**
 `pk_live_…` publishable key + `clerk.traxwax.com` with no dev/preview swap, so the pages.dev preview
-runs the **production** Clerk instance too. The dev instance (`brave-buffalo-7127.clerk.accounts.dev`)
-survives only as the Edge functions' in-code `CLERK_ISSUER` *default* (the prod env var overrides it;
-consider failing closed if that env var is ever unset — see close-audit finding).
+runs the **production** Clerk instance too. The dev instance (`brave-buffalo-7127.clerk.accounts.dev`) is
+**no longer** an in-code fallback — v1.14.1 (#52) removed the dev defaults, so every jwtVerify function
+throws at boot if `CLERK_ISSUER`/`APP_ORIGIN` are unset (fail-closed).
 
 ## Local testing
 

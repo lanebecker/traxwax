@@ -13,6 +13,24 @@ _Nothing yet._
 
 ---
 
+## [1.23.2] — 2026-09-05
+
+### Documentation
+- **Full-repo documentation cold audit + refresh.** Three independent auditors checked every living doc
+  against the actual code/schema; findings fixed in-flow. Both `CLAUDE.md` files: current version v1.13.0→
+  **v1.23.1**, migrations 0001–0025→**0001–0032**, tables 9→**10** (added `inventory_items`, `forsale_visibility`,
+  `master_year`, wantlist `vinyl`), views 3→**5 tabs**, added the DNA card / tray / FOR SALE tab / header trio,
+  and corrected the Clerk note (the dev `CLERK_ISSUER` fallback was removed in v1.14.1/#52 — functions fail
+  closed). `README.md`: Status extended through v1.23.1, ACCOUNT modal→`/account` route, crates default
+  friends-visible, a Views line, migration range. `DEPLOY.md`: **corrected the reversed fail-open/fail-closed
+  claim** (the security-critical one), the break-glass connector model, migration range, import/enrich scope,
+  and the friend-read RPC roster. `docs/roadmap.md` + `docs/social-roadmap.md`: version pointers + wave
+  SHIPPED tags (Waves 2–4 shipped, Wave 5a shipped, 5b remaining). `docs/multi-user-spec.md` as-built note:
+  8→9 functions + a forward pointer. The three v1.3.x design snapshots got dated "superseded — see current
+  sources" banners. (Point-in-time plans/briefs left frozen by design.)
+
+---
+
 ## [1.23.1] — 2026-09-05
 
 ### Fixed
