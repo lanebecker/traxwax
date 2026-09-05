@@ -13,6 +13,17 @@ _Nothing yet._
 
 ---
 
+## [1.20.11] — 2026-09-05
+
+### Fixed
+- **Search and facet filters now work from THE LEDGER.** The Ledger is a whole-crate stats view with no
+  filtered grid, so typing in Search (or clicking a style bar, color, or the colored-wax / for-sale toggles)
+  there appeared to do nothing. Now any filter applied on the Ledger switches to THE CRATE and shows the
+  filtered results. Turning a filter *off* on the Ledger doesn't switch (only adding one does), and THE
+  TIMELINE — which filters its own list — is unaffected. (#57, Lane report.)
+
+---
+
 ## [1.20.10] — 2026-09-05
 
 ### Changed

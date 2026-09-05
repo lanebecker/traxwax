@@ -1657,6 +1657,16 @@ async function _dnaExport(mode){
   state.dnaOpen=false; renderDna(); render();            // render() refreshes the ledger band's YOUR PICK + thumbnail
 }
 
+/* #57: THE LEDGER is a whole-crate stats view with no filtered grid, so a search or facet applied there
+   would be invisible. Any ADDITIVE filter action on the ledger switches to THE CRATE so results show —
+   mirrors the match-link pattern (crate + clear the tab hash). THE TIMELINE filters its own list, so it is
+   deliberately left alone; clearing/removing filters never switches (staying put is fine). */
+function _filterToCrate(){
+  if(state.view!=='ledger') return;
+  state.view='crate';
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+}
+
 /* ── Events (delegation) ───────────────────────────────────────────────────── */
 function onClick(e){
   const t=e.target.closest('[data-act]'); if(!t) return;
@@ -1688,12 +1698,12 @@ function onClick(e){
       break;
     case 'sort': state.sort=arg; render(); break;
     case 'dir': state.dir*=-1; render(); break;
-    case 'genre': track('filter_used', { kind: 'genre' }); toggleGenre(arg); render(); break;
+    case 'genre': track('filter_used', { kind: 'genre' }); toggleGenre(arg); if(state.genres.includes(arg)) _filterToCrate(); render(); break;   // #57: switch only when ADDING a genre, not deselecting
     case 'clearGenres': state.genres=[]; render(); break;
-    case 'colored': track('filter_used', { kind: 'colored' }); state.coloredOnly=!state.coloredOnly; render(); break;
-    case 'forSale': track('filter_used', { kind: 'forsale' }); state.forSaleOnly=!state.forSaleOnly; render(); break;   // Wave 4 (F1)
-    case 'artist': state.artist=arg; state.detailId=null; render(); break;
-    case 'color': track('filter_used', { kind: 'color' }); state.color=arg; state.detailId=null; render(); break;
+    case 'colored': track('filter_used', { kind: 'colored' }); state.coloredOnly=!state.coloredOnly; if(state.coloredOnly) _filterToCrate(); render(); break;   // #57: switch only when turning the toggle ON
+    case 'forSale': track('filter_used', { kind: 'forsale' }); state.forSaleOnly=!state.forSaleOnly; if(state.forSaleOnly) _filterToCrate(); render(); break;   // Wave 4 (F1); #57: switch only when turning ON
+    case 'artist': state.artist=arg; state.detailId=null; _filterToCrate(); render(); break;
+    case 'color': track('filter_used', { kind: 'color' }); state.color=arg; state.detailId=null; _filterToCrate(); render(); break;
     case 'open': track('record_opened', { source: state.view }); openDetail(Number(arg)); break;
     case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; renderModal(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
@@ -1746,6 +1756,7 @@ function onInput(e){
     // state.query tracks each keystroke so the render 150ms after the last one matches.
     // Focus + caret restoration live in render() itself, keyed off activeElement.
     state.query = e.target.value;
+    _filterToCrate();   // #57: searching on the ledger (no filtered grid there) surfaces results in the crate
     clearTimeout(_searchDebounce);
     _searchDebounce = setTimeout(render, 150);
   }
