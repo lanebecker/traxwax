@@ -68,8 +68,6 @@ input::placeholder { color:var(--faint); }
 @media (max-width:640px) {
   #app { padding:8px 8px 36px !important; }
 
-  /* Wave 5a: the persistent share button rides the wrapped sort line; keep it a 44px touch target. */
-  .tw-sortwrap > button[data-act="copyCrateLink"] { min-height:44px; }
   /* Wave 5a: the Collection DNA band stacks; its right group (caption + thumbnail) spreads full-width. */
   .tw-dna-band { flex-direction:column !important; align-items:stretch !important; }
   .tw-dna-band > div:last-child { justify-content:space-between; padding-right:0 !important; }
@@ -79,10 +77,9 @@ input::placeholder { color:var(--faint); }
   /* Header: stack the wordmark row above the stats/toggle row, and drop the two
      least-vital counters (COLORED, THIS MONTH) so the strip + toggle fit one line. */
   .tw-header { flex-direction:column !important; align-items:stretch !important; justify-content:flex-start !important; gap:12px !important; padding:16px 14px 14px !important; }
-  /* v1.3.x: the floating avatar hugs the tighter mobile padding and clears the wordmark. */
-  .tw-avatar { top:12px !important; right:14px !important; }
-  .tw-headL { flex-direction:column !important; align-items:flex-start !important; gap:8px; padding-right:56px; }   /* 2B: stack wordmark→name/handle; clear the pinned avatar */
-  .tw-headR { justify-content:flex-start !important; }
+  .tw-headL { flex-direction:column !important; align-items:flex-start !important; gap:8px; }   /* 2B: stack wordmark→name/handle (v1.23: avatar is now an in-flow header circle, so no pinned-avatar clearance needed) */
+  .tw-headR { justify-content:flex-start !important; flex-wrap:wrap !important; }   /* v1.23: stats box + the 3 icon circles wrap instead of overflowing the row */
+  .tw-headR button { width:44px !important; height:44px !important; }   /* v1.23: 44px touch targets for SHARE / LIGHTS / ACCOUNT on mobile */
   .tw-hide-mobile { display:none !important; }
 
   /* 2B: friend match-sentence stacks into two tappable rows; BACK on top; friend avatar pinned top-right. */
