@@ -381,10 +381,10 @@ function profileSection(o) {
 function discogsSection(o) {
   const p = o.profile;
   return '' +
-  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:28px">' +
+  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
     sectionHead('DISCOGS', 'The connection',
       'Where TraxWax reads from your Discogs collection. Keep it synced, or cut the cord anytime.') +
-    '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
+    '<div id="tw-acct-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent)"></div>' +
     sectionLabel('SYNC') +
     '<div style="border:1.5px solid var(--line); display:flex; flex-wrap:wrap; align-items:center; ' +
@@ -418,10 +418,10 @@ function discogsSection(o) {
 /* v1.20.3: DANGER ZONE is now its own tab (was folded into DISCOGS). Just the delete-everything block. */
 function dangerSection(o) {
   return '' +
-  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:28px">' +
+  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:22px">' +
     sectionHead('DANGER ZONE', 'Delete everything',
       'The point of no return. Deleting wipes your TraxWax data for good; your Discogs account is safe.') +
-    '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
+    '<div id="tw-acct-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent)"></div>' +
     sectionLabel('DANGER, WILL ROBINSON') +
     '<div style="border:1.5px solid var(--accent); padding:16px 18px; display:flex; ' +
@@ -527,7 +527,7 @@ function sharingSection(o) {
         'listed for sale. Prices always live on Discogs, never here.</span>' +
     '</div>' +
     // Shared status line (visibility changes announce here — moved from FRIENDS).
-    '<div id="tw-share-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
+    '<div id="tw-share-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent); min-height:0"></div>' +
 
     // ── VISIBILITY — the 1c box: one container, caption row, two hairline-separated shelf rows.

@@ -381,6 +381,10 @@ input::placeholder { color:var(--faint); }
 /* ═══ ACCOUNT PAGE (S13–S16) ══════════════════════════════════════════════════ */
 
 .tw-acct-wrap { min-height:100vh; background:var(--bg); padding:26px 26px 60px; }
+/* An account status line collapses out of the flex flow when it holds no message, so the empty div
+   doesn't add a second column-gap between a section's intro and its first label (v1.20.6 — matches the
+   FRIENDS spacing, which tucks its status line inside a box). It reappears when a message is set. */
+.tw-acct-status:empty { display:none; }
 
 @media (max-width:820px) {
   /* Nav becomes a horizontal strip above the content. The row-based markup survives it —

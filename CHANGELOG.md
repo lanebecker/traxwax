@@ -13,6 +13,18 @@ _Nothing yet._
 
 ---
 
+## [1.20.7] — 2026-09-05
+
+### Fixed
+- **Even spacing between the intro line and the first section header across all account tabs.** SHARING,
+  DISCOGS, and DANGER ZONE showed a wider gap than FRIENDS because an empty status-message `<div>` sat between
+  the intro and the first label, eating a second flex-gap (and DISCOGS/DANGER used a 28px outer gap vs FRIENDS'
+  22px). Fixed: `.tw-acct-status:empty { display:none }` collapses the status line when it has no message (it
+  reappears when one fires), and DISCOGS/DANGER now use the same 22px outer gap. All four tabs now match. (Lane
+  report.)
+
+---
+
 ## [1.20.6] — 2026-09-05
 
 ### Added
