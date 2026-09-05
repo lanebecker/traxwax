@@ -109,6 +109,11 @@ async function handle(req: Request): Promise<Response> {
   const newIds: number[] = Array.isArray(work?.pending) ? work.pending.map(Number) : [];
   const refreshTotal = Number(work?.refresh_total ?? 0);
   const refreshIds: number[] = Array.isArray(work?.refresh) ? work.refresh.map(Number) : [];
+  // Wave 5a: master-year backfill work (owned, enriched, real master, no master_year). {release_id, master_id}.
+  const masterTotal = Number(work?.master_total ?? 0);
+  const masterRows: Array<{ release_id: number; master_id: number }> =
+    Array.isArray(work?.master) ? work.master.map((m: Record<string, unknown>) =>
+      ({ release_id: Number(m.release_id), master_id: Number(m.master_id) })) : [];
 
   if (ownedCount === 0 && wantedCount === 0) {
     // Neither collection nor wantlist: a legitimately empty import. Close the gate. (Wave 2 Stage A)
@@ -131,10 +136,10 @@ async function handle(req: Request): Promise<Response> {
     const { error: noneErr } = await admin.from('profiles')
       .update({ last_import_at: new Date().toISOString() }).eq('user_id', userId);
     if (noneErr) console.error('last_import_at (none-pending) failed:', noneErr.message);
-    if (batch.length === 0) {
-      return json({ enriched: 0, remaining: 0, refreshed: 0, refresh_pending: refreshTotal });
+    if (batch.length === 0 && masterRows.length === 0) {
+      return json({ enriched: 0, remaining: 0, refreshed: 0, refresh_pending: refreshTotal, master_pending: masterTotal });
     }
-    // No new work, but refresh work exists: fall through and process it.
+    // No new work, but refresh and/or master-backfill work exists: fall through and process it.
   }
 
   let enriched = 0;    // NEW-work completions only: drives `remaining` and the gate
@@ -215,6 +220,55 @@ async function handle(req: Request): Promise<Response> {
     else refreshed++;
   }
 
+  // ── Master-year backfill (Wave 5a). Lowest priority: only leftover budget, and it never holds the boot
+  //    gate (master rows are already enriched — absent from totalPending/remaining). ONE GET per DISTINCT
+  //    master; the UPDATE fills every sibling pressing at once, so the pending count collapses far faster
+  //    than one row per call. Sentinel master_year=0 on a gone/yearless master exits the pending set.
+  let masterFilled = 0;   // catalog-wide sibling ROWS filled this run (console figure; NOT used for master_pending)
+  if (!rateLimited && masterRows.length > 0) {
+    const leftover = BUDGET - batch.length;   // budget not spent on new/refresh (0 during a fresh import)
+    const seen = new Set<number>();
+    const distinct: number[] = [];
+    for (const m of masterRows) { if (m.master_id && !seen.has(m.master_id)) { seen.add(m.master_id); distinct.push(m.master_id); } }
+    for (let j = 0; j < distinct.length && j < leftover; j++) {
+      const mid = distinct[j];
+      await sleep(GAP_MS);   // pace EVERY master GET — they count toward the 60/min budget
+      const mres = await fetch(`https://api.discogs.com/masters/${mid}`, {
+        headers: {
+          'User-Agent': DISCOGS_UA,
+          Authorization: oauthHeader({
+            oauth_consumer_key: consumerKey,
+            oauth_nonce: nonce(),
+            oauth_token: userToken,
+            oauth_signature: `${consumerSecret}&${userSecret}`,
+            oauth_signature_method: 'PLAINTEXT',
+            oauth_timestamp: timestamp(),
+          }),
+        },
+      });
+      if (mres.status === 429) { console.error('rate limited at master', mid); rateLimited = true; break; }
+      let my = 0;   // 0 = resolved, no usable year (sentinel → client falls back to pressing year)
+      if (mres.status === 404) {
+        my = 0;   // master gone → sentinel, so this master's rows exit the pending set (no wedge)
+      } else if (!mres.ok) {
+        console.error('get_master failed:', mid, mres.status);
+        continue;   // transient → leave master_year null, retried next visit
+      } else {
+        try {
+          const mj = JSON.parse(await mres.text());
+          const y = Number(mj.year);
+          my = (Number.isFinite(y) && y > 1900) ? y : 0;
+        } catch { console.error('get_master non-JSON:', mid); continue; }
+      }
+      // Fill every sibling pressing sharing this master, catalog-wide (CC0 shared). .is('master_year', null)
+      // keeps it idempotent — a sibling filled by an earlier run is never rewritten.
+      const { data: upd, error: mErr } = await admin.from('releases')
+        .update({ master_year: my }).eq('master_id', mid).is('master_year', null).select('release_id');
+      if (mErr) { console.error('master_year update failed:', mid, mErr.message); continue; }
+      masterFilled += Array.isArray(upd) ? upd.length : 0;
+    }
+  }
+
   const remaining = totalPending - enriched;
   if (remaining === 0) {
     const { error: doneErr } = await admin.from('profiles')
@@ -222,5 +276,10 @@ async function handle(req: Request): Promise<Response> {
     if (doneErr) console.error('last_import_at update failed:', doneErr.message);
   }
   return json({ enriched, remaining, refreshed,
-    refresh_pending: Math.max(0, refreshTotal - refreshed), rate_limited: rateLimited });
+    refresh_pending: Math.max(0, refreshTotal - refreshed),
+    // Wave 5a: the RPC recomputes owned-null master rows each call, so report it straight — NOT
+    // masterTotal - masterFilled (masterFilled counts catalog-wide siblings and could false-zero the
+    // signal, stranding the drain). masterFilled=${masterFilled} is a per-run console figure only.
+    master_pending: masterTotal,
+    rate_limited: rateLimited });
 }

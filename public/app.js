@@ -16,6 +16,12 @@ const SETTINGS = {
   ownerLine: "Lane's shelf",                     // tagline (" · filed by <word>") appended at render
 };
 
+/* Wave 5a: Collection DNA card variant. localStorage-only (Design D2) — does not follow the user across
+   devices; a profiles column is the upgrade path. Unknown/missing → 'A'. */
+const DNA_NAMES = { A:'A · THE DECADES', B:'B · THE STAT WALL', C:'C · THE SPLIT' };
+function dnaVariant(){ try{ const v=localStorage.getItem('tw_dna_variant'); return (v==='B'||v==='C')?v:'A'; }catch(e){ return 'A'; } }
+function setDnaVariant(v){ try{ localStorage.setItem('tw_dna_variant', v); }catch(e){} }
+
 /* The owner line ends in a wink, not a taxonomy: "<name>'s shelf · filed by <word>". The word is
    picked at random ONCE per page load and frozen for the session, so re-renders (filter/sort/view
    changes) keep it steady and it only reshuffles on a real reload. Owner's own crate only — a
@@ -218,6 +224,7 @@ const state = {
   theme:'light', view:'crate', query:'', genres:[], coloredOnly:false, forSaleOnly:false,   // Wave 4: FOR SALE facet
   artist:null, color:null, sort:'added', dir:-1, detailId:null, headerValue:null,
   matchFilter:null,   // #47: null | 'youWant' (crate ∩ viewerWants) | 'theyWant' (wantlist ∩ viewerHas)
+  dnaOpen:false, dnaPick:null,   // Wave 5a: picker modal open state + in-modal selection (committed to localStorage only on export)
 };
 let _searchDebounce = null;   // issue #5: pending debounced render, if any
 
@@ -292,9 +299,9 @@ function matches(r){
 }
 function sorted(list){
   const s=state;
-  const key={ added:r=>r.added, artist:r=>r.artist.toLowerCase(), year:r=>String(r.year),
+  const key=({ added:r=>r.added, artist:r=>r.artist.toLowerCase(), year:r=>String(r.year),
     // Audit #19: numeric, not padded-string -- the string form sorted $12.50 below $9.99.
-    price:r=>r.price==null?-1:r.price }[s.sort];
+    price:r=>r.price==null?-1:r.price }[s.sort]) || (r=>r.added);   // Wave 5a: defensive — an unknown sort key never throws (parse also whitelists)
   return list.slice().sort((a,b)=>(key(a)<key(b)?-1:key(a)>key(b)?1:0)*s.dir);
 }
 function deco(r){
@@ -743,6 +750,90 @@ function renderModal(){
 }
 
 /* ── render ────────────────────────────────────────────────────────────────── */
+/* ── Wave 5a: shareable filtered-view URLs ───────────────────────────────────
+   The filter/sort state (not just the tab) rides the query string, so a copied or
+   bookmarked link reopens the same filtered view. The TAB keeps its established home
+   in the #hash; this code ONLY ever rewrites location.search, never the hash. Only
+   non-default values are emitted, so an unfiltered crate stays a clean …/app/<user>. */
+const SORT_KEYS=['added','artist','year','price'];   // whitelist — an unknown sort key would throw in sorted()
+const FILTER_PARAM_KEYS=['g','wax','color','artist','q','sort','dir','forsale','match'];
+function _knownFilterParams(){   // the filter keys derived FROM state (used for the address bar + the clean share URL)
+  const s=state, p=new URLSearchParams();
+  s.genres.forEach(g=>p.append('g',g));   // repeat param (not comma-join) — a style name may itself contain a comma
+  if(s.coloredOnly) p.set('wax','1');
+  if(s.color) p.set('color',s.color);
+  if(s.artist) p.set('artist',s.artist);
+  if(s.query) p.set('q',s.query);
+  if(s.sort!=='added') p.set('sort',s.sort);      // 'added' is the default
+  if(s.dir===1) p.set('dir','asc');               // default dir is -1 (global, not per-sort); emit only the non-default
+  if(s.forSaleOnly) p.set('forsale','1');
+  if(s.matchFilter) p.set('match',s.matchFilter);
+  return p;
+}
+function _filterQuery(){   // ADDRESS-BAR query: re-derive the filter keys from state, but PRESERVE any unknown param
+  // (utm_*, or an in-flight auth handshake token) so the first render never strips one mid-flow.
+  const p=new URLSearchParams(location.search);
+  FILTER_PARAM_KEYS.forEach(k=>p.delete(k));      // drop the old filter keys…
+  for(const [k,v] of _knownFilterParams()) p.append(k,v);   // …and splice the state-derived ones back in
+  return p.toString();
+}
+function _syncFilterUrl(){   // called at the END of render(); replaceState only, and only when the URL actually changes
+  try{
+    const qs=_filterQuery();
+    const next=location.pathname+(qs?'?'+qs:'')+location.hash;   // compose with the LIVE hash so the tab is never clobbered
+    if(next!==location.pathname+location.search+location.hash) history.replaceState(null,'',next);
+  }catch(e){}
+}
+function _shareUrl(){   // CLEAN shareable URL — ONLY the filter keys, so a copied link never carries an unknown/sensitive param
+  const qs=_knownFilterParams().toString();
+  return location.origin+location.pathname+(qs?'?'+qs:'')+location.hash;
+}
+function _applyUrlFilters(sellingApplied){   // bootCrate: seed state from ?params AFTER the resets + data awaits, before first render
+  try{
+    const p=new URLSearchParams(location.search);
+    if(![...p.keys()].length) return;
+    // pure data facets — safe on any crate (own/friend/public); harmless where they match nothing
+    const g=p.getAll('g').filter(x=>typeof x==='string'&&x.length);
+    if(g.length) state.genres=g;
+    if(p.get('wax')==='1') state.coloredOnly=true;
+    const color=p.get('color'); if(color) state.color=color;      // string-compared in matches(), esc()'d in the chip — injection-safe
+    const artist=p.get('artist'); if(artist) state.artist=artist; // same string-compare/esc() safety as color
+    const q=p.get('q'); if(q) state.query=q;                       // only ever set into state.query (rendered via esc()); never DOM-raw
+    const sort=p.get('sort'); if(sort&&SORT_KEYS.includes(sort)) state.sort=sort;   // whitelist: a junk key would throw in sorted()
+    if(p.get('dir')==='asc') state.dir=1;
+    // context-gated facets — a stray one would BLANK the grid, so gate exactly as the live UI does.
+    if(!sellingApplied){   // the #selling deep-link already set youWant+forsale; don't let a stray ?match override it
+      // forsale: only when __twInventory has entries — an empty-but-non-null Map is truthy and matches() then excludes every record
+      if(p.get('forsale')==='1' && window.__twInventory && window.__twInventory.size>0) state.forSaleOnly=true;
+      // match: friend-crate only AND only once __twMatchCtx has loaded — on an own crate, or a friend crate whose
+      // ctx fetch failed (stays null), matches() returns false for EVERY record. Mirror the UI: the match link is
+      // only offered when ctx exists, so the URL path must gate on it too.
+      const m=p.get('match'); if((m==='youWant'||m==='theyWant') && !IS_OWN() && window.__twMatchCtx) state.matchFilter=m;
+    }
+  }catch(e){}
+}
+/* Copy a URL to the clipboard + confirm. The button(s) that call these are a Claude Design
+   deliverable; the mechanism ships now, wired via data-act="copyLink"/"copyCrateLink". */
+function _copyShareLink(){ _copyUrl(_shareUrl()); }                          // this filtered view (tab + filters), cleaned of any unknown param
+function _copyCrateLink(){ _copyUrl(location.origin+location.pathname); }    // the bare crate (no tab, no filters)
+function _copyUrl(url){
+  const done=()=>showToast('Link copied');
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(()=>_copyFallback(url,done));
+    else _copyFallback(url,done);
+  }catch(e){ _copyFallback(url,done); }
+}
+function _copyFallback(text,done){
+  let ta;
+  try{
+    ta=document.createElement('textarea');
+    ta.value=text; ta.setAttribute('readonly',''); ta.style.cssText='position:fixed; top:-1000px; opacity:0';
+    document.body.appendChild(ta); ta.select();
+    if(document.execCommand('copy')) done();
+  }catch(e){}
+  finally{ if(ta && ta.parentNode) ta.parentNode.removeChild(ta); }   // cleanup even if execCommand throws (D2)
+}
+
 function render(){
   const v=computeVals(); const s=state;
   const hasFilters=v.active.length>0;
@@ -815,6 +906,25 @@ function render(){
           }</div>
         </div>` : overlapPanelHtml()}
       </div>
+      ${IS_OWN() ? `<div class="tw-dna-band" style="display:flex; align-items:center; justify-content:space-between; gap:32px; padding:22px 24px 26px; border-top:1px solid var(--hair); background:var(--bar)">
+        <div style="display:flex; flex-direction:column; gap:8px; max-width:520px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Collection DNA</span>
+          <span style="font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:700; line-height:1.05; color:var(--ink)">Your shelf, as a card.</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted); line-height:1.6">One square image of the aggregates — decades, styles, colored wax. Never a title, never a price. 1080×1080, made in your browser, yours to post.</span>
+          <div style="display:flex; align-items:center; gap:14px; margin-top:8px">
+            <button data-act="dnaOpen" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; background:var(--accent); color:var(--on-accent); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow)">Share your DNA</button>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; color:var(--faint)">THREE CARDS · PICK ONE · PNG</span>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:22px; padding-right:12px">
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.14em; color:var(--muted); text-align:right">
+            <span>YOUR PICK</span>
+            <span style="font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:700; letter-spacing:0; color:var(--ink)">${esc(DNA_NAMES[dnaVariant()])}</span>
+            <span>CHANGE IN THE PICKER</span>
+          </div>
+          <canvas id="tw-dna-thumb" width="1080" height="1080" aria-label="Preview of your Collection DNA card" style="width:170px; height:170px; border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow); transform:rotate(1.2deg); background:#fff"></canvas>
+        </div>
+      </div>` : ''}
     </div>`;
   } else if(showEmpty){
     // S17: an EMPTY collection (records.length === 0) is a different state from filters
@@ -930,6 +1040,7 @@ function render(){
     <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
       ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
+        ${IS_OWN() ? `<button data-act="copyCrateLink" title="Copy a link to your crate" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; padding:5px 10px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); box-shadow:2px 2px 0 var(--shadow)">SHARE MY CRATE</button><span aria-hidden="true" style="width:1px; height:20px; background:var(--hair)"></span>` : ''}
         <span role="status" aria-live="polite" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
           ${sortBtn('added','ADDED')}${sortBtn('artist','ARTIST')}${sortBtn('year','YEAR')}${DB_MODE()?'':sortBtn('price','PRICE')}
@@ -942,6 +1053,7 @@ function render(){
       <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:var(--muted)">SHOWING</span>
       ${activeChips}
       <button data-act="clearAll" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; padding:4px 8px; background:transparent; border:1px solid var(--line); color:var(--ink)">CLEAR ALL</button>
+      ${IS_OWN() ? `<button data-act="copyLink" title="Copy a link to this filtered view" style="margin-left:auto; display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; padding:4px 8px; background:transparent; border:1px solid var(--accent); color:var(--accent)"><span style="font-weight:700">SHARE THIS VIEW</span><span style="opacity:.75">${v.active.length} ${v.active.length===1?'FILTER':'FILTERS'}</span></button>` : ''}
     </div>`:''}
 
     ${content}
@@ -974,6 +1086,15 @@ function render(){
       si.setSelectionRange(p, p);
     }
   }
+  // Wave 5a: reflect the live filter/sort state in the URL (query string only; the tab keeps its #hash).
+  // Guarded to replaceState only on an actual change, so the many non-filter re-renders (stats load, modal
+  // open/close, tracklist fill, roving focus) don't churn history. No listener reacts to replaceState, so
+  // this can't re-enter render().
+  _syncFilterUrl();
+  // Wave 5a: paint the Ledger's DNA thumbnail (own crate only; the canvas exists only when the band rendered).
+  // Dynamic import so the dna.js module never loads until the Ledger is on screen.
+  const _thumb=document.getElementById('tw-dna-thumb');
+  if(_thumb) import('/dna.js').then(m=>m.renderCard(_thumb, dnaVariant(), m.computeStats(RECORDS, window.TraxWaxOwner||{}))).catch(()=>{});
   // A11y (W0.4): renderModal() re-establishes the grid's roving tabindex AND the modal DOM/focus/shell-inert
   // in the proven roving-then-modal-focus order, so a full render still ends exactly as it did pre-refactor.
   renderModal();
@@ -1139,6 +1260,8 @@ function _gridColumns(cells){
 }
 
 function onKeydown(e){
+  // Wave 5a: the DNA picker is a separate top-layer modal; Escape closes it first.
+  if (state.dnaOpen){ if (e.key==='Escape'){ state.dnaOpen=false; renderDna(); return; } return; }
   // Modal open: Escape closes; Tab cycles within the dialog.
   if (state.detailId){
     if (e.key==='Escape'){ state.detailId=null; renderModal(); return; }
@@ -1393,6 +1516,102 @@ function showToast(msg, actionLabel, onAction){
 }
 function _dismissToast(){ const el=document.getElementById('tw-toast'); if(el) el.style.display='none'; clearTimeout(_toastTimer); }
 
+/* ── Wave 5a: Collection DNA picker modal + export (own crate only) ──────────────────────────
+   Renders into a body-level #tw-dna-root (like #tw-modal-root). Three preview canvases from dna.js;
+   the pick is visual-only until an export commits it to localStorage. Overlay data-act="dnaClose"
+   closes; the dialog carries data-act="stop" so an inside click doesn't bubble to it (same pattern
+   as the detail modal). */
+let _dnaInvoker=null;   // the control that opened the picker; focus returns here on close (WCAG 2.4.3)
+function renderDna(){
+  let root=document.getElementById('tw-dna-root');
+  if(!root){ root=document.createElement('div'); root.id='tw-dna-root'; document.body.appendChild(root); }
+  if(!state.dnaOpen){
+    root.innerHTML=''; const a=document.getElementById('app'); if(a) a.removeAttribute('inert');
+    // Return focus to the "Share your DNA" trigger (WCAG 2.4.3). On the dnaClose/Esc paths #app isn't
+    // re-rendered, so the trigger is live and gets focus. On the export path the caller runs render()
+    // right after this, synchronously detaching the trigger, so focus harmlessly ends on <body> after
+    // the confirmation toast. document.contains guards against focusing a stale node.
+    if(_dnaInvoker && document.contains(_dnaInvoker)){ try{ _dnaInvoker.focus(); }catch(e){} }
+    _dnaInvoker=null;
+    return;
+  }
+  const pick=state.dnaPick||'A';
+  const opt=(k,eyebrow,name,desc,bg)=>`<button data-act="dnaPick" data-arg="${k}" aria-pressed="${pick===k}" style="padding:0; border:0; background:transparent; text-align:left; display:flex; flex-direction:column; gap:10px; min-width:0">
+      <div style="position:relative; width:100%; border:3px solid ${pick===k?'var(--accent)':'var(--hair)'}; background:${bg}">
+        ${pick===k?`<span style="position:absolute; top:10px; left:-4px; z-index:2; background:${k==='C'?'var(--ink)':'var(--accent)'}; color:${k==='C'?'var(--panel)':'var(--on-accent)'}; font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">YOUR PICK</span>`:''}
+        <canvas data-dna="${k}" width="1080" height="1080" style="display:block; width:100%; height:auto"></canvas>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px; padding:0 2px">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; color:var(--muted)">${eyebrow}</span>
+        <span style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1">${name}</span>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint); line-height:1.55">${desc}</span>
+      </div></button>`;
+  const shareBtn=(navigator.share&&navigator.canShare)
+    ? `<button data-act="dnaShare" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow)">Share…</button>`
+    : `<button data-act="dnaCopy" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow)">Copy image</button>`;
+  root.innerHTML=`<div class="tw-modal-ov" data-act="dnaClose" style="position:fixed; inset:0; z-index:50; background:rgba(10,10,12,.62); display:flex; align-items:flex-start; justify-content:center; padding:56px 24px; overflow:auto">
+    <div data-act="stop" role="dialog" aria-modal="true" aria-label="Collection DNA" style="width:1000px; max-width:100%; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); box-shadow:8px 8px 0 var(--shadow); display:flex; flex-direction:column">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:20px; padding:20px 22px 18px; border-bottom:1.5px solid var(--line)">
+        <div style="display:flex; flex-direction:column; gap:6px">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Collection DNA</span>
+          <span style="font-family:'Barlow Condensed',sans-serif; font-size:34px; font-weight:700; line-height:1">Pick your card.</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted); line-height:1.6">Three reads of the same shelf. Aggregates only — no titles, no prices. Your pick is remembered.</span>
+        </div>
+        <button data-act="dnaClose" title="Close" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:6px 10px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); white-space:nowrap">✕ CLOSE</button>
+      </div>
+      <div class="tw-dna-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:18px; padding:22px">
+        ${opt('A','A · CHART-FORWARD · LIGHT','The Decades','Peak decade as the hero, the per-decade release histogram, span in the footer.','#fff')}
+        ${opt('B','B · STAT WALL · DARK','The Stat Wall','Four anchors and your top three styles. The ledger read.','#0e0f11')}
+        ${opt('C','C · SINGLE HERO · RED','The Split','One number you can read from across the room, the colored-vs-black bar, two supporting facts.','#e8194b')}
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:20px; padding:16px 22px 18px; border-top:1px solid var(--hair); flex-wrap:wrap">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint); line-height:1.6">1080 × 1080 PNG · made in your browser from your own crate · every card carries “Data provided by Discogs”</span>
+        <div style="display:flex; align-items:center; gap:12px">
+          ${shareBtn}
+          <button data-act="dnaDownload" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:11px 18px; background:var(--accent); color:var(--on-accent); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow)">Download PNG</button>
+        </div>
+      </div>
+    </div></div>`;
+  const a=document.getElementById('app'); if(a) a.setAttribute('inert','');
+  import('/dna.js').then(m=>{
+    const stats=m.computeStats(RECORDS, window.TraxWaxOwner||{});
+    root.querySelectorAll('canvas[data-dna]').forEach(c=>m.renderCard(c, c.dataset.dna, stats));
+  }).catch(()=>{});
+  const first=root.querySelector('button[data-act="dnaPick"][aria-pressed="true"]'); if(first) first.focus();
+}
+async function _dnaExport(mode){
+  const pick=state.dnaPick||'A';
+  track('dna_export', { variant: pick, mode });
+  // Remediation-audit: route an unsupported "copy" to download UP FRONT (Firefox/older engines lack
+  // ClipboardItem) so the "Copy image" button never silently dead-ends.
+  if(mode==='copy' && !(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write)) mode='download';
+  try{
+    const m=await import('/dna.js');
+    const stats=m.computeStats(RECORDS, window.TraxWaxOwner||{});
+    const c=document.createElement('canvas'); c.width=1080; c.height=1080;
+    await m.renderCard(c, pick, stats);                 // awaits document.fonts.ready internally
+    const blob=await new Promise(res=>c.toBlob(res,'image/png'));
+    if(!blob) throw new Error('toBlob returned null');  // never a silent 4-byte "null" file
+    setDnaVariant(pick);                                // commit the pick only once a card was ACTUALLY built (not on a render throw)
+    const file=new File([blob],'traxwax-dna-'+pick.toLowerCase()+'.png',{type:'image/png'});
+    const NAMES={A:'The Decades',B:'The Stat Wall',C:'The Split'};
+    if(mode==='copy'){   // ClipboardItem support already confirmed by the up-front reroute
+      try{ await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); showToast('Image copied · Paste it anywhere.'); }
+      catch(e){ mode='download'; }
+    }
+    if(mode==='share' && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:'My Collection DNA', text:'Data provided by Discogs · traxwax.com'}); }
+      catch(e){ if(e && e.name!=='AbortError'){ mode='download'; showToast("Couldn't share — saved the PNG instead"); } else { mode='aborted'; } }
+    }
+    if(mode==='download' || (mode==='share' && !(navigator.canShare && navigator.canShare({files:[file]})))){
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=file.name; document.body.appendChild(a); a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      showToast('Card saved · '+file.name+' · '+NAMES[pick]);
+    }
+  }catch(e){ console.warn('DNA export failed', e); showToast("Couldn't build the card — try again"); }
+  state.dnaOpen=false; renderDna(); render();            // render() refreshes the ledger band's YOUR PICK + thumbnail
+}
+
 /* ── Events (delegation) ───────────────────────────────────────────────────── */
 function onClick(e){
   const t=e.target.closest('[data-act]'); if(!t) return;
@@ -1455,6 +1674,14 @@ function onClick(e){
       render(); break;
     case 'want': (t.dataset.want==='remove' ? friendRemove : friendAdd)(Number(arg)); break;
     case 'wantRemove': removeWant(Number(arg)); break;
+    case 'copyLink': track('share_copy', { scope: 'view' }); _copyShareLink(); break;    // Wave 5a: "share this filtered view" — the current URL (tab + filters)
+    case 'copyCrateLink': track('share_copy', { scope: 'crate' }); _copyCrateLink(); break;   // Wave 5a: "share my crate" — the bare crate URL
+    case 'dnaOpen':   _dnaInvoker=t; state.dnaOpen=true; state.dnaPick=dnaVariant(); track('dna_open'); renderDna(); break;   // Wave 5a
+    case 'dnaClose':  state.dnaOpen=false; renderDna(); break;
+    case 'dnaPick':   state.dnaPick=arg; renderDna(); break;        // arg ∈ 'A'|'B'|'C' (visual only; committed on export)
+    case 'dnaDownload': _dnaExport('download'); break;
+    case 'dnaShare':    _dnaExport('share'); break;
+    case 'dnaCopy':     _dnaExport('copy'); break;                  // desktop fallback: PNG → clipboard (ClipboardItem)
     case 'stop': e.stopPropagation(); break;
   }
 }
@@ -1512,6 +1739,8 @@ async function bootCrate(){
   WANTLIST_RECORDS=null;   // Wave 2 B1: fresh dataset per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
   state.matchFilter=null;  // #47: match filter is per-crate context — never inherit it across a (re)boot
   state.detailId = null;   // #44/#37: never inherit a stale open modal across a (re)boot
+  state.dnaOpen = false; state.dnaPick = null;   // Wave 5a: never inherit a stale-open DNA picker across a (re)boot
+  { const _d = document.getElementById('tw-dna-root'); if (_d) _d.innerHTML = ''; }
   { const _a = document.getElementById('app'); if (_a){ _a.inert = false; _a.removeAttribute('aria-hidden'); } }
   { const _m = document.getElementById('tw-modal-root'); if (_m) _m.innerHTML = ''; }
   // #48: abandon any un-committed deferred removal on (re)boot WITHOUT firing its Discogs DELETE. A re-boot
@@ -1613,6 +1842,11 @@ async function bootCrate(){
     window.addEventListener('keydown', onKeydown);   // W0.4: Escape + modal Tab-cycle + roving grid arrows
     window.__twListenersBound = true;
   }
+  // Wave 5a: seed the filter/sort state from ?params — AFTER the resets (top of bootCrate) and the data awaits
+  // above (so __twInventory/__twMatchCtx exist for the context-gated forsale/match), and BEFORE the first
+  // render so the opening paint is already filtered. Passes _bootSelling so the #selling deep-link's youWant+
+  // forsale isn't second-guessed by a stray ?match param.
+  _applyUrlFilters(_bootSelling);
   render();
   if (DB_MODE()) {
     window.TraxWaxStats().then(v=>{ if(v && v.value){ state.headerValue=v.value; render(); } });
