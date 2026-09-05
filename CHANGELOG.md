@@ -13,6 +13,15 @@ _Nothing yet._
 
 ---
 
+## [1.20.1] — 2026-09-05
+
+### Fixed
+- **DNA picker — Card C's selected outline** was accent-red on the red card, so it vanished. The selected
+  border for Card C ("The Split") is now `--ink` (per the design spec: "red on red vanishes"); A and B keep the
+  accent outline. (Lane live-report.)
+
+---
+
 ## [1.20.0] — 2026-09-04
 
 ### Added — Wave 5a: "Share the shelf" (Collection DNA card + shareable URLs)

@@ -1537,7 +1537,7 @@ function renderDna(){
   }
   const pick=state.dnaPick||'A';
   const opt=(k,eyebrow,name,desc,bg)=>`<button data-act="dnaPick" data-arg="${k}" aria-pressed="${pick===k}" style="padding:0; border:0; background:transparent; text-align:left; display:flex; flex-direction:column; gap:10px; min-width:0">
-      <div style="position:relative; width:100%; border:3px solid ${pick===k?'var(--accent)':'var(--hair)'}; background:${bg}">
+      <div style="position:relative; width:100%; border:3px solid ${pick===k?(k==='C'?'var(--ink)':'var(--accent)'):'var(--hair)'}; background:${bg}">
         ${pick===k?`<span style="position:absolute; top:10px; left:-4px; z-index:2; background:${k==='C'?'var(--ink)':'var(--accent)'}; color:${k==='C'?'var(--panel)':'var(--on-accent)'}; font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">YOUR PICK</span>`:''}
         <canvas data-dna="${k}" width="1080" height="1080" style="display:block; width:100%; height:auto"></canvas>
       </div>
