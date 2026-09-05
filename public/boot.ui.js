@@ -261,21 +261,26 @@ const NAV = [
   { id: 'friends', label: 'FRIENDS' },   // ▸ Wave 1 — the invite + friends list (v1.15.0: settings moved to SHARING)
   { id: 'sharing', label: 'SHARING' },   // v1.15.0: crate/wantlist visibility + matching
   { id: 'discogs', label: 'DISCOGS' },
-  { id: 'danger', label: 'DANGER ZONE', danger: true, target: 'discogs' },
+  { id: 'danger', label: 'DANGER ZONE', danger: true },   // v1.20.3: its own tab (was target:'discogs')
 ];
 
 function accountNav(active, o) {
   const items = NAV.map((n) => {
-    const isActive = n.id === active || (n.target && n.target === active && n.id !== 'danger');
-    const color = n.danger ? 'var(--accent)' : (isActive ? 'var(--ink)' : 'var(--muted)');
+    const isActive = n.id === active || (n.target && n.target === active);
+    // DANGER ZONE is accent-red as an idle tab (a warning), but goes GREY once selected — you're already
+    // on it, no need to keep shouting. Other tabs: muted when idle, ink when active.
+    const color = n.danger ? (isActive ? 'var(--muted)' : 'var(--accent)') : (isActive ? 'var(--ink)' : 'var(--muted)');
     const inner = '<span style="' + MONO + '; font-size:11px; font-weight:700; ' +
       'letter-spacing:.12em; color:' + color + '">' + n.label + '</span>';
+    // The DANGER hairline separator renders in BOTH states (idle link AND selected) so the nav layout
+    // doesn't shift when DANGER ZONE becomes the active tab.
+    const sep = n.danger ? '<div style="height:1px; background:var(--hair); margin:12px 0"></div>' : '';
     if (isActive && n.id === active) {
-      return '<div aria-current="page" style="display:flex; align-items:center; gap:10px; ' +
-        'padding:11px 18px; background:var(--bg); border-left:4px solid var(--accent)">' +
+      return sep + '<div aria-current="page" style="display:flex; align-items:center; gap:10px; ' +
+        'padding:11px 18px; background:var(--bg); border-left:4px solid ' + (n.danger ? 'var(--muted)' : 'var(--accent)') + '">' +
         inner + '</div>';
     }
-    return (n.danger ? '<div style="height:1px; background:var(--hair); margin:12px 0"></div>' : '') +
+    return sep +
       '<a href="' + esc(o.hrefFor(n.target || n.id)) + '" style="display:flex; align-items:center; ' +
       'gap:8px; padding:11px 18px 11px 22px; text-decoration:none">' + inner + '</a>';
   }).join('');
@@ -404,8 +409,16 @@ function discogsSection(o) {
         '\u2192 Applications.</span>' +
       btn('Disconnect Discogs', { id: 'tw-acct-disc', variant: 'danger', style: 'align-self:flex-start' }) +
     '</div>' +
-    '<div style="height:1px; background:var(--line)"></div>' +
+  '</div>';
+}
+
+/* v1.20.3: DANGER ZONE is now its own tab (was folded into DISCOGS). Just the delete-everything block. */
+function dangerSection(o) {
+  return '' +
+  '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:28px">' +
     sectionHead('DANGER ZONE', 'Delete everything') +
+    '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
+      'line-height:1.6; color:var(--accent)"></div>' +
     '<div style="border:1.5px solid var(--accent); padding:16px 18px; display:flex; ' +
       'flex-direction:column; gap:14px">' +
       '<span style="' + BODY + '; font-size:12.5px; line-height:1.65; color:var(--muted); ' +
@@ -690,7 +703,7 @@ async function renderFriendsList(root, deps) {
 }
 
 export function accountPageHtml(o) {
-  const section = ['discogs', 'friends', 'sharing'].includes(o.section) ? o.section : 'profile';
+  const section = ['discogs', 'friends', 'sharing', 'danger'].includes(o.section) ? o.section : 'profile';
   return '' +
   '<div style="max-width:1040px; margin:0 auto; background:var(--panel); ' +
     'border:1.5px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">' +
@@ -715,6 +728,7 @@ export function accountPageHtml(o) {
     '<div class="tw-acct-body" style="display:grid; grid-template-columns:236px minmax(0,1fr)">' +
       accountNav(section, o) +
       (section === 'discogs' ? discogsSection(o)
+        : section === 'danger' ? dangerSection(o)
         : section === 'friends' ? friendsSection(o)
         : section === 'sharing' ? sharingSection(o)
         : profileSection(o)) +

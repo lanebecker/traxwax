@@ -13,6 +13,16 @@ _Nothing yet._
 
 ---
 
+## [1.20.3] — 2026-09-05
+
+### Fixed
+- **Account page — DANGER ZONE is its own tab.** It previously re-targeted the DISCOGS tab, so both showed the
+  same content (Discogs connection + delete-everything together). Now the DISCOGS tab holds only the Discogs
+  connection, and the delete-everything block lives on its own selectable **DANGER ZONE** tab (`/account/danger`).
+  The tab shows accent-red when idle (a warning) and goes grey when selected. (Lane report.)
+
+---
+
 ## [1.20.2] — 2026-09-05
 
 ### Changed
