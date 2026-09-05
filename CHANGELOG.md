@@ -13,6 +13,16 @@ _Nothing yet._
 
 ---
 
+## [1.20.4] — 2026-09-05
+
+### Changed
+- **Account page section labels.** The DISCOGS page now has **SYNC** and **DISCONNECT** hairline-rule dividers
+  over its two blocks (matching the SHARING tab's `VISIBILITY` idiom); the DANGER ZONE page leads with a
+  **DANGER ZONE** divider (which replaced the old "DANGER ZONE · Delete everything" title so the words don't
+  print twice). (Lane request.)
+
+---
+
 ## [1.20.3] — 2026-09-05
 
 ### Fixed
