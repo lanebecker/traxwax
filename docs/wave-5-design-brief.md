@@ -77,12 +77,21 @@ call.
   assume an authed app — a public page may need its own shell or a gated script load).
 
 ### §C — Public-crate product scope  (Lane) — only if 5b is in play
-- **C1. Which datasets go public.** Per the per-dataset consent model: does `'public'` cover the crate only, or
-  can a user also make wantlist / for-sale public? Recommend crate-only for v1 (smallest surface), wantlist/for-
-  sale stay friends-max.
-- **C2. Is `'public'` one flag or its own axis.** `crate_visibility` was built to accept `'public'` by
-  amendment (private | friends | public). Confirm public is a superset of friends (public ⇒ friends can also
-  see), and whether for-sale/wantlist visibility caps at friends regardless.
+- **C1. Which datasets go public — SETTLED (Lane, 2026-09-05): PER-TAB, all three.** Public is NOT crate-only.
+  It's a **three-way selector mirroring the friends model** — `crate_visibility`, `wantlist_visibility`, and
+  `forsale_visibility` each independently settable to `'public'` via an expanded selector, so a user chooses
+  exactly which of the three tabs the world sees. (Supersedes the earlier "crate-only for v1" recommendation.)
+  Each of the three existing visibility columns already accepts the enum amendment; 5b adds `'public'` to all
+  three + the anon-read surface for each.
+  - **Terms note for `forsale` public:** for-sale is the one with a marketplace wrinkle. TraxWax already shows
+    for-sale as a *badge that links out to the Discogs listing* and **never shows a price** — and a seller's
+    listings are public on Discogs' own seller pages — so a public for-sale tab is "these are for sale → view
+    on Discogs," not a mirrored marketplace. The Discogs letter must name for-sale explicitly (it does, as
+    reworked) so this is covered by the same written confirmation.
+- **C2. Is `'public'` one flag or its own axis — per-tab (see C1).** Each visibility column gets `'public'` as
+  the top of its ladder (private → friends → public); public is a superset of friends (public ⇒ friends also
+  see). The three are independent: a user can be crate-public but wantlist-friends and for-sale-private, any
+  combination. The expanded selector (Design piece for 5b) presents all three.
 - **C3. What a public crate shows about the owner.** Display name, avatar, bio, collecting-since — all
   owner-published profile fields (safe). Confirm the Discogs username is NEVER shown (it's Restricted) — the
   slug replaces it as the public identity.
