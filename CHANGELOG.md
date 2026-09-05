@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.23.0] — 2026-09-05
+
+### Changed
+- **Header controls are now three circular icon buttons.** SHARE MY CRATE, LIGHTS OUT, and ACCOUNT sit together
+  as a matched trio of 36px circles in the header's top-right (SHARE · LIGHTS · ACCOUNT). SHARE MY CRATE (a box
+  + up-arrow glyph) comes up out of the tabs row; LIGHTS OUT is a lightbulb that inverts to white-on-black when
+  dark mode is on, so the button shows the current state; ACCOUNT keeps your uploaded photo (or the person
+  glyph). The word buttons are gone — labels survive as tooltips and screen-reader `aria-label`s. This frees
+  space in both the header stats row and the tabs row, which reads much better shrunk down on mobile (the
+  circles wrap and grow to 44px touch targets there).
+
+---
+
 ## [1.22.0] — 2026-09-05
 
 ### Changed
