@@ -908,23 +908,23 @@ function render(){
         </div>`).join('')}
       </div>
       <div class="tw-ledger-panels" style="display:grid; grid-template-columns:1fr 1fr; gap:0">
-        <div style="padding:22px 24px; border-right:1px solid var(--hair)">
+        <div style="padding:22px 24px; border-right:1px solid var(--hair); display:flex; flex-direction:column">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Most-filed styles</span>
-          <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">${v.styleBars.map(b=>`
+          <div style="display:flex; flex-direction:column; gap:9px; margin-top:16px;${IS_OWN()?' min-height:170px':''}">${v.styleBars.map(b=>`
             <div style="display:flex; align-items:center; gap:12px">
               <span style="width:150px; flex:none; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(b.label)}</span>
               <span style="flex:1; height:12px; background:var(--bar); position:relative"><span style="position:absolute; inset:0 auto 0 0; width:${b.width}; background:var(--accent)"></span></span>
               <span style="width:26px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${b.count}</span>
             </div>`).join('')}</div>
-          ${IS_OWN() ? `<div style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
-            <div style="flex:1; display:flex; flex-direction:column; gap:3px; padding-right:14px">
+          ${IS_OWN() ? `<div class="tw-ledger-strip" style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; padding-right:14px">
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Top artist</span>
-              <span style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.05; color:var(--ink)">${v.topArtist?esc(v.topArtist.name):'—'}</span>
+              <span title="${v.topArtist?esc(v.topArtist.name):''}" style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1.05; color:var(--ink); overflow-wrap:anywhere">${v.topArtist?esc(v.topArtist.name):'—'}</span>
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted)">${v.topArtist?v.topArtist.count.toLocaleString('en-US')+(v.topArtist.count===1?' record':' records'):''}</span>
             </div>
-            <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px">
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Label</span>
-              <span style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.05; color:var(--ink)">${v.topLabel?esc(v.topLabel.name):'—'}</span>
+              <span title="${v.topLabel?esc(v.topLabel.name):''}" style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1.05; color:var(--ink); overflow-wrap:anywhere">${v.topLabel?esc(v.topLabel.name):'—'}</span>
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted)">${v.topLabel?v.topLabel.count.toLocaleString('en-US')+(v.topLabel.count===1?' record':' records'):''}</span>
             </div>
           </div>` : ''}
@@ -937,7 +937,7 @@ function render(){
               <span style="width:100%; height:${h}px; background:${pk?'var(--accent)':'var(--ink)'}"></span>
               <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; ${pk?'font-weight:700; color:var(--accent)':'color:var(--ink)'}; margin-top:7px">${esc(d.label)}</span>
             </div>`; }).join('') || '<span style="font-family:\'IBM Plex Mono\',monospace; font-size:11px; color:var(--faint); line-height:1.6">No release years on file yet.</span>'}</div>
-          <div style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
+          <div class="tw-ledger-strip" style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
             <div style="flex:1; display:flex; flex-direction:column; gap:3px">
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Peak</span>
               <span style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1; color:var(--ink)">${ds.peak?ds.peak.decade+'s':'—'}</span>

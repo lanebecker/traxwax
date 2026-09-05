@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.20.10] — 2026-09-05
+
+### Changed
+- **The two LEDGER footer strips (Top artist / Label and Peak / Span) now bottom-align across the page, with
+  their grey dividers on the same line.** The style-bars block gets the same fixed height as the BY DECADE
+  chart (own crate), so both dividers land at the same y. A long artist or label name now **wraps to a second
+  line** — extending only that column's bottom downward — instead of truncating, so nothing gets cut off (band
+  names like "…And You Will Know Us By The Trail of Dead" show in full). Column widths are unchanged.
+
+### Added
+- **The TraxWax wordmark on the Account page now links home** (traxwax.com), matching the crate header. Works
+  from every account tab.
+
+---
+
 ## [1.20.9] — 2026-09-05
 
 ### Added
