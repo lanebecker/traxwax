@@ -1,3 +1,9 @@
+> **FURTHER AS-OF NOTE:** beyond the v1.3.2 note below, the UI has changed substantially — the FILED UNDER
+> style tray, FOR SALE + THE WANTLIST tabs, the header SHARE/LIGHTS/ACCOUNT icon trio, the ledger BY DECADE
+> chart + Collection DNA band, and the account tabs (a live SHARING + FRIENDS and a standalone DANGER ZONE).
+> The §5 "SOON" / "drawn, not built" notes on S13/S15/S16 are stale — those surfaces shipped in Wave 1. For
+> current UI truth read `public/app.js` + `public/boot.ui.js` + `CHANGELOG.md`.
+>
 > **AS-BUILT NOTE (v1.3.2, 2026-08-29).** This spec was implemented into production in the
 > v1.3.2 design pass. Two deviations from the handoff, both decided by Lane:
 > 1. **The account surface routes at `/account` and `/account/discogs`** (spec §6's

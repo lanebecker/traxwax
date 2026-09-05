@@ -10,7 +10,7 @@
 
 **[traxwax.com](https://traxwax.com)** — anyone's Discogs collection as a browsable,
 filterable crate. **Multi-user since v1.0.0 (2026-08-29)**: Clerk auth, per-user Discogs
-OAuth, Supabase backend (9 Edge Functions, migrations 0001–0025), self-healing shared CC0
+OAuth, Supabase backend (9 Edge Functions, migrations 0001–0032), self-healing shared CC0
 catalog (v1.2.0). Front-end is the Claude Design redesign ported to a dependency-free
 vanilla renderer on Cloudflare Pages.
 
@@ -27,9 +27,9 @@ vanilla renderer on Cloudflare Pages.
 | `public/_headers` · `_routes.json` | Security headers + cache policy (v1.0.1: no-cache entry points, 7d releases); Functions pinned to `/api/*` |
 | `functions/api/` | Legacy Pages proxy — **only** `release/[id].js` remains (CC0 modal fallback). `/api/value` + `/api/price` deleted in the 1.0.0 cold audit. |
 | `supabase/functions/` | **The real backend** — 9 Edge Functions (connect-discogs, callback, finalize-connect, disconnect-discogs, delete-account, import-collection, enrich-release, live-stats, wantlist-write) + `_shared/discogs.ts`. Deployed directly, not via git — see `DEPLOY.md`. |
-| `supabase/migrations/` | `0001_init` … `0011_profiles_display` (0002 username unique · 0003 OAuth state + link RPC · 0004 import watermark · 0005 collection→releases FK · 0006 audit hardening · 0007 profiles guard trigger · 0008 pending_enrichment RPC + display_name drop · 0009 pending links + finalize/unlink/delete RPCs · 0010 gone_at + refresh + seed_releases merge · 0011 profile fields: display_name/avatar_url synced one-way from Clerk each boot, bio/location/collecting_since/link1+link2 DB-owned, all CHECK-constrained, own-row-private until social · 0012 friendships + friend_invites + profiles.crate_visibility + friend-read RLS on collection_items · 0013 can_view_crate→private schema · 0014 crate_view_decision (service-role authz) · 0015 soft-consume invites) |
+| `supabase/migrations/` | `0001_init` … `0032_master_year` (0002 username unique · 0003 OAuth state + link RPC · 0004 import watermark · 0005 collection→releases FK · 0006 audit hardening · 0007 profiles guard trigger · 0008 pending_enrichment RPC + display_name drop · 0009 pending links + finalize/unlink/delete RPCs · 0010 gone_at + refresh + seed_releases merge · 0011 profile fields · 0012 friendships + friend_invites + crate_visibility + friend-read RLS · 0013 can_view_crate→private schema · 0014 crate_view_decision · 0015 soft-consume invites · 0016 friends hardening · 0017–0019 wantlist + match · 0020 wave-3 integrity · 0021 get_friend_crate · 0022 import watermark persist · 0023 crate-owner visibility flags · 0024 any-pressing (master_id + match_mode) · 0025 close-audit hardening · 0026 sharing defaults→friends · 0027 inventory_items (selling) · 0028 forsale_visibility + get_friend_forsale · 0029 forsale default→friends · 0030 wantlist_items.vinyl · 0031 list_friends · 0032 master_year) |
 | `build/` | Legacy single-user data builders (`refresh_collection.py` now manual-dispatch only; `seed_catalog.py` was the one-shot Phase 0 seed) |
-| `docs/roadmap.md` | Shipped versions (through v1.13.0) and what's next |
+| `docs/roadmap.md` | Shipped versions (defers to `CHANGELOG.md`/`VERSION` for the current one) and what's next |
 | `docs/multi-user-spec.md` | The multi-user DESIGN (period doc — see its as-built note; the shipped system diverges where the plans say so) |
 | `docs/phase-*.md`, `phase-1-cold-audit.md` | Period records of the build: phase 0/1 plans, stage A–D plans, cold audit, phase-2 account + catalog-refresh plans. Never edited retroactively. |
 | `DEPLOY.md` | Operations reference: all three deploy surfaces, secrets, cache policy, verification, rollback |
@@ -87,21 +87,23 @@ cd "…/Projects/Lane's Record Collection/traxwax-clone"
 git add -A && git commit -m "…" && git pull --rebase origin main && git push
 ```
 
-## Multi-user — SHIPPED (v1.0.0 launched 2026-08-29; current v1.13.0). Social waves shipped through friend-crate visibility (#43) + any-pressing matching (#28); end-of-phase cold audit done (v1.14.0)
+## Multi-user — SHIPPED (v1.0.0 launched 2026-08-29; current v1.23.2). Social waves shipped through friend-crate visibility (#43), any-pressing matching (#28), the selling wave (for-sale via Discogs, v1.16–1.19) + Wave 5a "share the shelf" (Collection DNA card + shareable filter URLs, v1.20.0). Recent UI: FILED UNDER style tray (v1.21.0), FOR SALE promoted to a 5th tab (v1.22.0), header icon trio (v1.23.x). End-of-phase cold audit done (v1.14.0)
 
-Supabase project `traxwax` (ref `sfipqknrbvamwwahwxnl`) holds **nine tables**: `profiles`
-(Wave 1 added `crate_visibility`; later `wantlist_visibility` + `match_mode`), `collection_items`,
-`releases` (has `master_id` since 0024), `wantlist_items`, `discogs_credentials`, `discogs_oauth_state`
+Supabase project `traxwax` (ref `sfipqknrbvamwwahwxnl`) holds **ten tables**: `profiles`
+(Wave 1 `crate_visibility`; later `wantlist_visibility`, `match_mode`, `forsale_visibility`), `collection_items`,
+`releases` (has `master_id` since 0024, `master_year` since 0032), `wantlist_items` (carries `vinyl` since 0030),
+`inventory_items` (for-sale listings, 0027), `discogs_credentials`, `discogs_oauth_state`
 (handshake state + the v1.0.1 cooldown placeholder rows), `discogs_pending_links` (v1.1.0 parked links),
 and Wave 1's `friendships` (two-row symmetric) + `friend_invites` (hash-only, soft-consumed since
 v1.4.2) — RLS on all, keyed on `auth.jwt()->>'sub'` (Clerk user ids, so every `user_id` is TEXT, not
-uuid). Migrations run **0001–0025**; highlights: 0012–0015 friendship graph + friend-read RLS +
+uuid). Migrations run **0001–0032**; highlights: 0012–0015 friendship graph + friend-read RLS +
 `can_view_crate`, 0017–0019 wantlist + match, 0021 `get_friend_crate`, 0023 crate-owner visibility,
-0024 any-pressing, 0025 close-audit hardening (wantlist_items write lockdown, grant revokes, RLS
-initplan perf via `(select auth.jwt())`, guard search_path). Auth is the **production** Clerk instance
-(session token carries `"role": "authenticated"`). NOTE: `public/app/index.html` hardcodes the prod
-`pk_live_…` key with no swap, so the pages.dev preview runs prod Clerk too (the dev instance is only the
-Edge functions' in-code CLERK_ISSUER default, overridden by the prod env var).
+0024 any-pressing, 0025 close-audit hardening, 0026 sharing defaults→friends, 0027 `inventory_items`
+(selling), 0028 `forsale_visibility` + `get_friend_forsale`, 0031 `list_friends`, 0032 `master_year`. Auth is
+the **production** Clerk instance (session token carries `"role": "authenticated"`). NOTE: `public/app/index.html`
+hardcodes the prod `pk_live_…` key with no swap, so the pages.dev preview runs prod Clerk too (the dev instance
+is no longer wired anywhere — v1.14.1/#52 removed the Edge functions' in-code `CLERK_ISSUER` fallback; they
+fail closed if `CLERK_ISSUER`/`APP_ORIGIN` are unset).
 
 Things that look like bugs and are not:
 

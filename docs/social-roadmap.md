@@ -13,10 +13,13 @@ that keep documentation and hygiene current. This is a SEQUENCING document — e
 still gets its own implementation plan at the junior-engineer bar, twice audited, before a
 line of its code executes. Nothing here overrides that.
 
-Current shipped version: **v1.14.0**. SHIPPED SINCE: Wave 1 (friends & consented crates, v1.4.0); the
+Current shipped version: **v1.23.2**. SHIPPED SINCE: Wave 1 (friends & consented crates, v1.4.0); the
 wantlist + match-matrix wave (v1.5.0) and THE OVERLAP (v1.6.0); the friend-crate visibility/header/card
-work (v1.10.0–v1.12.0); optional any-pressing matching (#28, v1.13.0). The §4/§5/§6 wave targets below are
-historical — treat any `→ vX.Y` as its shipped version; `CHANGELOG.md` is authoritative. Original Wave 1
+work (v1.10.0–v1.12.0); optional any-pressing matching (#28, v1.13.0); **Wave 4 — selling via Discogs
+(v1.16.0–v1.19.0)**; and **Wave 5a — share the shelf: the Collection DNA card + shareable filter URLs
+(v1.20.0)**. Still unshipped: Wave 5b (public tier) and Wave 6 (community). The §4–§8 wave targets below are
+historical — treat any `→ vX.Y` as its shipped version (actuals differ: Wave 4 shipped v1.16–1.19, Wave 5a
+v1.20.0); `CHANGELOG.md` is authoritative. Original Wave 1
 note — **Wave 1 SHIPPED (2026-08-30)**: friends, consented crates,
 invite links, read-only friend views with server-side price suppression (see §4 + `docs/wave-1-plan.md`,
 twice-audited; DB adversarially audited, one advisor leak caught + fixed in 0013). **Wave 0 is
@@ -26,8 +29,7 @@ whole non-crate UI into one shell system (landing, auth chrome, nine system stat
 page as a route, the empty crate) and carries **deliberate reserved space for every wave below**;
 the map from wave → design element is in each wave's **▸ Design (ready now)** note, sourced from
 `docs/design-surfaces-spec.md` §9. See **W0.5**. Profiles + floating avatar shipped in
-v1.3.0/v1.3.1; a11y polish in v1.3.3; the in-place-avatar fix in v1.3.4. Users: 2 (lanebecker,
-SoundAbounds/Tommy).
+v1.3.0/v1.3.1; a11y polish in v1.3.3; the in-place-avatar fix in v1.3.4. Users: a small alpha (4 accounts).
 
 ---
 
@@ -318,7 +320,7 @@ base is two people who know each other.
 - **Cut v1.4.0** when Lane and Tommy can see each other's crates and revocation
   round-trips. CHANGELOG headline: "Friends & shared crates."
 
-## 5. Wave 2 — Wantlists & the match matrix → **v1.5.0**
+## 5. Wave 2 — Wantlists & the match matrix → **v1.5.0** — ✅ SHIPPED
 
 The strategic unlock. Overlap without wants is trivia; haves×wants is utility.
 
@@ -362,7 +364,7 @@ The strategic unlock. Overlap without wants is trivia; haves×wants is utility.
   - **"No matches" empty state:** `UI.emptyState` again (§9.9).
 - **Cut v1.5.0**: "Wantlists & the match matrix."
 
-## 6. Wave 3 — THE OVERLAP → **v1.6.0**
+## 6. Wave 3 — THE OVERLAP → **v1.6.0** — ✅ SHIPPED
 
 The affinity showpiece, riding on Wave 1's consent + Wave 2's data.
 
@@ -387,7 +389,7 @@ The affinity showpiece, riding on Wave 1's consent + Wave 2's data.
     three-line row shape (§9.6). Same slot Wave 4's "selling 2 you want" will reuse.
 - **Cut v1.6.0**: "The Overlap."
 
-## 7. Wave 4 — Selling, via Discogs → **v1.7.0**
+## 7. Wave 4 — Selling, via Discogs → **v1.7.0** — ✅ SHIPPED (as v1.16.0–v1.19.0: inventory import, the for-sale facet → now a tab, consented friend for-sale, "selling you want")
 
 Commerce-shaped without touching commerce.
 
@@ -414,7 +416,7 @@ Commerce-shaped without touching commerce.
     `https://www.discogs.com/sell/post/{release_id}` — verified live 2026-08-29 (W0.2a #11).
 - **Cut v1.7.0**: "The record store between friends."
 
-## 8. Wave 5 — Share the shelf (off-platform) → **v1.8.0**, then Wrapped
+## 8. Wave 5 — Share the shelf (off-platform) → **v1.8.0**, then Wrapped — ⏳ 5a SHIPPED (v1.20.0: Collection DNA card + shareable filter URLs); 5b (public tier — slugs, signed-out crates, OG unfurl) + Wrapped remain
 
 Growth mechanics, aggregate-only, terms-clean by construction.
 

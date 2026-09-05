@@ -1,5 +1,12 @@
 # TraxWax — Design Kit v1
 
+> **AS-OF NOTE (Design Kit v1, ≈v1.3.x; frozen record).** This describes the ORIGINAL v1 redesign; the shipped
+> UI has since diverged. Notably: FILED UNDER is now a **tray** (not inline `ALL` + top-5 style chips); THE
+> WANTLIST and FOR SALE are **tabs** (§5 lists only three views); the LEDGER's "the expensive end" panel was
+> replaced by a **BY DECADE chart + Top artist/Label strip + Collection DNA band**; and `/api/price` +
+> `/api/value` were removed (§7) — Restricted data flows through the `live-stats` Edge Function. For current UI
+> truth read `public/app.js` + `CHANGELOG.md`.
+
 Handoff spec for implementing the redesign on TraxWax.com. The authoritative source is
 **`TraxWax App.dc.html`** — a working, interactive design with real data, real filtering,
 real states. This document describes it so the implementation can be a graft, not a guess.

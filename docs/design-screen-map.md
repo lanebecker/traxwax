@@ -1,5 +1,12 @@
 # TraxWax — Design Screen Map
 
+> **AS-OF NOTE (≈v1.3.x snapshot; not maintained since).** This map was last kept current around v1.3.2 and
+> has NOT tracked the UI since. Major changes it does **not** reflect: the FILED UNDER style tray, FOR SALE
+> as a 5th tab, the header SHARE/LIGHTS/ACCOUNT icon trio, the ledger BY DECADE chart + Collection DNA band,
+> and the built-out account route (PROFILE/FRIENDS/SHARING/DISCOGS/DANGER — S13–S16 are shipped, not "SOON").
+> For current UI truth read `public/app.js` + `public/boot.ui.js` and `CHANGELOG.md`; treat the mappings
+> below as historical.
+
 Which surface in `TraxWax Surfaces.dc.html` (S0–S20) traces to which repo file, and where.
 This is the **detailed, authoritative** surface→file map. The repo-root **`github.md`** is the
 Design team's concise sync anchor (repo/branch + a high-level map + sync history) that a

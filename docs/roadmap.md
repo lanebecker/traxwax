@@ -5,10 +5,12 @@ Minor releases add features; patch releases fix bugs without changing behaviour.
 The current version is in the `VERSION` file at the repo root; the README badge is
 kept in sync with it by `.github/workflows/sync-version-badge.yml`.
 
-**Current version: `1.14.0`** — live at [traxwax.com](https://traxwax.com). The per-release detail below
+**Current version: `1.23.2`** — live at [traxwax.com](https://traxwax.com). The per-release detail below
 stops at v1.4.5; for v1.5.0 onward (wantlists + match matrix, THE OVERLAP, the cold-audit waves, the
-friends/social wave, any-pressing #28, CSP enforce #38, the end-of-phase cold audit) see `CHANGELOG.md`,
-which is the authoritative release-by-release record.
+friends/social wave, any-pressing #28, CSP enforce #38, the v1.14.0 cold audit, the account-page restructure,
+the selling/for-sale wave, Wave 5a "share the shelf" — Collection DNA + shareable URLs, the FILED UNDER tray,
+FOR SALE as a tab, the header icon trio) see `CHANGELOG.md`, which is the authoritative release-by-release
+record.
 
 ---
 
@@ -187,9 +189,9 @@ the landing page. A logged-out deep link to `/app` still shows the sign-in card.
 
 ## Next
 
-The standalone accessibility backlog is cleared. What's next is the social roadmap —
-`docs/social-roadmap.md`, Wave 1 (friends & consented crates → v1.4.0) onward. Interstitial
-polish items get filed as they arise.
+Waves 1–5a of the social roadmap have shipped (see `docs/social-roadmap.md` + `CHANGELOG.md`). The main
+remaining item is **Wave 5b — the public-crate tier** (TraxWax slugs, signed-out crates, OG unfurl), gated
+on a Discogs API-terms outreach note. Interstitial polish items get filed as they arise.
 
 ---
 
@@ -203,4 +205,4 @@ polish items get filed as they arise.
 
 - **In-app settings** — surface the kit's authored props (theme, accent, columns,
   `showPrices`, `ownerLine`) as real product settings.
-- **"What to play tonight?"** random pick; shareable filtered-view URLs.
+- **"What to play tonight?"** random pick. (Shareable filtered-view URLs shipped in v1.20.0.)

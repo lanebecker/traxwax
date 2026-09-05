@@ -7,6 +7,11 @@ browsable, filterable crate. Sign in, connect Discogs, and your records import i
 minute. Static front-end on Cloudflare Pages (no framework, no build step) over a Supabase
 backend (Postgres + Edge Functions) with Clerk auth.
 
+**Views:** THE CRATE · THE TIMELINE · THE LEDGER · THE WANTLIST · FOR SALE, with composable filters (the
+FILED UNDER style tray, colored-wax, color, search), light/dark, and a responsive grid. THE LEDGER carries a
+BY DECADE chart and a Collection DNA share card; friends can see consented crates, wantlists, and for-sale
+listings, with optional any-pressing matching. Filtered views have shareable URLs.
+
 ## Layout
 
 ```
@@ -25,7 +30,7 @@ traxwax/
 ├── functions/api/
 │   └── release/[id].js       # legacy CC0 proxy — last-resort modal fallback only
 ├── supabase/
-│   ├── migrations/           # 0001–0025: schema, RLS, RPCs (see CLAUDE.md for the map)
+│   ├── migrations/           # 0001–0032: schema, RLS, RPCs (see CLAUDE.md for the map)
 │   └── functions/            # 9 Edge Functions — the real backend (see DEPLOY.md)
 ├── build/
 │   ├── refresh_collection.py # legacy single-user data builder (manual dispatch only)
@@ -59,9 +64,10 @@ modal's offline fallback tiers — not the production data path.
 require: the do-follow "Data provided by Discogs" link and the affiliation disclaimer. Do
 not remove them. See `../Discogs-API-Terms-Summary.md`.
 
-**Account controls (v1.1.0):** the header ACCOUNT modal offers disconnect (removes the
-credential + imported collection; profile survives) and typed-confirmation data deletion
-(everything TraxWax stores; the Clerk sign-in identity is deliberately untouched). The
+**Account controls:** the header ACCOUNT circle opens the `/account` route (tabs: PROFILE, FRIENDS,
+SHARING, DISCOGS, DANGER ZONE). DISCOGS offers disconnect (removes the credential + imported collection;
+profile survives); DANGER ZONE offers typed-confirmation data deletion (everything TraxWax stores; the Clerk
+sign-in identity is deliberately untouched). The
 OAuth callback parks completed links as *pending*; a one-time fragment code plus the
 verified Clerk session completes them (`finalize-connect`), closing the link-CSRF.
 
@@ -100,7 +106,7 @@ above to match and warns if the changelog was not updated in the same push.
 
 ## Status
 
-**Shipped through v1.14.0** (2026-09-03): the full single-user redesign (v0.x); multi-user launch —
+**Shipped through v1.23.1**: the full single-user redesign (v0.x); multi-user launch —
 Clerk auth, per-user Discogs OAuth (tokens AES-256-GCM at rest), client-driven import + background CC0
 enrichment, live-only Restricted data (v1.0.0); account controls + link-CSRF-safe finalize (v1.1.0);
 the self-healing catalog (v1.2.0); accessibility polish (v1.3.x); analytics (v1.4.7); wantlists + the
@@ -109,8 +115,15 @@ backend/perf (v1.8.3–v1.9.1); the friends & consented-crate social wave — fr
 `get_friend_crate` projection, friend-crate header + visibility states (v1.10.0–v1.11.0); the open-design
 items wave incl. the landing FOUC fix (v1.12.0); optional any-pressing (master-level) matching (#28,
 v1.13.0); the CSP flipped to enforced (#38, v1.13.0); and an end-of-phase cold audit — wantlist_items
-write lockdown, RLS initplan perf, want-control fixes, doc refresh (v1.14.0). Full history in
+write lockdown, RLS initplan perf, want-control fixes, doc refresh (v1.14.0); the account-page restructure
+into PROFILE/FRIENDS/SHARING/DISCOGS/DANGER tabs + friends-visible-by-default (v1.15); the **selling wave** —
+for-sale via Discogs: inventory import, the for-sale facet, consented friend for-sale, and "selling you want"
+(v1.16–v1.19); **Wave 5a "share the shelf"** — the Collection DNA share card + master-year data lift +
+shareable filter URLs (v1.20.0), then the BY DECADE ledger chart + Top artist/Label strip (v1.20.8–.9); the
+FILED UNDER style **tray** (v1.21.0); FOR SALE promoted to a fifth **tab** + colored-count on its button
+(v1.22.0); and the header **icon trio** — SHARE / LIGHTS OUT / ACCOUNT circles (v1.23.x). Full history in
 `CHANGELOG.md`, release-by-release detail in `docs/roadmap.md`.
 
-**Next** — remaining backlog is small: friend link-sharing (#10, parked) and future social waves.
-See `docs/social-roadmap.md`.
+**Next** — the public-crate tier (TraxWax slugs + signed-out crates + OG unfurl, Wave 5b) is the main
+remaining item, gated on a Discogs API-terms outreach note; friend link-sharing (#10) stays parked. See
+`docs/social-roadmap.md`.

@@ -14,13 +14,18 @@
 >   basic metadata merges last-import-wins on every import, 404 tombstones (`gone_at`)
 >   retry after 7 days, deep fields re-fetch after 180 days
 >   (`docs/phase-2-catalog-refresh-plan.md`).
-> - **§6 function roster:** the shipped set is 8 — connect-discogs, connect-discogs-callback,
+> - **§6 function roster:** the shipped set is now 9 — connect-discogs, connect-discogs-callback,
 >   finalize-connect, disconnect-discogs, delete-account, import-collection, enrich-release,
->   live-stats. (`refresh-collection` never existed as a function.)
+>   live-stats, and `wantlist-write` (v1.6.0). (`refresh-collection` never existed as a function.)
 > - **§5 schema:** `profiles.display_name` was dropped (0008); `releases` gained `gone_at`
 >   (0010); `discogs_oauth_state` and `discogs_pending_links` exist (0003, 0009).
 > - **§11 "profile/settings, Phase 2 later":** disconnect + account data deletion shipped
->   in v1.1.0 (the ACCOUNT modal); deletion never touches the shared Clerk identity.
+>   in v1.1.0 (now on the `/account` route's DISCOGS + DANGER ZONE tabs); deletion never touches the
+>   shared Clerk identity.
+>
+> **Beyond v1.2.0** this spec is silent by design — friends/wantlists/matching/selling/DNA/inventory
+> (migrations 0012–0032, the 10th table `inventory_items`, the friend-read RPCs) all shipped later. See
+> `CHANGELOG.md`, `docs/social-roadmap.md`, and `CLAUDE.md` for everything after v1.2.0.
 
 Turning TraxWax from "Lane's baked collection, static" into "anyone's collection, behind a
 login." Review before building — open decisions are flagged in **§11**.
