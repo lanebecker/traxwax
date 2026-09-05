@@ -385,6 +385,7 @@ function discogsSection(o) {
     sectionHead('DISCOGS', 'The connection') +
     '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent)"></div>' +
+    sectionLabel('SYNC') +
     '<div style="border:1.5px solid var(--line); display:flex; flex-wrap:wrap; align-items:center; ' +
       'justify-content:space-between; gap:16px; padding:16px 18px">' +
       '<div style="display:flex; flex-direction:column; gap:5px">' +
@@ -400,6 +401,7 @@ function discogsSection(o) {
       '</div>' +
       btn('Re-sync now', { id: 'tw-acct-resync', variant: 'secondary' }) +
     '</div>' +
+    sectionLabel('DISCONNECT') +
     '<div style="border:1.5px solid var(--hair); padding:16px 18px; display:flex; ' +
       'flex-direction:column; gap:12px">' +
       '<span style="' + BODY + '; font-size:12.5px; line-height:1.65; color:var(--muted); ' +
@@ -416,7 +418,7 @@ function discogsSection(o) {
 function dangerSection(o) {
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:28px">' +
-    sectionHead('DANGER ZONE', 'Delete everything') +
+    sectionLabel('DANGER ZONE') +
     '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent)"></div>' +
     '<div style="border:1.5px solid var(--accent); padding:16px 18px; display:flex; ' +
