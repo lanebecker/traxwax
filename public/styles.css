@@ -38,6 +38,9 @@ button { font:inherit; color:inherit; cursor:pointer; }
 input { font:inherit; color:inherit; }
 input::placeholder { color:var(--faint); }
 *:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Wave 5c: text fields (SEARCH + FIND a style) show a 2px accent BORDER on focus instead of the ring; the −0.5px margin absorbs the +0.5px border so nothing shifts. Buttons/chips keep the ring above. */
+.tw-field:focus-visible { outline:0; border:2px solid var(--accent) !important; margin:-0.5px !important; }
+#tw-stylefind.tw-field:focus-visible { margin:-0.5px 5.5px -0.5px -0.5px !important; }   /* preserve its 6px right gap */
 @keyframes twshimmer { 0% { opacity:.55 } 50% { opacity:1 } 100% { opacity:.55 } }
 
 /* Interactive affordances the kit hinted at but couldn't express as real CSS */
@@ -99,6 +102,7 @@ input::placeholder { color:var(--faint); }
   .tw-sortwrap { margin-left:0 !important; width:100%; justify-content:space-between; padding:8px 14px !important; }
 
   .tw-grid { padding:16px 14px 22px !important; gap:12px !important; }
+  .tw-filterbar { flex-wrap:wrap !important; }   /* Wave 5c: desktop bar is one line (tray owns wrapping); on mobile let it wrap so the trigger/chips + search/COLORED don't overflow */
 
   /* Ledger: 2-up stats, stacked panels. */
   .tw-ledger-stats { grid-template-columns:repeat(2,1fr) !important; }
