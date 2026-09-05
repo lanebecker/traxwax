@@ -13,6 +13,14 @@ _Nothing yet._
 
 ---
 
+## [1.20.2] — 2026-09-05
+
+### Changed
+- **The TRAXWAX header wordmark is now a link** to `https://traxwax.com/` (which redirects a signed-in user
+  back to their own crate). Own + friend crates both. (Lane request — kept clicking it expecting it to go home.)
+
+---
+
 ## [1.20.1] — 2026-09-05
 
 ### Fixed

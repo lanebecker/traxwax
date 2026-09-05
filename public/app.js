@@ -992,7 +992,7 @@ function render(){
 
     <header class="tw-header" style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:22px 24px 18px; background:var(--accent); border-bottom:3px solid var(--line)">
       <div class="tw-headL" style="display:flex; align-items:flex-end; gap:14px">
-        <span style="background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</span>
+        <a href="https://traxwax.com/" title="TraxWax home" style="text-decoration:none; display:inline-block; background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</a>
         ${IS_OWN()
           ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.92); padding-bottom:6px">${esc(SETTINGS.ownerLine + ' · filed by ' + FILED_BY_WORD)}</span>`
           : (()=>{ const o=window.TraxWaxOwner||{}; const av=o.avatarUrl||'';
