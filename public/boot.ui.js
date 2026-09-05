@@ -719,8 +719,9 @@ export function accountPageHtml(o) {
         'height:20px; background:var(--tape); border-left:1px dashed rgba(0,0,0,.18); ' +
         'border-right:1px dashed rgba(0,0,0,.18); transform:rotate(2deg); pointer-events:none"></span>' +
       '<div class="tw-headL" style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap">' +
-        '<div style="background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:30px; ' +
-          'letter-spacing:.01em; padding:9px 11px 7px; transform:rotate(-1.2deg)">TRAXWAX</div>' +
+        '<a href="https://traxwax.com/" title="TraxWax home" style="text-decoration:none; display:inline-block">' +
+          '<div style="background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:30px; ' +
+            'letter-spacing:.01em; padding:9px 11px 7px; transform:rotate(-1.2deg)">TRAXWAX</div></a>' +
         '<div style="display:flex; flex-direction:column; gap:3px; padding-bottom:3px">' +
           '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
             'color:rgba(255,255,255,.78)">SETTINGS</span>' +
