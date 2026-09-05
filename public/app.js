@@ -715,8 +715,21 @@ function computeVals(){
     maxCount: decades.length?Math.max(...decades.map(d=>d.count)):0,
   };
 
+  // Wave 5a: ledger left-panel strip — most-filed artist CREDIT + label over the whole crate. Discogs joins
+  // a multi-artist release into one "A, B" credit string, which we count as-is: we deliberately do NOT split
+  // on ", " because comma-bearing names ("Earth, Wind & Fire") would shatter — so this counts credits, not
+  // strictly individual artists (a solo/collab split under-counts, acceptable for a personal crate where solo
+  // credits dominate). 'Various' excluded from artist (compilation marker). Aggregate CC0, per collection row.
+  const _artC={}, _labC={};
+  all.forEach(r=>{ const a=(r.artist||'').trim(); if(a && a!=='Various') _artC[a]=(_artC[a]||0)+1;
+                   const l=(r.label||'').trim(); if(l) _labC[l]=(_labC[l]||0)+1; });
+  const _topA=Object.keys(_artC).sort((a,b)=>_artC[b]-_artC[a])[0]||null;
+  const _topL=Object.keys(_labC).sort((a,b)=>_labC[b]-_labC[a])[0]||null;
+  const topArtist=_topA?{name:_topA, count:_artC[_topA]}:null;
+  const topLabel=_topL?{name:_topL, count:_labC[_topL]}:null;
+
   return { all, filtered, visible, counts, topGenres, total, newCount, coloredCount,
-    active, timeline, styleBars, decades, decadeStats,
+    active, timeline, styleBars, topArtist, topLabel, decades, decadeStats,
     bigStats: IS_OWN() ? (()=>{ const _fs=window.__twInventory?all.filter(r=>window.__twInventory.has(r.id)).length:0; return [   // crate∩listed — agrees with the FOR SALE facet count
       {label:'Records', value:all.length.toLocaleString('en-US'), note:'Counted honestly. Twice.', color:'var(--ink)'},
       {label:'Estimated value', value:state.headerValue||valueLabel(total), note:priced.length?'Median of Discogs lows.':'Live Discogs estimate.', color:'var(--accent)'},
@@ -903,6 +916,18 @@ function render(){
               <span style="flex:1; height:12px; background:var(--bar); position:relative"><span style="position:absolute; inset:0 auto 0 0; width:${b.width}; background:var(--accent)"></span></span>
               <span style="width:26px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${b.count}</span>
             </div>`).join('')}</div>
+          ${IS_OWN() ? `<div style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px; padding-right:14px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Top artist</span>
+              <span style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.05; color:var(--ink)">${v.topArtist?esc(v.topArtist.name):'—'}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted)">${v.topArtist?v.topArtist.count.toLocaleString('en-US')+(v.topArtist.count===1?' record':' records'):''}</span>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Label</span>
+              <span style="font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.05; color:var(--ink)">${v.topLabel?esc(v.topLabel.name):'—'}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted)">${v.topLabel?v.topLabel.count.toLocaleString('en-US')+(v.topLabel.count===1?' record':' records'):''}</span>
+            </div>
+          </div>` : ''}
         </div>
         ${IS_OWN() ? (()=>{ const ds=v.decadeStats; const mx=ds.maxCount||1; return `<div style="padding:22px 24px; display:flex; flex-direction:column">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">By decade</span>

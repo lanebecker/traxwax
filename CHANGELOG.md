@@ -13,6 +13,18 @@ _Nothing yet._
 
 ---
 
+## [1.20.9] — 2026-09-05
+
+### Added
+- **Top artist + Label strip under Most-filed styles in THE LEDGER.** The left ledger panel now carries a
+  two-cell strip beneath the style bars — most-filed artist and most-filed label, each with its record count —
+  mirroring the BY DECADE chart's Peak / Span strip on the right, so the panel reads as a "what dominates the
+  shelf" pair (styles + artist + label). Own crate only. Counts the whole crate (like the style bars), not the
+  filtered view. Artist counts the Discogs credit string as-is (multi-artist credits aren't split — comma-bearing
+  names like "Earth, Wind & Fire" would shatter), and "Various" is excluded as a compilation marker. (Lane request.)
+
+---
+
 ## [1.20.8] — 2026-09-05
 
 ### Added
