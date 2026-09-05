@@ -321,6 +321,8 @@ function ownerInfo(profile) {
     // Phase 2 profiles: the header avatar button + modal read these.
     displayName: profile.display_name || '',
     avatarUrl: profile.avatar_url || '',
+    ownerUsername: profile.discogs_username || '',   // header spec §3.1 — own meta line "@{handle}"
+    collectingSince: profile.collecting_since || null,   // header spec §3.1 — own meta line "COLLECTING SINCE {year}"
     isOwn: true,   // Wave 1: app.js IS_OWN() branch — the owner's own crate
   };
 }
@@ -1264,6 +1266,15 @@ async function render() {
   // is where that case lands. Guarded + idempotent: a no-op if a sync from runImport is already in flight.
   triggerWantlistSync();
   triggerInventorySync();   // Wave 4: the for-sale sync lands on the same first-connect count>0 sub-path
+
+  // Header spec §4 — own-crate strip friend count. Count-only now (rich event line: issue #59, sets event:null).
+  // Non-blocking (fire-and-forget) so a slow list_friends NEVER gates first crate paint: if it resolves before the
+  // first render the count shows at paint; if after, TraxWaxRerender (guarded, own-crate only) repaints the strip.
+  // Failure → null, which the strip renders as plain "YOUR CRATE" (never a misleading "0 FRIENDS").
+  supabase.rpc('list_friends')
+    .then(({ data }) => { window.__twFriendStatus = { count: (data || []).length, event: null }; })
+    .catch(() => { window.__twFriendStatus = null; })
+    .finally(() => { if (window.TraxWaxRerender) window.TraxWaxRerender(); });
 
   // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
   window.TraxWaxViewer = { isOwn: true, ownerUserId: null, ownerProfile: null };

@@ -38,10 +38,37 @@ const FILED_BY = [
 ];
 const FILED_BY_WORD = FILED_BY[Math.floor(Math.random() * FILED_BY.length)];
 
+/* Header spec §0.4 — the stencil icon set (solid fills, no strokes except the light-disc ring).
+   Geometry is byte-identical to the locked assets in Design/traxwax-headers-redesign/assets/icons/;
+   inlined (not <img>) to match the existing header pattern and stay within the CSP. Size via `s`. */
+const ICO = {
+  share:  (s)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="#16171a" aria-hidden="true"><path d="M12 2.5 L17.5 8.5 H14 V14 H10 V8.5 H6.5 Z"/><path d="M4.5 11 H8.5 V14 H7.5 V18.5 H16.5 V14 H15.5 V11 H19.5 V21.5 H4.5 Z"/></svg>`,
+  lights: (s,dark)=>dark
+    ? `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="#fff" stroke-width="2.4"/><path d="M12 3.8 A8.2 8.2 0 0 0 12 20.2 Z" fill="#fff"/></svg>`
+    : `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="#16171a" stroke-width="2.4"/><path d="M12 3.8 A8.2 8.2 0 0 1 12 20.2 Z" fill="#16171a"/></svg>`,
+  gear:   (s)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="#16171a" aria-hidden="true"><g>${[0,45,90,135,180,225,270,315].map(a=>`<rect x="10.4" y="1.5" width="3.2" height="5" transform="rotate(${a} 12 12)"/>`).join('')}</g><circle cx="12" cy="12" r="6.2" fill="none" stroke="#16171a" stroke-width="3.4"/></svg>`,
+  person: (s)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"/><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"/></svg>`,
+};
+
 /* Wave 1: the crate renders READ-ONLY when viewing a friend's shelf. boot.js installs
    window.TraxWaxViewer = { isOwn:false, ... } for a friend crate; absent or isOwn===true means
    the owner's own crate (also baked/local-dev mode). */
 const IS_OWN = () => !window.TraxWaxViewer || window.TraxWaxViewer.isOwn !== false;
+
+// Header spec §1: today, signed-in ⇔ boot.js installed a viewer (own OR friend). §0.5 wordmark href depends on it.
+// ⚠️ WAVE 5b TODO (tracked): this proxy breaks for the PUBLIC tier. Two things must change together when /c/ ships,
+// or the 'public-out' branch below is unreachable AND an anonymous viewer renders the OWNER header (leaking the gear/
+// account/EST./FILED BY to a stranger, wordmark → /app):
+//   1. IS_SIGNED_IN must read an explicit flag (e.g. window.TraxWaxViewer.signedIn), NOT mere object presence —
+//      because the anonymous /c/ viewer will ALSO be a viewer object.
+//   2. That anonymous viewer MUST carry isOwn:false (so IS_OWN() doesn't swallow it into 'own') and isPublic:true.
+const IS_SIGNED_IN = () => !!window.TraxWaxViewer;
+// Header spec §1: which of the four header modes we're in. 'public-out'/'public-in' arrive with Wave 5b's /c/ route
+// (a viewer flagged isPublic); until then a non-owner is always a friend. Modes A/B ship live; C/D are written but
+// DORMANT and NOT yet reachable — see the Wave 5b TODO above before wiring the public viewer shape.
+const VIEWER_MODE = () => IS_OWN() ? 'own'
+  : (window.TraxWaxViewer && window.TraxWaxViewer.isPublic) ? (IS_SIGNED_IN() ? 'public-in' : 'public-out')
+  : 'friend';
 
 // #43: friend-crate section visibility. Own crate → both true. Friend → the get_crate_owner flags.
 const CAN_VIEW_CRATE    = () => IS_OWN() || !window.TraxWaxViewer || window.TraxWaxViewer.canViewCrate === true;
@@ -259,17 +286,6 @@ function setTheme(t, persist=true){
 
 /* ── Derivations (mirror the kit's matches/sorted/deco) ─────────────────────── */
 // #47: friend-crate match sentence pieces (spec §3). `n` is a match count from _matchCounts() (set-derived, #43).
-function _matchAlbums(n){ return n === 1 ? 'ONE ALBUM' : (n === 0 ? 'NO ALBUMS' : n + ' ALBUMS'); }
-// Wave 4 Stage 2 (D): prose number form — spell 1–9, numerals 10+. Callout-only (the #47 match sentence keeps
-// its established numeral form; do not retrofit _matchAlbums).
-function _num(n){ const w=['zero','one','two','three','four','five','six','seven','eight','nine']; return (n>=0 && n<10) ? w[n] : String(n); }
-function _matchPart(n, tail, act){   // tail: 'YOU WANT' | 'THEY WANT'
-  const label = _matchAlbums(n) + ' ' + tail;
-  const link = "color:#fff; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,.5)";
-  return n > 0
-    ? `<a href="#" data-act="${act}" style="${link}">${label}</a>`
-    : `<span style="color:#fff">${label}</span>`;   // zero side: white, no link
-}
 function matches(r){
   const s=state;
   // 0030: the wantlist now carries the real vinyl variant, so the colored/color facets apply on it too
@@ -880,6 +896,111 @@ function _copyFallback(text,done){
   finally{ if(ta && ta.parentNode) ta.parentNode.removeChild(ta); }   // cleanup even if execCommand throws (D2)
 }
 
+/* Header spec §2 — the black strip renders in EVERY mode: context sentence on the left, utilities on the
+   right. Ink in both themes (hard-coded #16171a/white). Desktop = one flowing span (.tw-fs-desktop); mobile
+   = tappable rows (.tw-fs-mobile) + the utility cluster promoted to its own top row (.tw-strip-actions). */
+const _sL = (t,act,title)=>`<a href="#" data-act="${act}"${title?` title="${esc(title)}"`:''} style="color:#fff; text-decoration:underline; text-underline-offset:2px">${t}</a>`;
+const _sS = (t)=>`<span style="color:#fff">${esc(t)}</span>`;
+const _cnt = (n)=>Number(n).toLocaleString('en-US');   // header spec §2.1 — counts are numeric throughout (14, 2, 6 — never spelled "two")
+const _pl  = (n,word)=>`${_cnt(n)} ${word}${Number(n)===1?'':'S'}`;   // numeric count + noun agreement: "1 ALBUM" / "14 ALBUMS" / "1 FRIEND"
+const _circle = (act,label,inner,dark)=>`<button data-act="${act}" title="${esc(label)}" aria-label="${esc(label)}" style="width:30px; height:30px; padding:0; border:1.5px solid #fff; border-radius:50%; background:${dark?'#16171a':'#fff'}; cursor:pointer; display:inline-flex; align-items:center; justify-content:center">${inner}</button>`;
+
+/* Header spec §2.3 B/D — the friend/public match sentence, new " · " grammar: links wrap the count phrase
+   only, counts numeric, no trailing period. Private directions render as plain text (no link), as in #43. */
+function _friendMatchClauses(){
+  const o=window.TraxWaxOwner||{}; const name=(o.displayName||o.ownerUsername||'A friend').toUpperCase();
+  const mc=_matchCounts();
+  const c1 = (mc.youWant!==null)
+    ? `${_sS(name)} HAS ${_sL(_pl(mc.youWant,'ALBUM'),'matchYouWant','Show the ones you want')} YOU WANT`
+    : `${_sS(name)}’S CRATE IS PRIVATE`;
+  // for-sale ∩ youWant, master-aware — the SAME predicate matchSellingYouWant applies (#43 link-integrity).
+  const _fsWant = (window.__twInventory && window.__twMatchCtx && window.__twMatchCtx.viewerWants)
+    ? (RECORDS||[]).filter(r => window.__twInventory.has(r.id) && (
+        window.__twMatchCtx.viewerWants.has(r.id) ||
+        (MATCH_ANY() && r.master_id && window.__twMatchCtx.viewerWantsMasters && window.__twMatchCtx.viewerWantsMasters.has(r.master_id))
+      )).length : 0;
+  const c2 = (_fsWant>=1 && mc.youWant!==null)
+    ? `${_sL(_cnt(_fsWant)+' OF THEM','matchSellingYouWant',"Show the ones they're selling that you want")} ${Number(_fsWant)===1?'IS':'ARE'} FOR SALE`
+    : '';
+  const c3 = (mc.theyWant!==null)
+    ? `YOU HAVE ${_sL(_pl(mc.theyWant,'ALBUM'),'matchTheyWant','Show the ones they want')} THEY WANT`
+    : 'THEIR WANTLIST IS PRIVATE';
+  return { c1, c2, c3 };
+}
+
+/* Header spec §2 — the universal strip. Modes A (own) + B (friend) ship live; C/D (public) render from the
+   same code and are dormant until Wave 5b wires /c/. Mode-A status is count-only now (rich event line: #59). */
+function stripHtml(){
+  const s=state, mode=VIEWER_MODE(), dark=s.theme==='dark';
+  const lights=_circle('theme', dark?'Turn the lights on':'Turn the lights out', ICO.lights(17,dark), dark);
+  let deskLeft='', mobileRows='', right='', actionsGap='14px';
+  if(mode==='own'){
+    const fs=window.__twFriendStatus||null;
+    let friendsClause='';
+    if(fs){   // null ⇔ not yet loaded / RPC failed: show just YOUR CRATE, never assert a "0 FRIENDS" count
+      friendsClause = fs.count===0
+        ? ` · ${_sL('INVITE A FRIEND','accountFriends','Invite a friend — account settings')}`
+        : ` · ${_sL(_pl(fs.count,'FRIEND'),'accountFriends','Friends — account settings')}`;
+    }
+    const ev=fs&&fs.event;   // count-only ships now; the rich event line is issue #59 (provider sets event:null)
+    const first=ev?esc(String(ev.first).toUpperCase()):'';
+    const status = !ev ? '' : ev.kind==='forsale'
+      ? ` · ${first} ADDED ${_sL(_pl(ev.n,'ALBUM'),'openFriend')} FOR SALE THAT YOU WANT`
+      : ev.kind==='have' ? ` · ${first} ADDED ${_sL(_pl(ev.n,'ALBUM'),'openFriend')} YOU WANT`
+      : ` · ${first} WANTS ${_sL(_pl(ev.n,'ALBUM'),'openFriend')} YOU’RE SELLING`;
+    deskLeft = `${_sS('YOUR CRATE')}${friendsClause}${status}`;
+    mobileRows = `<div class="tw-fs-row">${deskLeft}</div>`;
+    actionsGap = '8px';
+    right = `${_circle('copyCrateLink','Share my crate',ICO.share(17))}${lights}${_circle('account','Your account',ICO.gear(17))}`;
+  } else if(mode==='public-out'){
+    deskLeft = `${_sS('A PUBLIC CRATE ON TRAXWAX')} · A VISUAL WAY TO SHARE ANY DISCOGS COLLECTION`;
+    mobileRows = `<div class="tw-fs-row">${deskLeft}</div>`;
+    right = `<a href="/app" class="tw-fs-back" style="color:#fff; text-decoration:underline; text-underline-offset:2px; white-space:nowrap">SIGN IN</a><a href="/" style="background:#fff; color:#16171a; font-weight:700; padding:6px 10px; text-decoration:none; white-space:nowrap">START YOUR OWN CRATE</a>${lights}`;
+  } else {   // friend | public-in — the match sentence
+    const {c1,c2,c3}=_friendMatchClauses();
+    deskLeft = [c1,c2,c3].filter(Boolean).join(' · ');
+    const row1 = [c1,c2].filter(Boolean).join(' · ');
+    mobileRows = `<div class="tw-fs-row">${row1}</div><div class="tw-fs-row">${c3}</div>`;
+    right = `<a href="/app" class="tw-fs-back" style="color:#fff; text-decoration:underline; text-underline-offset:2px; white-space:nowrap">← BACK TO YOUR CRATE</a>${lights}`;
+  }
+  return `<div class="tw-strip tw-friend-strip" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 24px; background:#16171a; color:rgba(255,255,255,.62); font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase">
+      <span class="tw-fs-desktop" style="flex:1; min-width:0">${deskLeft}</span>
+      <div class="tw-fs-mobile">${mobileRows}</div>
+      <div class="tw-strip-actions" style="display:flex; align-items:center; gap:${actionsGap}; flex:none">${right}</div>
+    </div>`;
+}
+
+/* Header spec §3.1 — one identity slot, four fills: avatar · "{Name}'s Crate" · mono meta line. */
+function identityHtml(){
+  const mode=VIEWER_MODE(), o=window.TraxWaxOwner||{}, av=o.avatarUrl||'';
+  const ownName=(SETTINGS && SETTINGS.ownerLine) ? SETTINGS.ownerLine.replace(/’s shelf$/i,'').replace(/'s shelf$/i,'') : '';
+  const rawName = o.displayName || o.ownerUsername || (mode==='own' ? ownName : 'A friend');
+  // Possessive title — clean fallback so an empty name never yields "Your's Crate" (unreachable in prod: own crates always carry a discogs_username).
+  const title = rawName ? `${esc(rawName)}’s Crate` : (mode==='own' ? 'Your Crate' : 'A Friend’s Crate');
+  const avInner = av ? `<img src="${esc(av)}" alt="" style="width:100%; height:100%; object-fit:cover; display:block">` : ICO.person(24);
+  const avStyle = 'width:46px; height:46px; flex:none; border:1.5px solid #16171a; border-radius:50%; overflow:hidden; background:#fff; display:inline-flex; align-items:center; justify-content:center';
+  const avatar = (mode==='own')
+    ? `<button data-act="account" class="tw-friend-avatar" aria-label="Your account" title="Your account" style="${avStyle}; padding:0; cursor:pointer">${avInner}</button>`
+    : `<span class="tw-friend-avatar" style="${avStyle}">${avInner}</span>`;
+  let meta;
+  if(mode==='own' || mode==='friend'){
+    const parts=[];
+    if(o.ownerUsername) parts.push('@'+esc(o.ownerUsername));
+    if(o.collectingSince) parts.push('COLLECTING SINCE '+esc(String(o.collectingSince)));
+    if(mode==='own') parts.push('FILED BY '+esc(FILED_BY_WORD));
+    meta=parts.join(' · ');
+  } else {   // public (dormant): top-3 styles by count, shrink to fit ~44 chars, never ellipsize
+    const vv=computeVals(); let top=(vv.allStyles||[]).slice(0,3);
+    while(top.length>1 && top.join(', ').length>44) top.pop();
+    meta = `${esc(top.join(', ').toUpperCase())}${o.collectingSince?' · SINCE '+esc(String(o.collectingSince)):''}`;
+  }
+  return `<div style="display:flex; align-items:center; gap:12px">${avatar}
+        <span style="display:flex; flex-direction:column; gap:3px">
+          <span class="tw-friend-name" style="font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:700; line-height:1; color:#fff">${title}</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.85)">${meta}</span>
+        </span></div>`;
+}
+
 function render(){
   const v=computeVals(); const s=state;
   const hasFilters=v.active.length>0;
@@ -1037,63 +1158,12 @@ function render(){
   const html=`
   <div style="position:relative; max-width:1480px; margin:0 auto; background:var(--panel); border:1px solid var(--line); box-shadow:5px 5px 0 rgba(0,0,0,.16)">
 
-    ${!IS_OWN()?(()=>{
-      const o=window.TraxWaxOwner||{};
-      const owner=(o.displayName||o.ownerUsername||'A friend');
-      const mc=_matchCounts();
-      const nameSpan = `<span style="color:#fff">${esc(owner.toUpperCase())}</span>`;
-      const bothShared = (mc.youWant !== null && mc.theyWant !== null);
-      // Two standalone clauses (each reads alone → each can be its own mobile row). Private → plain, no link (#43).
-      const c1 = (mc.youWant !== null)
-        ? `${nameSpan} HAS ` + _matchPart(mc.youWant,'YOU WANT','matchYouWant')
-        : `${nameSpan}’S CRATE IS PRIVATE`;
-      const c2 = (mc.theyWant !== null)
-        ? 'YOU HAVE ' + _matchPart(mc.theyWant,'THEY WANT','matchTheyWant')
-        : 'THEIR WANTLIST IS PRIVATE';
-      // Wave 4 Stage 2 (D1): the for-sale subset of "albums you want". Counted with the SAME predicate the
-      // matchSellingYouWant filter applies (forSale ∩ youWant, master-aware) over RECORDS, so the callout
-      // count EQUALS the filtered set (#43 link-integrity). In-app link, NO ↗ (SPEC I). Renders only ≥1 (D3).
-      const _fsWant = (window.__twInventory && window.__twMatchCtx && window.__twMatchCtx.viewerWants)
-        ? (RECORDS||[]).filter(r => window.__twInventory.has(r.id) && (
-            window.__twMatchCtx.viewerWants.has(r.id) ||
-            (MATCH_ANY() && r.master_id && window.__twMatchCtx.viewerWantsMasters && window.__twMatchCtx.viewerWantsMasters.has(r.master_id))
-          )).length : 0;
-      const sellCallout = (_fsWant >= 1 && mc.youWant !== null)
-        ? `<a href="#" data-act="matchSellingYouWant" title="Show the ones they're selling that you want" style="background:#fff; color:#16171a; font-weight:700; padding:2px 7px; text-decoration:underline; text-underline-offset:2px">${_num(_fsWant)} FOR SALE</a>`
-        : '';
-      // Desktop: one flowing sentence — ", AND " joins two shared clauses; ". " otherwise. The for-sale callout,
-      // when present, folds in em-dash-set between the two clauses. (No-callout path is byte-identical to #43.)
-      const desktop = sellCallout
-        ? `${c1} — ${sellCallout} — ${bothShared ? 'AND ' : ''}${c2}.`
-        : `${c1}${bothShared ? ', AND ' : '. '}${c2}.`;
-      // Mobile: two rows; the callout rides row 1 (the clause it modifies); the "AND" connective rides row 2.
-      const c1m = sellCallout ? `${c1} — ${sellCallout}` : c1;
-      const row2 = `${bothShared ? 'AND ' : ''}${c2}`;
-      return `<div class="tw-friend-strip" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 24px; background:#16171a; color:rgba(255,255,255,.62); font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase">
-      <span class="tw-fs-desktop">${desktop}</span>
-      <div class="tw-fs-mobile">
-        <div class="tw-fs-row">${c1m}</div>
-        <div class="tw-fs-row">${row2}</div>
-      </div>
-      <a class="tw-fs-back" href="/app" style="color:#fff; text-decoration:underline; white-space:nowrap">← Back to your crate</a>
-    </div>`;})():''}
+    ${stripHtml()}
 
-    <header class="tw-header" style="position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding:22px 24px 18px; background:var(--accent); border-bottom:3px solid var(--line)">
-      <div class="tw-headL" style="display:flex; align-items:flex-end; gap:14px">
-        <a href="https://traxwax.com/" title="TraxWax home" style="text-decoration:none; display:inline-block; background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</a>
-        ${IS_OWN()
-          ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.92); padding-bottom:6px">${esc(SETTINGS.ownerLine + ' · filed by ' + FILED_BY_WORD)}</span>`
-          : (()=>{ const o=window.TraxWaxOwner||{}; const av=o.avatarUrl||'';
-              const glyph='<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"/><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"/></svg>';
-              const name=(o.displayName||o.ownerUsername||'A friend');
-              const since=o.collectingSince ? (' · COLLECTING SINCE ' + esc(String(o.collectingSince))) : '';
-              return `<div style="display:flex; align-items:center; gap:12px; padding-bottom:2px">
-                <span class="tw-friend-avatar" style="width:46px; height:46px; flex:none; border:1.5px solid #16171a; border-radius:50%; overflow:hidden; background:#fff; display:inline-flex; align-items:center; justify-content:center">${av?`<img src="${esc(av)}" alt="" style="width:100%; height:100%; object-fit:cover; display:block">`:glyph}</span>
-                <span style="display:flex; flex-direction:column; gap:3px">
-                  <span class="tw-friend-name" style="font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:700; line-height:1; color:#fff">${esc(name)}’s Crate</span>
-                  <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.85)">@${esc(o.ownerUsername||'')}${since}</span>
-                </span>
-              </div>`;})()}
+    <header class="tw-header" style="position:relative; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:16px 24px; background:var(--accent); border-bottom:3px solid var(--line)">
+      <div class="tw-headL" style="display:flex; align-items:center; gap:14px">
+        <a href="${IS_SIGNED_IN()?'/app':'https://traxwax.com/'}" title="${IS_SIGNED_IN()?'Your crate':'TraxWax'}" style="text-decoration:none; display:inline-block; background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</a>
+        ${identityHtml()}
       </div>
       <div class="tw-headR" style="display:flex; align-items:center; gap:10px">
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
@@ -1101,13 +1171,6 @@ function render(){
           ${(IS_OWN() && s.view!=='wantlist' && s.view!=='forsale')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
-      </div>
-      <div class="tw-head-actions" style="position:absolute; top:14px; right:24px; display:flex; align-items:center; gap:8px">
-        ${IS_OWN() ? `<button data-act="copyCrateLink" title="Share my crate" aria-label="Share my crate" style="width:36px; height:36px; padding:0; border:1.5px solid #16171a; border-radius:50%; background:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#16171a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 V14"/><path d="M8.2 7.6 L12 3.8 L15.8 7.6"/><path d="M7 10 H6.4 A1.6 1.6 0 0 0 4.8 11.6 V19 A1.6 1.6 0 0 0 6.4 20.6 H17.6 A1.6 1.6 0 0 0 19.2 19 V11.6 A1.6 1.6 0 0 0 17.6 10 H17"/></svg></button>` : ''}
-        <button data-act="theme" title="${s.theme==='dark'?'Lights on':'Lights out'}" aria-label="${s.theme==='dark'?'Turn the lights on':'Turn the lights out'}" style="width:36px; height:36px; padding:0; border:1.5px solid #16171a; border-radius:50%; background:${s.theme==='dark'?'#16171a':'#fff'}; cursor:pointer; display:inline-flex; align-items:center; justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="${s.theme==='dark'?'#ffffff':'#16171a'}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.4 A5.6 5.6 0 0 0 8.3 13.2 C9.1 13.9 9.4 14.7 9.5 15.6 L14.5 15.6 C14.6 14.7 14.9 13.9 15.7 13.2 A5.6 5.6 0 0 0 12 3.4 Z"/><path d="M9.7 18.2 H14.3"/><path d="M10.7 20.6 H13.3"/></svg></button>
-        ${DB_MODE() && IS_OWN()?(()=>{const o=window.TraxWaxOwner||{};const av=o.avatarUrl||'';
-          const icon='<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.2" fill="#16171a"/><path d="M3.5 21c1.4-4.4 4.6-6.6 8.5-6.6s7.1 2.2 8.5 6.6z" fill="#16171a"/></svg>';
-          return `<button data-act="account" class="tw-avatar" title="${esc(o.displayName||'Your account')}" aria-label="Your account" style="width:36px; height:36px; padding:0; border:1.5px solid #16171a; border-radius:50%; overflow:hidden; background:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center">${av?`<img src="${esc(av)}" alt="Account" style="width:100%; height:100%; object-fit:cover; display:block">`:icon}</button>`;})():''}
       </div>
       <span style="position:absolute; top:-8px; left:52px; width:92px; height:20px; background:rgba(255,255,255,.32); border-left:1px dashed rgba(0,0,0,.2); border-right:1px dashed rgba(0,0,0,.2); transform:rotate(-3deg); pointer-events:none"></span>
       <span style="position:absolute; top:-8px; right:58px; width:92px; height:20px; background:rgba(255,255,255,.32); border-left:1px dashed rgba(0,0,0,.2); border-right:1px dashed rgba(0,0,0,.2); transform:rotate(2.5deg); pointer-events:none"></span>
@@ -1732,6 +1795,8 @@ function onClick(e){
     case 'theme': setTheme(state.theme==='dark'?'light':'dark'); render(); break;
     case 'resync': _resync(); break;
     case 'account': if(window.TraxWaxAccount) window.TraxWaxAccount(); break;
+    case 'accountFriends': window.location.href='/account/friends'; break;   // header strip §2.3 A — N FRIENDS / INVITE A FRIEND (route grammar, not a #hash)
+    case 'openFriend': { const ev=window.__twFriendStatus&&window.__twFriendStatus.event; if(ev&&ev.href) window.location.href=ev.href; break; }   // header strip §4 status event — dormant until #59 populates event
     case 'view':
       state.view=arg;
       state.matchFilter=null;   // #47: a manual tab switch is a fresh context; the match filter is set only by the match links
@@ -1850,7 +1915,10 @@ async function _resync(){
    (main until the merge; local dev) everything below falls back to the baked paths. */
 const DB_MODE = () => !!window.TraxWaxData;
 
+let _crateReady = false;   // true once the first render has painted — gates window.TraxWaxRerender (below) so an async
+                           // provider (e.g. the friend-status count) can safely repaint, but never before the crate exists.
 async function bootCrate(){
+  _crateReady = false;     // re-boot (Clerk auth-state change): re-arm the gate so an async repaint can't paint over "Loading…" with stale data
   WANTLIST_RECORDS=null;   // Wave 2 B1: fresh dataset per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
   state.matchFilter=null;  // #47: match filter is per-crate context — never inherit it across a (re)boot
   state.detailId = null;   // #44/#37: never inherit a stale open modal across a (re)boot
@@ -1964,6 +2032,7 @@ async function bootCrate(){
   // forsale isn't second-guessed by a stray ?match param.
   _applyUrlFilters(_bootSelling);
   render();
+  _crateReady = true;   // first paint done — async repaints (TraxWaxRerender) are now safe
   if (DB_MODE()) {
     window.TraxWaxStats().then(v=>{ if(v && v.value){ state.headerValue=v.value; render(); } });
   }
@@ -1973,3 +2042,7 @@ async function bootCrate(){
 /* The crate no longer self-starts. public/boot.js resolves auth and ownership first, then
    dynamically imports this file and calls bootCrate(). See docs/phase-1-plan.md Stage A. */
 window.TraxWaxBootCrate = bootCrate;
+// A guarded, idempotent repaint hook for async providers that resolve after boot (e.g. boot.js's own-crate
+// friend-status count). No-op until the first render has painted (_crateReady), so an early resolution can't
+// render an unbooted crate — bootCrate's own first render picks up whatever's already set.
+window.TraxWaxRerender = () => { if (_crateReady) { try { render(); } catch(e){} } };

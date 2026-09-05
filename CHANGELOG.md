@@ -13,6 +13,36 @@ _Nothing yet._
 
 ---
 
+## [1.24.0] — 2026-09-05
+
+### Changed
+- **Header redesign — one header, four modes.** The header is now a single system across every crate view.
+  A **universal black strip** renders above the red band in all modes (previously it existed only on a
+  friend's crate): a context sentence on the left, the utilities on the right. The **utilities moved off the
+  red band** — SHARE / LIGHTS-OUT / ACCOUNT are now 30px stencil circles in the strip (the absolutely-positioned
+  `.tw-head-actions` cluster is gone), so the red band holds only the identity slot + stat tape, vertically
+  centred and geometrically identical in every mode. The own crate adopts the friend-header **identity
+  grammar**: avatar · "{Name}'s Crate" · a mono meta line (`@handle · COLLECTING SINCE {year} · FILED BY
+  {word}`) — the old "LANE'S SHELF · FILED BY …" tagline is retired. Account is now a **gear** icon, not the
+  avatar (the red-band avatar is a second account entry point). The wordmark links a signed-in viewer to their
+  own crate (`/app`); signed-out to the landing page.
+- **Modes A (own) + B (friend) ship live; C/D (public) are written but dormant** — they reuse the same
+  `stripHtml()`/`identityHtml()` render paths and land with Wave 5b's `/c/` route. The own-crate strip's third
+  cell shows a **friend count** ("YOUR CRATE · N FRIENDS", or "INVITE A FRIEND"); the richer friend-activity
+  status line is deferred to #59.
+- Strip counts are numeric throughout with correct singular/plural agreement ("1 ALBUM" / "14 ALBUMS" /
+  "1 FRIEND"). Friend/public match sentence adopts the new " · " clause grammar (no trailing period).
+
+### Internal
+- New render helpers `VIEWER_MODE()`, `IS_SIGNED_IN()`, an `ICO` stencil-icon set, and strip helpers
+  (`_sL`/`_sS`/`_cnt`/`_pl`/`_circle`); removed the now-orphaned `_matchPart`/`_matchAlbums`/`_num`. boot.js
+  `ownerInfo()` gained `ownerUsername`/`collectingSince`; the own-crate boot fetches the friend count
+  **non-blocking** and repaints via a new guarded `window.TraxWaxRerender` hook (never gates first paint).
+- Twice adversarially audited (remediation-audit, Pass 1 + narrow Pass 2 to convergence). Design source:
+  `Design/traxwax-headers-redesign/TRAXWAX-HEADER-DESIGN-SPEC.md` (locked).
+
+---
+
 ## [1.23.2] — 2026-09-05
 
 ### Documentation
