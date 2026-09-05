@@ -267,9 +267,9 @@ const NAV = [
 function accountNav(active, o) {
   const items = NAV.map((n) => {
     const isActive = n.id === active || (n.target && n.target === active);
-    // DANGER ZONE is accent-red as an idle tab (a warning), but goes GREY once selected — you're already
-    // on it, no need to keep shouting. Other tabs: muted when idle, ink when active.
-    const color = n.danger ? (isActive ? 'var(--muted)' : 'var(--accent)') : (isActive ? 'var(--ink)' : 'var(--muted)');
+    // DANGER ZONE keeps its accent-red LETTERS in every state (idle and selected) — the warning shouldn't
+    // fade; only the selected box/border goes grey (below). Other tabs: muted when idle, ink when active.
+    const color = n.danger ? 'var(--accent)' : (isActive ? 'var(--ink)' : 'var(--muted)');
     const inner = '<span style="' + MONO + '; font-size:11px; font-weight:700; ' +
       'letter-spacing:.12em; color:' + color + '">' + n.label + '</span>';
     // The DANGER hairline separator renders in BOTH states (idle link AND selected) so the nav layout
@@ -418,9 +418,10 @@ function discogsSection(o) {
 function dangerSection(o) {
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:28px">' +
-    sectionLabel('DANGER ZONE') +
+    sectionHead('DANGER ZONE', 'Delete everything') +
     '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent)"></div>' +
+    sectionLabel('DANGER, WILL ROBINSON') +
     '<div style="border:1.5px solid var(--accent); padding:16px 18px; display:flex; ' +
       'flex-direction:column; gap:14px">' +
       '<span style="' + BODY + '; font-size:12.5px; line-height:1.65; color:var(--muted); ' +

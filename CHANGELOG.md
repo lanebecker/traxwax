@@ -13,6 +13,16 @@ _Nothing yet._
 
 ---
 
+## [1.20.5] — 2026-09-05
+
+### Changed
+- **DANGER ZONE tab polish.** Restored the "DANGER ZONE · Delete everything" page title and changed the section
+  divider to **"DANGER, WILL ROBINSON ————"** (a little joke). In the left nav, the DANGER ZONE label now keeps
+  its **accent-red letters even when the tab is selected** — only the selected box/left-border go grey, so the
+  warning colour never fades. (Lane request.)
+
+---
+
 ## [1.20.4] — 2026-09-05
 
 ### Changed
