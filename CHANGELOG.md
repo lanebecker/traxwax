@@ -13,6 +13,15 @@ _Nothing yet._
 
 ---
 
+## [1.23.1] — 2026-09-05
+
+### Fixed
+- **Header icon trio now sits in the top-right corner, not the stats row.** v1.23.0 placed the SHARE / LIGHTS /
+  ACCOUNT circles inline with the stats pillboxes; they now occupy the top row (the corner the account avatar
+  used to float in), with the pillboxes alone on the line below — the intended layout. (#58, Lane report.)
+
+---
+
 ## [1.23.0] — 2026-09-05
 
 ### Changed
