@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.20.6] — 2026-09-05
+
+### Added
+- **Intro lines on the DISCOGS and DANGER ZONE account tabs** — the two tabs that lacked the one-liner every
+  other section has. DISCOGS: "Where TraxWax reads from your Discogs collection. Keep it synced, or cut the cord
+  anytime." DANGER ZONE: "The point of no return. Deleting wipes your TraxWax data for good; your Discogs
+  account is safe." (Lane request.)
+
+### Fixed
+- **Account PROFILE intro no longer wraps mid-phrase.** The "Nobody sees any of this yet…" sentence was capped
+  at `max-width:58ch`, forcing a break between "ready" and "when"; dropped the cap so it flows on one line at the
+  account column's width (`sectionHead`'s body — now used by PROFILE, DISCOGS, and DANGER ZONE). (Lane report.)
+
+---
+
 ## [1.20.5] — 2026-09-05
 
 ### Changed

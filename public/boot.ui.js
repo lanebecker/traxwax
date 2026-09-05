@@ -317,8 +317,8 @@ function sectionHead(kicker, headline, body) {
       'color:var(--accent)">' + esc(kicker) + '</span>' +
     '<h2 style="' + COND + '; font-size:32px; font-weight:700; line-height:1; margin:0; ' +
       'color:var(--ink)">' + esc(headline) + '</h2>' +
-    (body ? '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted); ' +
-      'max-width:58ch">' + body + '</span>' : '') +
+    (body ? '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
+      body + '</span>' : '') +
   '</div>';
 }
 
@@ -382,7 +382,8 @@ function discogsSection(o) {
   const p = o.profile;
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:28px">' +
-    sectionHead('DISCOGS', 'The connection') +
+    sectionHead('DISCOGS', 'The connection',
+      'Where TraxWax reads from your Discogs collection. Keep it synced, or cut the cord anytime.') +
     '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent)"></div>' +
     sectionLabel('SYNC') +
@@ -418,7 +419,8 @@ function discogsSection(o) {
 function dangerSection(o) {
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:28px">' +
-    sectionHead('DANGER ZONE', 'Delete everything') +
+    sectionHead('DANGER ZONE', 'Delete everything',
+      'The point of no return. Deleting wipes your TraxWax data for good; your Discogs account is safe.') +
     '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent)"></div>' +
     sectionLabel('DANGER, WILL ROBINSON') +
