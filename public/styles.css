@@ -65,6 +65,14 @@ input::placeholder { color:var(--faint); }
 @media (max-width:640px) {
   #app { padding:8px 8px 36px !important; }
 
+  /* Wave 5a: the persistent share button rides the wrapped sort line; keep it a 44px touch target. */
+  .tw-sortwrap > button[data-act="copyCrateLink"] { min-height:44px; }
+  /* Wave 5a: the Collection DNA band stacks; its right group (caption + thumbnail) spreads full-width. */
+  .tw-dna-band { flex-direction:column !important; align-items:stretch !important; }
+  .tw-dna-band > div:last-child { justify-content:space-between; padding-right:0 !important; }
+  /* Wave 5a: the picker's three cards stack one per row. */
+  .tw-dna-grid { grid-template-columns:1fr !important; }
+
   /* Header: stack the wordmark row above the stats/toggle row, and drop the two
      least-vital counters (COLORED, THIS MONTH) so the strip + toggle fit one line. */
   .tw-header { flex-direction:column !important; align-items:stretch !important; justify-content:flex-start !important; gap:12px !important; padding:16px 14px 14px !important; }

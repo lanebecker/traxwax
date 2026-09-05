@@ -199,7 +199,7 @@ function installCrateProviders(profile) {
       const { data, error } = await supabase
         .from('collection_items')
         .select('release_id, added, rating, vinyl, ' +
-          'releases ( artist, title, year, label, styles, genres, thumb, cover_image )')
+          'releases ( artist, title, year, label, styles, genres, thumb, cover_image, master_year )')   // Wave 5a: master_year for the DNA card
         .eq('user_id', profile.user_id)   // v1.4.2 fix: scope to OWN rows. The Wave 1 friend-read
         .order('id', { ascending: true }) // RLS policy widened this SELECT, so relying on RLS alone
         .range(from, from + 999);         // leaked friends' shared records into the owner's crate.
@@ -209,6 +209,10 @@ function installCrateProviders(profile) {
         rows.push({
           id: it.release_id,
           artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
+          // Wave 5a: master (original-release) year first, pressing year as the fallback — covers both
+          // null (not yet backfilled) and the 0 sentinel (resolved, no usable master year). The DNA card's
+          // decade histogram reads releaseYear so a reissue counts in its ORIGINAL decade, not its press year.
+          releaseYear: (rel.master_year && rel.master_year > 0) ? rel.master_year : (rel.year || 0),
           label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
           vinyl: it.vinyl || '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
           added: it.added || '', rating: it.rating || 0,
@@ -600,7 +604,8 @@ function backgroundEnrich() {
         // Phase 2 (#3): the loop drains refresh work (tombstone retries, stale rows)
         // after new work. refresh_pending is absent from pre-v5 responses → 0 → the
         // loop behaves exactly as before during rollout.
-        const work = d.remaining + (d.refresh_pending || 0);
+        // Wave 5a: keep draining until master-year backfill is also done (absent from pre-v9 responses → 0).
+        const work = d.remaining + (d.refresh_pending || 0) + (d.master_pending || 0);
         if (work === 0) break;
         if (d.rate_limited) {
           await new Promise((r) => setTimeout(r, 30000));

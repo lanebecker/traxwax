@@ -38,6 +38,8 @@
   Cache-Control: no-cache
 /app.js
   Cache-Control: no-cache
+/dna.js
+  Cache-Control: no-cache
 /boot.js
   Cache-Control: no-cache
 /boot.ui.js

@@ -13,6 +13,31 @@ _Nothing yet._
 
 ---
 
+## [1.20.0] — 2026-09-04
+
+### Added — Wave 5a: "Share the shelf" (Collection DNA card + shareable URLs)
+- **Collection DNA card** — a shareable 1080×1080 PNG of your crate's aggregates, generated entirely in your
+  browser (`public/dna.js`, `<canvas>` → download/share). **Three designs** to pick between in THE LEDGER's new
+  "Collection DNA" band: **A · The Decades** (peak-decade hero + per-decade histogram), **B · The Stat Wall**
+  (records / colored-wax % / styles / artists + top-3 styles), **C · The Split** (colored-vs-black). Own crate
+  only; your pick is remembered (`localStorage.tw_dna_variant`). Every card carries the mandatory
+  "Data provided by Discogs" attribution. Export via the Web Share sheet, clipboard, or PNG download.
+- **Shareable filter URLs** — the crate's filter/sort state now rides the query string, so a copied or
+  bookmarked link reopens the exact same filtered view. Two controls (own crate): **SHARE MY CRATE** (tabs row)
+  and **SHARE THIS VIEW** (SHOWING rail). Share links are scrubbed of any unknown/tracking params.
+- **Original-release year for the DNA histogram** — Card A's decades read the master's original-release year,
+  not the pressing year (a 2024 repress of a 1971 LP counts in the 1970s). New `releases.master_year`
+  (migration 0032) backfilled by `enrich-release` via `GET /masters/{id}` (deduped by master, one fetch per
+  distinct master, siblings filled together); projected into crate rows as `releaseYear`. Backfills in the
+  background; Card A falls back to pressing year until a record's master year lands.
+
+### Notes
+- Migration **0032** adds `master_year` + a partial backfill index and widens `pending_enrichment` with a
+  master-backfill work class (0017's `wanted` + collection∪wantlist union preserved verbatim).
+- `enrich-release` → **v9** (master-backfill pass; unchanged import path; never holds the boot gate).
+
+---
+
 ## [1.19.1] — 2026-09-04
 
 ### Fixed
