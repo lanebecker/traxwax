@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.22.0] — 2026-09-05
+
+### Changed
+- **FOR SALE is now a top-level tab, not a filter.** It sat as a toggle button in the filter bar; it's promoted
+  to a fifth tab (THE CRATE · THE TIMELINE · THE LEDGER · THE WANTLIST · FOR SALE) that shows your listed
+  records — the crate narrowed to what you have for sale, with every other facet (search, styles, colored wax)
+  still composing inside it. Always present on your own crate (with an empty state when nothing's listed); on a
+  friend's crate it appears only when they've shared listings. The "N for sale you want" link on a friend's
+  crate opens straight into it. The old FOR SALE filter button and its `?forsale=1` URL param are gone (the tab
+  rides the `#forsale` hash like the other tabs).
+- **The colored count moved onto the COLORED WAX button.** The separate `# COLORED` stat in the header top row
+  is gone; the button now reads `COLORED WAX 1,517`, freeing space in that row (better on mobile).
+
+---
+
 ## [1.21.0] — 2026-09-05
 
 ### Changed

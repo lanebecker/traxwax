@@ -221,7 +221,7 @@ function recordById(id){
   return src.find(r=>r.id===id);
 }
 const state = {
-  theme:'light', view:'crate', query:'', genres:[], coloredOnly:false, forSaleOnly:false,   // Wave 4: FOR SALE facet
+  theme:'light', view:'crate', query:'', genres:[], coloredOnly:false,   // Wave 5c: FOR SALE is a view now, not a filter
   stylesOpen:false, styleFind:'',   // Wave 5c: FILED UNDER tray — open state + find query, both session-only (not URL)
   artist:null, color:null, sort:'added', dir:-1, detailId:null, headerValue:null,
   matchFilter:null,   // #47: null | 'youWant' (crate ∩ viewerWants) | 'theyWant' (wantlist ∩ viewerHas)
@@ -275,9 +275,8 @@ function matches(r){
   // 0030: the wantlist now carries the real vinyl variant, so the colored/color facets apply on it too
   // (they were skipped on the wantlist while every row was vinyl:'').
   if(s.coloredOnly && !isColored(r.vinyl)) return false;
-  // Wave 4: FOR SALE facet — query the __twInventory Map directly (O(1)); skip on wantlist (for-sale is about
-  // the collection, not the wantlist rows), matching the coloredOnly guard.
-  if(s.forSaleOnly && window.__twInventory && s.view!=='wantlist' && !window.__twInventory.has(r.id)) return false;   // __twInventory-first: a null inventory (friend crate) makes the clause inert, never zeroing the crate
+  // Wave 5c: FOR SALE is now a dataset VIEW (computeVals scopes `all` to the crate ∩ __twInventory), so there's
+  // no per-record for-sale clause here — every other facet composes over that subset.
   if(s.artist && r.artist!==s.artist) return false;
   if(s.color && shortVinyl(r.vinyl)!==s.color) return false;   // 0030: color-swatch filter now works on the wantlist too
   if(s.genres.length && !s.genres.some(g=>(r.styles||[]).includes(g))) return false;   // #33: chips are ranked/counted from styles, so filter on styles too — count and result now agree (and guard non-array styles)
@@ -479,12 +478,20 @@ function emptyCrateHtml(){
   const friendWant = !own && state.view === 'wantlist';   // #43: a friend's SHARED wantlist, genuinely empty (private → lockedPanelHtml, not here)
   const wantCleared = isWant && _removedThisSession;
   const who = (window.TraxWaxOwner && window.TraxWaxOwner.displayName) || 'This collector';
-  const eyebrow = friendWant ? 'THEIR WANTLIST · 0' : isWant ? 'WANTLIST · 0' : 'AN EMPTY CRATE';
-  const heading = wantCleared ? 'The wantlist is clear.'
+  const isForSale = own && state.view === 'forsale';   // Wave 5c: own FOR SALE tab with nothing listed
+  const friendForSale = !own && state.view === 'forsale';   // Wave 5c: a friend's for-sale view, empty (only reachable by a stale/crafted URL — the tab hides at 0)
+  const eyebrow = (isForSale||friendForSale) ? 'FOR SALE · 0' : friendWant ? 'THEIR WANTLIST · 0' : isWant ? 'WANTLIST · 0' : 'AN EMPTY CRATE';
+  const heading = isForSale ? 'Nothing listed for sale yet'
+    : friendForSale ? esc(who) + ' isn’t selling anything.'
+    : wantCleared ? 'The wantlist is clear.'
     : friendWant ? esc(who) + ' isn’t hunting anything.'
     : isWant ? 'Nothing on the wantlist yet'
     : 'Nothing on the shelf yet';
-  const body = wantCleared
+  const body = isForSale
+    ? 'List records for sale over on Discogs, then re-sync — everything you’ve listed shows up here, each linked straight to its sale.'
+    : friendForSale
+    ? 'Nothing of theirs is for sale right now. The crate’s where the records are.'
+    : wantCleared
     ? 'That’s everything you were chasing, filed or let go. Your crate’s still right where you left it.'
     : friendWant
       ? 'Nothing on their wantlist right now. The crate’s where the records are.'
@@ -495,7 +502,16 @@ function emptyCrateHtml(){
         ? 'Your Discogs collection came back empty. Add a few records over there and re-sync — ' +
           'they’ll be filed here within the minute.'
         : esc(who) + ' hasn’t filed any records here yet.';
-  const actions = wantCleared
+  const actions = isForSale
+    ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
+        '<a href="https://www.discogs.com/sell/manage" target="_blank" rel="noopener" class="tw-btn tw-btn-primary tw-btn-lg">MANAGE LISTINGS ON DISCOGS</a>' +
+        '<button data-act="resync" class="tw-btn tw-btn-secondary tw-btn-lg">RE-SYNC</button>' +
+      '</div>'
+    : friendForSale
+    ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
+        '<button data-act="view" data-arg="crate" class="tw-btn tw-btn-primary tw-btn-lg">BACK TO THE CRATE →</button>' +
+      '</div>'
+    : wantCleared
     ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
         '<button data-act="view" data-arg="crate" class="tw-btn tw-btn-primary tw-btn-lg">BACK TO THE CRATE</button>' +
       '</div>'
@@ -666,7 +682,9 @@ function computeVals(){
   if(SETTINGS.accent) document.documentElement.style.setProperty('--accent', SETTINGS.accent);
   // Wave 2 B1: THE WANTLIST tab draws ONLY from the wantlist dataset — never fall back to RECORDS here
   // (a null/failed load shows an empty wantlist, not the collection; MAJOR-2). Every other view uses RECORDS.
-  const all=(state.view==='wantlist') ? (Array.isArray(WANTLIST_RECORDS) ? WANTLIST_RECORDS : []) : RECORDS;
+  const all=(state.view==='wantlist') ? (Array.isArray(WANTLIST_RECORDS) ? WANTLIST_RECORDS : [])
+    : (state.view==='forsale') ? (Array.isArray(RECORDS)?RECORDS:[]).filter(r=>window.__twInventory && window.__twInventory.has(r.id))   // Wave 5c: FOR SALE is its own view — the crate ∩ your (or a friend's consented) listings
+    : RECORDS;
   const filtered=sorted(all.filter(matches));
   const visible=filtered.map(deco);
 
@@ -683,7 +701,6 @@ function computeVals(){
   const active=[];
   s.genres.forEach(g=>active.push({kind:'STYLE',value:g}));
   if(s.coloredOnly) active.push({kind:'WAX',value:'Colored only'});   // 0030: colored facet now active on the wantlist too
-  if(s.forSaleOnly && s.view!=='wantlist') active.push({kind:'FORSALE',label:'STATUS',value:'For sale'});   // Wave 4: 'STATUS' display label (align with WAX/STYLE); kind stays FORSALE for removeFacet
   if(s.artist) active.push({kind:'ARTIST',value:s.artist});
   if(s.color) active.push({kind:'COLOR',value:s.color});               // 0030: color facet now active on the wantlist too
   if(s.query) active.push({kind:'SEARCH',value:s.query});
@@ -788,7 +805,7 @@ function renderModal(){
    in the #hash; this code ONLY ever rewrites location.search, never the hash. Only
    non-default values are emitted, so an unfiltered crate stays a clean …/app/<user>. */
 const SORT_KEYS=['added','artist','year','price'];   // whitelist — an unknown sort key would throw in sorted()
-const FILTER_PARAM_KEYS=['g','wax','color','artist','q','sort','dir','forsale','match'];
+const FILTER_PARAM_KEYS=['g','wax','color','artist','q','sort','dir','match'];   // Wave 5c: 'forsale' dropped — FOR SALE is a tab (#hash), not a filter param
 function _knownFilterParams(){   // the filter keys derived FROM state (used for the address bar + the clean share URL)
   const s=state, p=new URLSearchParams();
   s.genres.forEach(g=>p.append('g',g));   // repeat param (not comma-join) — a style name may itself contain a comma
@@ -798,7 +815,6 @@ function _knownFilterParams(){   // the filter keys derived FROM state (used for
   if(s.query) p.set('q',s.query);
   if(s.sort!=='added') p.set('sort',s.sort);      // 'added' is the default
   if(s.dir===1) p.set('dir','asc');               // default dir is -1 (global, not per-sort); emit only the non-default
-  if(s.forSaleOnly) p.set('forsale','1');
   if(s.matchFilter) p.set('match',s.matchFilter);
   return p;
 }
@@ -835,8 +851,6 @@ function _applyUrlFilters(sellingApplied){   // bootCrate: seed state from ?para
     if(p.get('dir')==='asc') state.dir=1;
     // context-gated facets — a stray one would BLANK the grid, so gate exactly as the live UI does.
     if(!sellingApplied){   // the #selling deep-link already set youWant+forsale; don't let a stray ?match override it
-      // forsale: only when __twInventory has entries — an empty-but-non-null Map is truthy and matches() then excludes every record
-      if(p.get('forsale')==='1' && window.__twInventory && window.__twInventory.size>0) state.forSaleOnly=true;
       // match: friend-crate only AND only once __twMatchCtx has loaded — on an own crate, or a friend crate whose
       // ctx fetch failed (stays null), matches() returns false for EVERY record. Mirror the UI: the match link is
       // only offered when ctx exists, so the URL path must gate on it too.
@@ -869,8 +883,12 @@ function _copyFallback(text,done){
 function render(){
   const v=computeVals(); const s=state;
   const hasFilters=v.active.length>0;
+  // Wave 5c: FOR SALE is a tab now — always on your own DB-mode crate (empty state when nothing's listed); on a
+  // friend crate only when they've shared listings. _fsCount = crate ∩ __twInventory (own listings or friend's consented for-sale).
+  const _fsCount = window.__twInventory ? (Array.isArray(RECORDS)?RECORDS:[]).filter(r=>window.__twInventory.has(r.id)).length : 0;
+  const _showForSaleTab = DB_MODE() && (IS_OWN() || _fsCount>0);
   const lockedSection = !IS_OWN() && _viewLocked(s.view) ? (s.view==='wantlist' ? 'wantlist' : 'crate') : null;  // #43
-  const showGrid=!lockedSection && (s.view==='crate' || s.view==='wantlist') && v.filtered.length>0;   // Wave 2 B1: the wantlist reuses the card grid
+  const showGrid=!lockedSection && (s.view==='crate' || s.view==='wantlist' || s.view==='forsale') && v.filtered.length>0;   // Wave 2 B1: the wantlist reuses the card grid; Wave 5c: FOR SALE reuses it too
   const showTimeline=!lockedSection && s.view==='timeline' && v.filtered.length>0;
   const showStats=!lockedSection && s.view==='ledger' && v.filtered.length>0;
   const showEmpty=!lockedSection && v.filtered.length===0;
@@ -1079,9 +1097,8 @@ function render(){
       </div>
       <div class="tw-headR" style="display:flex; align-items:center; gap:10px">
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
-          <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} ${s.view==='wantlist'?'ON WANTLIST':'IN CRATE'}</span>
-          ${s.view!=='wantlist'?`<span class="tw-hide-mobile" style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount} COLORED</span>`:''}
-          ${(IS_OWN() && s.view!=='wantlist')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
+          <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} ${s.view==='wantlist'?'ON WANTLIST':s.view==='forsale'?'FOR SALE':'IN CRATE'}</span>
+          ${(IS_OWN() && s.view!=='wantlist' && s.view!=='forsale')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
         <button data-act="theme" title="Toggle theme" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:7px 11px; background:#fff; color:#16171a; border:1.5px solid #16171a">${s.theme==='dark'?'LIGHTS ON':'LIGHTS OUT'}</button>
@@ -1101,13 +1118,12 @@ function render(){
       ${stylesTrigger}${selectedChips}${emptyNote}
       <span style="margin-left:auto; display:flex; align-items:center; gap:8px">
         <input id="tw-search" class="tw-field" value="${esc(s.query)}" placeholder="SEARCH THE CRATE ⌕" aria-label="Search the crate" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 12px; width:210px; background:var(--panel); color:var(--ink); border:1.5px solid var(--line); border-radius:0" />
-        <button data-act="colored" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:6px 10px; border:1.5px solid var(--line); ${s.coloredOnly?chipOn:chipOff}; box-shadow:2px 2px 0 var(--shadow)">COLORED WAX ●</button>
-        ${(()=>{ const _n=window.__twInventory?v.all.filter(r=>window.__twInventory.has(r.id)).length:0; return _n>0?`<span style="width:1px; height:20px; background:var(--hair)"></span><button data-act="forSale" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:6px 10px; border:1.5px solid var(--line); ${s.forSaleOnly?chipOn:chipOff}; box-shadow:2px 2px 0 var(--shadow)">FOR SALE ${_n}</button>`:''; })()}
+        <button data-act="colored" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:6px 10px; border:1.5px solid var(--line); ${s.coloredOnly?chipOn:chipOff}; box-shadow:2px 2px 0 var(--shadow)">COLORED WAX ${v.coloredCount.toLocaleString('en-US')}</button>
       </span>
     </div>
     ${styleTray}
     <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
-      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}
+      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}${_showForSaleTab?tab('forsale','FOR SALE'):''}
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
         ${IS_OWN() ? `<button data-act="copyCrateLink" title="Copy a link to your crate" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; padding:5px 10px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); box-shadow:2px 2px 0 var(--shadow)">SHARE MY CRATE</button><span aria-hidden="true" style="width:1px; height:20px; background:var(--hair)"></span>` : ''}
         <span role="status" aria-live="polite" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
@@ -1359,7 +1375,7 @@ function onKeydown(e){
     }
   }
   // Roving grid (crate view only), when focus is on a grid cover cell.
-  if ((state.view==='crate' || state.view==='wantlist') && GRID_KEYS.has(e.key)){
+  if ((state.view==='crate' || state.view==='wantlist' || state.view==='forsale') && GRID_KEYS.has(e.key)){
     const ae = document.activeElement;
     if (!ae || !ae.classList || !ae.classList.contains('tw-cell')) return;
     const cells = Array.from(document.querySelectorAll('.tw-grid .tw-cell'));
@@ -1742,22 +1758,21 @@ function onClick(e){
       if(state.stylesOpen){ _stylesOpenedByUser=true; } else { state.styleFind=''; _stylesFocusTrigger=true; }
       render(); break;
     case 'colored': track('filter_used', { kind: 'colored' }); state.coloredOnly=!state.coloredOnly; if(state.coloredOnly) _filterToCrate(); render(); break;   // #57: switch only when turning the toggle ON
-    case 'forSale': track('filter_used', { kind: 'forsale' }); state.forSaleOnly=!state.forSaleOnly; if(state.forSaleOnly) _filterToCrate(); render(); break;   // Wave 4 (F1); #57: switch only when turning ON
     case 'artist': state.artist=arg; state.detailId=null; _filterToCrate(); render(); break;
     case 'color': track('filter_used', { kind: 'color' }); state.color=arg; state.detailId=null; _filterToCrate(); render(); break;
     case 'open': track('record_opened', { source: state.view }); openDetail(Number(arg)); break;
     case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; renderModal(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
-    case 'clearAll': state.genres=[]; state.coloredOnly=false; state.forSaleOnly=false; state.artist=null; state.color=null; state.query=''; state.matchFilter=null; render(); break;
+    case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; state.matchFilter=null; render(); break;
     case 'closeDetail': state.detailId=null; renderModal(); break;
     case 'matchYouWant':   // #47: their crate, narrowed to records you want that they have
       state.view='crate'; state.matchFilter='youWant'; track('match_filter', { dir: 'youWant' });
       try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
       render(); break;
-    case 'matchSellingYouWant':   // Wave 4 Stage 2 (D): the compound shortcut — YOU WANT + FOR SALE at once (two existing composable filters)
-      state.view='crate'; state.matchFilter='youWant'; state.forSaleOnly=true; track('match_filter', { dir: 'sellingYouWant' });
-      try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+    case 'matchSellingYouWant':   // Wave 4 Stage 2 (D) / Wave 5c: open the FOR SALE view narrowed to what you want (#selling so a reload re-applies)
+      state.view='forsale'; state.matchFilter='youWant'; track('match_filter', { dir: 'sellingYouWant' });
+      try { history.replaceState(null, '', location.pathname + location.search + '#selling'); } catch(e){}
       render(); break;
     case 'matchTheyWant':  // #47: their wantlist, narrowed to records they want that you have
       state.view='wantlist'; state.matchFilter='theyWant'; track('match_filter', { dir: 'theyWant' });
@@ -1784,7 +1799,6 @@ function onClick(e){
 function removeFacet(kind, val){
   if(kind==='STYLE') toggleGenre(val);
   else if(kind==='WAX') state.coloredOnly=false;
-  else if(kind==='FORSALE') state.forSaleOnly=false;   // Wave 4 (F1): removable FOR SALE chip
   else if(kind==='ARTIST') state.artist=null;
   else if(kind==='COLOR') state.color=null;
   else if(kind==='SEARCH') state.query='';
@@ -1855,7 +1869,7 @@ async function bootCrate(){
   // on, not always THE CRATE. Only tabs valid for THIS crate are honored (wantlist is own+DB only); anything
   // else falls back to 'crate'. Set before the render below so the right grid paints on the first frame.
   const _validTabs = new Set(['crate','timeline','ledger']);
-  if (DB_MODE()) _validTabs.add('wantlist');   // #47: friend crates get THE WANTLIST too
+  if (DB_MODE()) { _validTabs.add('wantlist'); _validTabs.add('forsale'); }   // #47 friend wantlist; Wave 5c: FOR SALE tab (DB-only — for-sale needs inventory)
   // #43: default to the first SHARED section (crate open → crate; crate private + wantlist open → wantlist).
   // both-private never reaches here — boot.js served the S16 no-crate card.
   let _bootView = CAN_VIEW_CRATE() ? 'crate' : 'wantlist';
@@ -1868,10 +1882,10 @@ async function bootCrate(){
   let _bootSelling = false;
   try {
     const _vf = window.TraxWaxViewer && window.TraxWaxViewer.canViewForSale === true;   // for-sale consent, not just crate
-    if ((location.hash||'') === '#selling' && !IS_OWN() && CAN_VIEW_CRATE() && _vf) { _bootView = 'crate'; _bootSelling = true; }
+    if ((location.hash||'') === '#selling' && !IS_OWN() && CAN_VIEW_CRATE() && _vf) { _bootView = 'forsale'; _bootSelling = true; }   // Wave 5c: #selling opens the FOR SALE view (narrowed to youWant below)
   } catch(e){}
   state.view = _bootView;
-  if (_bootSelling) { state.matchFilter = 'youWant'; state.forSaleOnly = true; }
+  if (_bootSelling) { state.matchFilter = 'youWant'; }   // Wave 5c: view is already 'forsale' (set above); narrow it to what you want
   // Normalize the URL to the actual tab — strips a stale/invalid hash (e.g. #wantlist carried onto a
   // friend crate, which falls back to 'crate') so what's in the address bar always matches what's shown.
   // #selling is preserved so a reload re-applies the deep-linked filter.
