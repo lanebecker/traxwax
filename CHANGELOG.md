@@ -13,6 +13,17 @@ _Nothing yet._
 
 ---
 
+## [1.24.1] — 2026-09-05
+
+### Changed
+- **Renamed the FOR SALE tab → "THE GOODS"**, matching the `THE ___` naming of the other tabs and trading a
+  storefront tone for a small-time-seller one. Label-only: the empty-state eyebrow follows suit ("THE GOODS · 0");
+  the descriptive count ("N FOR SALE"), the "FOR SALE ↗" listing badge, and the list-on-Discogs copy stay as-is
+  (they describe the action, not the section). The internal `forsale` view id / `#forsale` hash / routing are
+  unchanged.
+
+---
+
 ## [1.24.0] — 2026-09-05
 
 ### Changed

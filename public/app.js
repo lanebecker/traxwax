@@ -496,7 +496,7 @@ function emptyCrateHtml(){
   const who = (window.TraxWaxOwner && window.TraxWaxOwner.displayName) || 'This collector';
   const isForSale = own && state.view === 'forsale';   // Wave 5c: own FOR SALE tab with nothing listed
   const friendForSale = !own && state.view === 'forsale';   // Wave 5c: a friend's for-sale view, empty (only reachable by a stale/crafted URL — the tab hides at 0)
-  const eyebrow = (isForSale||friendForSale) ? 'FOR SALE · 0' : friendWant ? 'THEIR WANTLIST · 0' : isWant ? 'WANTLIST · 0' : 'AN EMPTY CRATE';
+  const eyebrow = (isForSale||friendForSale) ? 'THE GOODS · 0' : friendWant ? 'THEIR WANTLIST · 0' : isWant ? 'WANTLIST · 0' : 'AN EMPTY CRATE';
   const heading = isForSale ? 'Nothing listed for sale yet'
     : friendForSale ? esc(who) + ' isn’t selling anything.'
     : wantCleared ? 'The wantlist is clear.'
@@ -1186,7 +1186,7 @@ function render(){
     </div>
     ${styleTray}
     <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
-      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}${_showForSaleTab?tab('forsale','FOR SALE'):''}
+      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}${_showForSaleTab?tab('forsale','THE GOODS'):''}
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
         <span role="status" aria-live="polite" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
