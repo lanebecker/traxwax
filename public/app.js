@@ -310,8 +310,13 @@ function matches(r){
     const any=MATCH_ANY();
     if(s.matchFilter==='youWant'){
       if(!((ctx.viewerWants && ctx.viewerWants.has(r.id)) || (any && r.master_id && ctx.viewerWantsMasters && ctx.viewerWantsMasters.has(r.master_id)))) return false;
-    } else if(s.matchFilter==='theyWant'){
-      if(!((ctx.viewerHas && ctx.viewerHas.has(r.id)) || (any && r.master_id && ctx.viewerHasMasters && ctx.viewerHasMasters.has(r.master_id)))) return false;
+    } else if(s.matchFilter==='theyWant' || s.matchFilter==='theyWantSell' || s.matchFilter==='theyWantHave'){
+      // #59 #3/#4 split. Sell = ∩ your INVENTORY (mirrors the RPC's they_want_you_sell, which is inventory-only, NOT collection-
+      // gated — #43 count/filter parity); theyWant/Have = ∩ your collection (Have then excludes what's listed).
+      const has = (ctx.viewerHas && ctx.viewerHas.has(r.id)) || (any && r.master_id && ctx.viewerHasMasters && ctx.viewerHasMasters.has(r.master_id));
+      const sells = (ctx.viewerSells && ctx.viewerSells.has(r.id)) || (any && r.master_id && ctx.viewerSellsMasters && ctx.viewerSellsMasters.has(r.master_id));
+      if(s.matchFilter==='theyWantSell'){ if(!sells) return false; }              // #3 — what you're selling (inventory only)
+      else { if(!has) return false; if(s.matchFilter==='theyWantHave' && sells) return false; }   // theyWant = you have; #4 = have, NOT listed
     }
   }
   return true;
@@ -722,6 +727,8 @@ function computeVals(){
   if(s.query) active.push({kind:'SEARCH',value:s.query});
   if(s.matchFilter==='youWant') active.push({kind:'MATCH',value:'YOU WANT · THEY HAVE'});
   else if(s.matchFilter==='theyWant') active.push({kind:'MATCH',value:'THEY WANT · YOU HAVE'});
+  else if(s.matchFilter==='theyWantSell') active.push({kind:'MATCH',value:'THEY WANT · YOU SELL'});   // #59 #3
+  else if(s.matchFilter==='theyWantHave') active.push({kind:'MATCH',value:'THEY WANT · YOU HAVE, UNLISTED'});   // #59 #4
 
   const groups={};
   filtered.forEach(r=>{const k=(r.added||'').slice(0,7); (groups[k]=groups[k]||[]).push(r);});
@@ -870,7 +877,7 @@ function _applyUrlFilters(sellingApplied){   // bootCrate: seed state from ?para
       // match: friend-crate only AND only once __twMatchCtx has loaded — on an own crate, or a friend crate whose
       // ctx fetch failed (stays null), matches() returns false for EVERY record. Mirror the UI: the match link is
       // only offered when ctx exists, so the URL path must gate on it too.
-      const m=p.get('match'); if((m==='youWant'||m==='theyWant') && !IS_OWN() && window.__twMatchCtx) state.matchFilter=m;
+      const m=p.get('match'); if((m==='youWant'||m==='theyWant'||m==='theyWantSell'||m==='theyWantHave') && !IS_OWN() && window.__twMatchCtx) state.matchFilter=m;   // #59: theyWantSell/Have are the #3/#4 deep-links
     }
   }catch(e){}
 }
@@ -905,6 +912,120 @@ const _cnt = (n)=>Number(n).toLocaleString('en-US');   // header spec §2.1 — 
 const _pl  = (n,word)=>`${_cnt(n)} ${word}${Number(n)===1?'':'S'}`;   // numeric count + noun agreement: "1 ALBUM" / "14 ALBUMS" / "1 FRIEND"
 const _circle = (act,label,inner,dark)=>`<button data-act="${act}" title="${esc(label)}" aria-label="${esc(label)}" style="width:30px; height:30px; padding:0; border:1.5px solid #fff; border-radius:50%; background:${dark?'#16171a':'#fff'}; cursor:pointer; display:inline-flex; align-items:center; justify-content:center">${inner}</button>`;
 
+/* #59 status feed — per-device seen-state engine. boot.js sets window.__twFeed (the get_social_feed RPC's current per-friend
+   overlaps); feedCompute() runs ONCE per load, diffs against a localStorage baseline, picks the one event to show, and caches it
+   on window.__twFeedActive. stripHtml() reads that cache — it never runs the engine, so incidental re-renders can't flip the
+   message or advance rotation. All per-device. */
+const FEED_KEY = 'tw_feed_v1';           // { seen:{ [evKey]:{ids:[...],firstSeen:ms,dismissed:bool} }, rot:int, primed:bool }
+const FEED_TTL = { activity: 7*864e5, milestone: 30*864e5 };
+const FEED_MILESTONE = new Set(['newFriend','openedCrate','openedForsale','openedWantlist']);
+const FEED_PRIORITY = ['forsaleYouWant','theyWantYouSell','theyWantYouHave','crateYouWant',
+  'newFriend','openedCrate','openedForsale','openedWantlist','crateYouOwn','mutualWant'];   // 10 types; lower index wins ties
+const FEED_POOL_CAP = 5;
+function _feedLoad(){ try { const v=JSON.parse(localStorage.getItem(FEED_KEY)); return (v && typeof v==='object' && !Array.isArray(v)) ? v : {}; } catch(e){ return {}; } }   // guard non-object/array blobs, not just malformed JSON — a primitive would crash feedCompute
+function _feedSave(s){ try { localStorage.setItem(FEED_KEY, JSON.stringify(s)); } catch(e){} }
+const _feedTtl = (type) => FEED_MILESTONE.has(type) ? FEED_TTL.milestone : FEED_TTL.activity;
+const _evKey = (friendId, type) => type + ':' + friendId;
+
+function _feedCandidates(feed){
+  const out = [];
+  if (!Array.isArray(feed)) return out;
+  for (const fr of feed){
+    const friend = { id: fr.user_id, handle: fr.discogs_username, name: fr.display_name || fr.discogs_username || 'A friend' };
+    const axes = [
+      ['forsaleYouWant', fr.forsale_you_want], ['theyWantYouSell', fr.they_want_you_sell],
+      ['theyWantYouHave', fr.they_want_you_have], ['crateYouWant', fr.crate_you_want],
+      ['crateYouOwn', fr.crate_you_own], ['mutualWant', fr.mutual_want],
+    ];
+    for (const [type, ids] of axes)
+      if (Array.isArray(ids) && ids.length) out.push({ type, friendId: fr.user_id, friend, ids: ids.map(String) });
+    out.push({ type:'newFriend', friendId: fr.user_id, friend, ids:['friend'] });
+    if (fr.can_crate)   out.push({ type:'openedCrate',    friendId: fr.user_id, friend, ids:['crate'] });
+    if (fr.can_forsale) out.push({ type:'openedForsale',  friendId: fr.user_id, friend, ids:['forsale'] });
+    if (fr.can_want)    out.push({ type:'openedWantlist', friendId: fr.user_id, friend, ids:['wantlist'] });
+  }
+  for (const c of out) c.key = _evKey(c.friendId, c.type);
+  return out;
+}
+
+/* Run ONCE per load (from boot's get_social_feed .finally, and once from bootCrate as a fallback). Idempotent via
+   window.__twFeedComputed. Sets window.__twFeedActive = decorated event | null. */
+function feedCompute(){
+  if (window.__twFeedComputed) return;
+  const feed = window.__twFeed;
+  if (!Array.isArray(feed)) return;                 // not arrived yet — leave __twFeedActive (null → count fallback)
+  window.__twFeedComputed = true;
+  const now = Date.now();
+  let st = _feedLoad(); if (!st.seen) st.seen = {};
+  const cands = _feedCandidates(feed);
+  // FIRST-RUN PRIMING (D1 = silent): record every current event's ids as already-seen, show nothing — the feed only fires on
+  // CHANGES after this first load. Guarded by the Array check above, so no async-race flood.
+  if (!st.primed){
+    for (const c of cands) st.seen[c.key] = { ids: c.ids.slice(), firstSeen: 0, dismissed: false };
+    st.primed = true; _feedSave(st); window.__twFeedActive = null; return;
+  }
+  const live = [];
+  for (const c of cands){
+    const rec = st.seen[c.key];
+    const seenIds = rec ? (rec.ids || []) : [];
+    const newIds = c.ids.filter(id => seenIds.indexOf(id) === -1);
+    const fresh = newIds.length > 0;
+    const withinTimer = rec && rec.firstSeen && (now < rec.firstSeen + _feedTtl(c.type));
+    if (rec && rec.dismissed && !fresh) continue;   // a NEW id re-activates a dismissed event
+    if (fresh || withinTimer) live.push({ ...c, fresh, firstSeen: rec ? rec.firstSeen : 0 });
+  }
+  if (!live.length){ window.__twFeedActive = null; return; }
+  live.sort((a,b) => FEED_PRIORITY.indexOf(a.type) - FEED_PRIORITY.indexOf(b.type) || (b.firstSeen||now) - (a.firstSeen||now));
+  const freshPool = live.filter(e => e.fresh);   // ALL fresh events (unseen jumps the queue), not just those within the cap
+  const pool = live.slice(0, FEED_POOL_CAP);     // the capped rotation pool for the seen-but-live case
+  let chosen;
+  if (freshPool.length){ chosen = freshPool[0]; }
+  else { const idx = (st.rot || 0) % pool.length; chosen = pool[idx]; st.rot = (idx + 1) % pool.length; }
+  const prev = st.seen[chosen.key] || {};
+  const startTimer = chosen.fresh || !prev.firstSeen;
+  st.seen[chosen.key] = { ids: chosen.ids.slice(), firstSeen: startTimer ? now : prev.firstSeen, dismissed: false };
+  _feedSave(st);
+  window.__twFeedActive = _feedDecorate(chosen);
+}
+function feedDismiss(key){
+  const st = _feedLoad(); if (!st.seen || !st.seen[key]) return;
+  st.seen[key].dismissed = true; _feedSave(st);
+  window.__twFeedActive = null; render();
+}
+window.TraxWaxFeedCompute = feedCompute;
+
+/* #59 — the sentence + deep-link for a chosen feed event. Numeric counts + singular agreement (strip grammar §2.1); "ALBUMS"
+   retained per the approved catalog. */
+function _feedSentence(ev){
+  const F = esc(String(ev.friend.name).split(' ')[0].toUpperCase());
+  const n = ev.ids.length;
+  switch(ev.type){
+    case 'forsaleYouWant': return `${F} ADDED ${_sL(_pl(n,'ALBUM'),'openFriend')} FOR SALE THAT YOU WANT`;
+    case 'theyWantYouSell': return `${F} WANTS ${_sL(_pl(n,'ALBUM'),'openFriend')} YOU'RE SELLING`;
+    case 'theyWantYouHave': return `${F} WANTS ${_sL(_pl(n,'ALBUM'),'openFriend')} YOU HAVE`;
+    case 'crateYouWant':   return `${F} ADDED ${_sL(_pl(n,'ALBUM'),'openFriend')} YOU WANT`;
+    case 'crateYouOwn':    return `${F} ADDED ${_sL(_pl(n,'ALBUM'),'openFriend')} YOU OWN`;
+    case 'mutualWant':     return n===1 ? `YOU AND ${F} BOTH WANT ${_sL('THE SAME ALBUM','openFriend')}`
+                                        : `YOU AND ${F} BOTH WANT ${_sL(_cnt(n)+' OF THE SAME ALBUMS','openFriend')}`;
+    case 'newFriend':      return _sL(F+' IS NOW YOUR FRIEND','openFriend');
+    case 'openedCrate':    return _sL(F+' SHARED THEIR CRATE','openFriend');
+    case 'openedForsale':  return _sL(F+' IS SELLING THEIR RECORDS NOW','openFriend');
+    case 'openedWantlist': return _sL(F+' SHARED THEIR WANTLIST','openFriend');
+  }
+  return '';
+}
+const _FEED_TARGET = {
+  forsaleYouWant: '#selling', crateYouWant: '?match=youWant',
+  theyWantYouSell: '?match=theyWantSell#wantlist', theyWantYouHave: '?match=theyWantHave#wantlist',
+  openedForsale: '#forsale', openedWantlist: '#wantlist',
+  crateYouOwn: '', mutualWant: '', newFriend: '', openedCrate: '',
+};
+function _feedDecorate(ev){
+  ev.copy = _feedSentence(ev);
+  ev.href = '/app/' + encodeURIComponent(ev.friend.handle || '') + (_FEED_TARGET[ev.type] || '');
+  return ev;
+}
+
 /* Header spec §2.3 B/D — the friend/public match sentence, new " · " grammar: links wrap the count phrase
    only, counts numeric, no trailing period. Private directions render as plain text (no link), as in #43. */
 function _friendMatchClauses(){
@@ -935,20 +1056,20 @@ function stripHtml(){
   const lights=_circle('theme', dark?'Turn the lights on':'Turn the lights out', ICO.lights(17,dark), dark);
   let deskLeft='', mobileRows='', right='', actionsGap='14px';
   if(mode==='own'){
-    const fs=window.__twFriendStatus||null;
-    let friendsClause='';
-    if(fs){   // null ⇔ not yet loaded / RPC failed: show just YOUR CRATE, never assert a "0 FRIENDS" count
-      friendsClause = fs.count===0
+    // #59: the event is chosen ONCE per load by feedCompute() → window.__twFeedActive; the strip only READS it (no recompute on
+    // render). Fallback to the friend COUNT when there's no active event.
+    const ev = window.__twFeedActive || null;
+    let mid='';
+    if (ev && ev.copy){
+      const x = `<button data-act="feedDismiss" title="Dismiss" aria-label="Dismiss this update" style="margin-left:8px; padding:0 4px; background:none; border:0; color:rgba(255,255,255,.5); cursor:pointer; font-size:12px; line-height:1">✕</button>`;
+      mid = ` · ${ev.copy}${x}`;
+    } else {
+      const fs = window.__twFriendStatus || null;   // null ⇔ not loaded / RPC failed: show just YOUR CRATE, never a "0 FRIENDS"
+      if (fs) mid = fs.count===0
         ? ` · ${_sL('INVITE A FRIEND','accountFriends','Invite a friend — account settings')}`
         : ` · ${_sL(_pl(fs.count,'FRIEND'),'accountFriends','Friends — account settings')}`;
     }
-    const ev=fs&&fs.event;   // count-only ships now; the rich event line is issue #59 (provider sets event:null)
-    const first=ev?esc(String(ev.first).toUpperCase()):'';
-    const status = !ev ? '' : ev.kind==='forsale'
-      ? ` · ${first} ADDED ${_sL(_pl(ev.n,'ALBUM'),'openFriend')} FOR SALE THAT YOU WANT`
-      : ev.kind==='have' ? ` · ${first} ADDED ${_sL(_pl(ev.n,'ALBUM'),'openFriend')} YOU WANT`
-      : ` · ${first} WANTS ${_sL(_pl(ev.n,'ALBUM'),'openFriend')} YOU’RE SELLING`;
-    deskLeft = `${_sS('YOUR CRATE')}${friendsClause}${status}`;
+    deskLeft = `${_sS('YOUR CRATE')}${mid}`;
     mobileRows = `<div class="tw-fs-row">${deskLeft}</div>`;
     actionsGap = '8px';
     right = `${_circle('copyCrateLink','Share my crate',ICO.share(17))}${lights}${_circle('account','Your account',ICO.gear(17))}`;
@@ -1796,7 +1917,8 @@ function onClick(e){
     case 'resync': _resync(); break;
     case 'account': if(window.TraxWaxAccount) window.TraxWaxAccount(); break;
     case 'accountFriends': window.location.href='/account/friends'; break;   // header strip §2.3 A — N FRIENDS / INVITE A FRIEND (route grammar, not a #hash)
-    case 'openFriend': { const ev=window.__twFriendStatus&&window.__twFriendStatus.event; if(ev&&ev.href) window.location.href=ev.href; break; }   // header strip §4 status event — dormant until #59 populates event
+    case 'openFriend': { const ev=window.__twFeedActive; if(ev&&ev.href) window.location.href=ev.href; break; }   // #59 status feed → the friend + its match filter
+    case 'feedDismiss': { const ev=window.__twFeedActive; if(ev&&ev.key) feedDismiss(ev.key); break; }   // #59 ✕ — suppress until new ids appear
     case 'view':
       state.view=arg;
       state.matchFilter=null;   // #47: a manual tab switch is a fresh context; the match filter is set only by the match links
@@ -1919,6 +2041,7 @@ let _crateReady = false;   // true once the first render has painted — gates w
                            // provider (e.g. the friend-status count) can safely repaint, but never before the crate exists.
 async function bootCrate(){
   _crateReady = false;     // re-boot (Clerk auth-state change): re-arm the gate so an async repaint can't paint over "Loading…" with stale data
+  window.__twFeedComputed = false;   // #59: recompute the status-feed choice for this (re)boot
   WANTLIST_RECORDS=null;   // Wave 2 B1: fresh dataset per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
   state.matchFilter=null;  // #47: match filter is per-crate context — never inherit it across a (re)boot
   state.detailId = null;   // #44/#37: never inherit a stale open modal across a (re)boot
@@ -2031,6 +2154,7 @@ async function bootCrate(){
   // render so the opening paint is already filtered. Passes _bootSelling so the #selling deep-link's youWant+
   // forsale isn't second-guessed by a stray ?match param.
   _applyUrlFilters(_bootSelling);
+  if (window.TraxWaxFeedCompute) window.TraxWaxFeedCompute();   // #59: compute the feed choice now if the RPC already resolved (else boot's .finally does it)
   render();
   _crateReady = true;   // first paint done — async repaints (TraxWaxRerender) are now safe
   if (DB_MODE()) {

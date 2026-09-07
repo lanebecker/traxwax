@@ -462,10 +462,26 @@ function installFriendCrateProviders(owner) {
       }
       return { ids, masters };
     };
-    const [w, c] = await Promise.all([pull('wantlist_items'), pull('collection_items')]);
+    // #59 #3/#4 split: also pull the CALLER's OWN for-sale inventory (release_ids), so the friend-wantlist can split into
+    // "they want that you're SELLING" vs "they want that you HAVE (unlisted)". This is the viewer's own data (no consent gate),
+    // scoped to `me` — NOT window.__twInventory, which on a friend crate is the FRIEND's for-sale.
+    const pullInv = async () => {
+      const ids = new Set(), masters = new Set();
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase.from('inventory_items')
+          .select('release_id, releases(master_id)').eq('user_id', me).eq('status', 'for_sale')
+          .order('id', { ascending: true }).range(from, from + 999);
+        if (error) throw new Error('match ctx failed (inventory_items): ' + error.message);
+        for (const r of data ?? []) { ids.add(r.release_id); const m = r.releases && r.releases.master_id; if (m) masters.add(m); }
+        if (!data || data.length < 1000) break;
+      }
+      return { ids, masters };
+    };
+    const [w, c, iv] = await Promise.all([pull('wantlist_items'), pull('collection_items'), pullInv()]);
     return {
       viewerWants: w.ids, viewerWantsMasters: w.masters,
       viewerHas:   c.ids, viewerHasMasters:   c.masters,
+      viewerSells: iv.ids, viewerSellsMasters: iv.masters,
     };
   };
 
@@ -1267,14 +1283,17 @@ async function render() {
   triggerWantlistSync();
   triggerInventorySync();   // Wave 4: the for-sale sync lands on the same first-connect count>0 sub-path
 
-  // Header spec §4 — own-crate strip friend count. Count-only now (rich event line: issue #59, sets event:null).
-  // Non-blocking (fire-and-forget) so a slow list_friends NEVER gates first crate paint: if it resolves before the
-  // first render the count shows at paint; if after, TraxWaxRerender (guarded, own-crate only) repaints the strip.
-  // Failure → null, which the strip renders as plain "YOUR CRATE" (never a misleading "0 FRIENDS").
+  // #59 — own-crate status feed. Two reads, both non-blocking (never gate first paint): list_friends for the count fallback,
+  // get_social_feed for the rich event feed. On resolve, compute the feed choice ONCE (TraxWaxFeedCompute) then repaint. Per-
+  // device seen-state (localStorage) lives in app.js; here we only stash the raw current state. Failure → null/[] (quiet strip).
   supabase.rpc('list_friends')
-    .then(({ data }) => { window.__twFriendStatus = { count: (data || []).length, event: null }; })
+    .then(({ data }) => { window.__twFriendStatus = { count: (data || []).length }; })
     .catch(() => { window.__twFriendStatus = null; })
     .finally(() => { if (window.TraxWaxRerender) window.TraxWaxRerender(); });
+  supabase.rpc('get_social_feed')
+    .then(({ data }) => { window.__twFeed = Array.isArray(data) ? data : []; })
+    .catch(() => { window.__twFeed = []; })
+    .finally(() => { if (window.TraxWaxFeedCompute) window.TraxWaxFeedCompute(); if (window.TraxWaxRerender) window.TraxWaxRerender(); });
 
   // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
   window.TraxWaxViewer = { isOwn: true, ownerUserId: null, ownerProfile: null };

@@ -13,6 +13,35 @@ _Nothing yet._
 
 ---
 
+## [1.25.0] — 2026-09-06
+
+### Added
+- **The header status feed (#59) — the rich mode-A strip line is live.** The own-crate strip's third cell now surfaces the
+  newest friend activity that touches you, one clause at a time: a friend listing something you want for sale, their crate or
+  wantlist newly overlapping yours, a new friend, a friend opening a shelf to you, and more — **10 event types** in a single
+  gentle, rotating feed with a ✕ to dismiss. Falls back to the friend count ("N FRIENDS" / "INVITE A FRIEND") when nothing's new.
+  Closes #59. (The "records you wanted are gone" urgency event is deferred → #61.)
+- **Backend:** one read-only aggregate RPC, `get_social_feed()` (migration 0033), returns per friend the *current* overlap
+  release-id sets between you and them — each axis gated by the existing `private.can_view_crate/_wantlist/_forsale` consent
+  helpers, master-aware, no prices, no history, no writes. Two `private`-schema helpers do the bounded set intersection.
+- **Seen-state engine (client, per-device):** because the schema has no reliable "what changed" timestamps, "new to you" is
+  computed by diffing the RPC's current state against a **localStorage baseline** — immune to import churn, zero new columns.
+  Persistence timer starts the first time you *see* an event (7 days for activity, 30 for milestones); unseen events jump the
+  queue, seen-but-live ones rotate on reload (pool capped at 5); a first-run silent prime means the feed only fires on genuine
+  changes; dismiss suppresses until a genuinely new record re-fires it.
+
+### Changed
+- **The friend wantlist got smarter (#3/#4 split).** "They want N you're selling" and "they want N you have (unlisted)" are now
+  distinct, each with an honest landing view (`?match=theyWantSell` / `theyWantHave`) that matches its count (#43 link-integrity)
+  — the strip's own inventory now rides in the friend-crate match context.
+
+### Internal
+- Two-pass adversarial audit (remediation-audit) to convergence; migration cross-checked live against a hand intersection and a
+  null-JWT no-leak probe; the engine covered by a node render-harness. Plan + verification-pass findings log:
+  `docs/status-feed-plan.md`.
+
+---
+
 ## [1.24.1] — 2026-09-05
 
 ### Changed
