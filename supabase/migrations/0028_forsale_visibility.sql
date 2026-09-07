@@ -6,6 +6,8 @@
 alter table public.profiles
   add column if not exists forsale_visibility text not null default 'private';
 alter table public.profiles
+  drop constraint if exists profiles_forsale_visibility_chk;   -- B7 #75: replay-safe
+alter table public.profiles
   add constraint profiles_forsale_visibility_chk check (forsale_visibility in ('private','friends'));
 -- profiles_guard() pins only the OAuth columns, so a user updates their OWN forsale_visibility under the
 -- existing profiles_update_own RLS — no new policy. (Same as crate_visibility/match_mode.)

@@ -26,8 +26,12 @@ create trigger wantlist_items_touch
 
 -- ── RLS: owner-only read + write (mirror collection_select_own / collection_write_own, 0001).
 alter table public.wantlist_items enable row level security;
+drop policy if exists wantlist_select_own on public.wantlist_items;   -- B7 #75: replay-safe
 create policy wantlist_select_own on public.wantlist_items
   for select using (auth.jwt()->>'sub' = user_id);
+drop policy if exists wantlist_write_own on public.wantlist_items;   -- B7 #75: replay-safe
+-- ⚠ B7/F4: wantlist_write_own is deliberately DROPPED by 0025(A). A SOLO replay of this
+-- file past 0025 resurrects it (inert without DML grants) — re-run 0025 afterwards.
 create policy wantlist_write_own on public.wantlist_items
   for all using (auth.jwt()->>'sub' = user_id)
           with check (auth.jwt()->>'sub' = user_id);

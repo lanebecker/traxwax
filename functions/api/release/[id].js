@@ -6,7 +6,24 @@
    anonymous callers with a 7-day cache. Restricted data now flows ONLY through the
    authenticated live-stats Edge Function (per-user token, ≤6h ephemeral cache). What
    remains here is CC0 catalog data, which the long edge cache is appropriate for.
-   /api/value and /api/price were deleted outright in the same audit. */
+   /api/value and /api/price were deleted outright in the same audit.
+
+   Audit v1.25 B2 (#70): this endpoint was an unauthenticated, unthrottled burner for the
+   shared site token — only successes were cached (a loop over nonexistent ids hit Discogs
+   every time, forever), and the built-in 429 retry DOUBLED the upstream cost exactly when
+   the budget was exhausted. Hardened three ways:
+   1. Same-origin gate: the modal fallback is only ever fetch()ed by traxwax.com pages, so
+      cross-site and bare-curl callers get 403 before any upstream call. Sec-Fetch-Site is
+      set by every current browser; the Referer check covers the stragglers. Neither is a
+      security boundary (both are spoofable by a determined client) — they are a cost gate
+      that turns the drive-by `while true; curl` into a 403 loop that never reaches Discogs.
+   2. Negative caching WITH REAL STATUS CODES: 404s cache for 6h, other upstream failures
+      (429 included) for 60s — an id-scanning loop now costs Discogs one call per unique id
+      per window instead of one per request. The statuses stay honest because the client's
+      _fetchReleaseLive contract depends on them: !r.ok → null (no modal data, no cache
+      write), 429/5xx → its own bounded retry — a 200-masked failure would instead land
+      `tracks: []` in the client's 90-day localStorage cache (draft-review catch).
+   3. The 429 retry is gone; a rate-limited response is itself briefly cached. */
 
 function json(o, status = 200, extra = {}) {
   return new Response(JSON.stringify(o), {
@@ -14,9 +31,22 @@ function json(o, status = 200, extra = {}) {
   });
 }
 
-export async function onRequestGet({ params, env }) {
+export async function onRequestGet({ params, request, env }) {
   const id = String(params.id || '');
   if (!/^\d+$/.test(id)) return json({ error: 'bad id' }, 400);   // no SSRF / path abuse
+
+  // B2 (#70) same-origin cost gate. Browsers send Sec-Fetch-Site on every fetch; a
+  // same-origin page fetch is 'same-origin'. If the header is absent (old client, curl),
+  // fall back to requiring a traxwax.com Referer. Spoofable — that's fine; see header note.
+  const sfs = request.headers.get('Sec-Fetch-Site');
+  if (sfs) {
+    if (sfs !== 'same-origin') return json({ error: 'forbidden' }, 403);
+  } else {
+    const ref = request.headers.get('Referer') || '';
+    let ok = false;
+    try { ok = new URL(ref).hostname === 'traxwax.com'; } catch (e) { /* no/invalid referer */ }
+    if (!ok) return json({ error: 'forbidden' }, 403);
+  }
 
   const cache = caches.default;
   const key = new Request('https://traxwax.internal/api/release-cc0/' + id);
@@ -27,15 +57,24 @@ export async function onRequestGet({ params, env }) {
     'Authorization': 'Discogs token=' + env.DISCOGS_TOKEN,
     'User-Agent': 'TraxWax/1.0 +https://traxwax.com',   // Discogs 403s without a UA
   };
-  // Retry once on a 429 — a brief backoff usually clears the rate-limit window, so the
-  // client gets the tracklist on the first open instead of failing to the retry UI.
-  let upstream;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    upstream = await fetch('https://api.discogs.com/releases/' + id, { headers });
-    if (upstream.status !== 429) break;
-    if (attempt === 0) await new Promise(r => setTimeout(r, 900));
+  const upstream = await fetch('https://api.discogs.com/releases/' + id, { headers });
+
+  // B2 (#70) negative caching, honest statuses (see header note 2). The Workers Cache API
+  // stores non-2xx responses that carry an explicit Cache-Control; if an edge case refuses
+  // the put, behavior degrades to exactly today's (uncached miss) — never worse.
+  if (upstream.status === 404) {
+    const resp = json({ error: 'gone' }, 404, { 'Cache-Control': 'public, max-age=21600' }); // 6h
+    try { await cache.put(key, resp.clone()); } catch (e) { /* degrade to uncached */ }
+    return resp;
   }
-  if (!upstream.ok) return json({ error: 'upstream', status: upstream.status }, upstream.status === 429 ? 429 : 502);
+  if (!upstream.ok) {
+    // Includes 429: cache the failure briefly so an exhausted budget is not re-burned
+    // per-request. 60s keeps the tier responsive once the window clears.
+    const resp = json({ error: 'upstream', status: upstream.status },
+      upstream.status === 429 ? 429 : 502, { 'Cache-Control': 'public, max-age=60' });
+    try { await cache.put(key, resp.clone()); } catch (e) { /* degrade to uncached */ }
+    return resp;
+  }
 
   const d = await upstream.json();
   const slim = {

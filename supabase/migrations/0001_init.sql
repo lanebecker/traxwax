@@ -76,23 +76,32 @@ alter table public.collection_items    enable row level security;
 alter table public.releases            enable row level security;
 
 -- profiles: owner-only.
+drop policy if exists profiles_select_own on public.profiles;   -- B7 #75: replay-safe
 create policy profiles_select_own on public.profiles
   for select using (auth.jwt()->>'sub' = user_id);
+drop policy if exists profiles_insert_own on public.profiles;   -- B7 #75: replay-safe
 create policy profiles_insert_own on public.profiles
   for insert with check (auth.jwt()->>'sub' = user_id);
+drop policy if exists profiles_update_own on public.profiles;   -- B7 #75: replay-safe
 create policy profiles_update_own on public.profiles
   for update using (auth.jwt()->>'sub' = user_id)
              with check (auth.jwt()->>'sub' = user_id);
 
 -- collection_items: owner-only, read + write.
+drop policy if exists collection_select_own on public.collection_items;   -- B7 #75: replay-safe
 create policy collection_select_own on public.collection_items
   for select using (auth.jwt()->>'sub' = user_id);
+drop policy if exists collection_write_own on public.collection_items;   -- B7 #75: replay-safe
+-- ⚠ B7/F4: collection_write_own is deliberately DROPPED by 0006 (client writes revoked).
+-- A SOLO replay of this file past 0006 resurrects it (inert without DML grants, but do
+-- not leave it): re-run 0006 afterwards, or never replay this file alone.
 create policy collection_write_own on public.collection_items
   for all using (auth.jwt()->>'sub' = user_id)
           with check (auth.jwt()->>'sub' = user_id);
 
 -- releases: world-readable (CC0). Writes only via service_role, which bypasses RLS,
 -- so there is deliberately NO insert/update policy here.
+drop policy if exists releases_public_read on public.releases;   -- B7 #75: replay-safe
 create policy releases_public_read on public.releases
   for select using (true);
 

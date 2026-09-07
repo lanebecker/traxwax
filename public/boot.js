@@ -909,7 +909,7 @@ async function acceptInvite(code) {
     });
   } else {
     const msg = {
-      invalid_or_expired: 'That invite link is invalid or has expired. Ask your friend for a fresh one.',
+      invalid_or_expired: 'That invite link is invalid or has expired. If you two are already connected you’re all set — otherwise ask your friend for a fresh one.',
       own_invite: 'That’s your own invite link — share it with a friend instead.',
       no_auth: 'Please sign in first, then open the link again.',
       no_profile: 'Finish setting up your crate first, then open the link again.',
@@ -919,6 +919,63 @@ async function acceptInvite(code) {
       actions: UI.btnLink('GO TO YOUR CRATE', '/app', { variant: 'secondary' }),
     });
   }
+}
+
+/* B4 (#72, audit v1.25): opening /i/<code> used to EXECUTE the accept — a GET-driven
+   consent grant (bidirectional friendship + default-friends visibility) with no question
+   asked; any disguised link could silently friend an attacker. Now: a read-only preview
+   (get_invite_preview, migration 0035) names the inviter, and the consuming accept fires
+   only on an explicit button. NOT NOW routes home without consuming anything — declining
+   is not burning; the link stays valid for its normal lifetime. */
+async function confirmInvite(code) {
+  let res;
+  try {
+    const { data, error } = await supabase.rpc('get_invite_preview',
+      { p_code_hash: await sha256hex(code) });
+    if (error) throw error;
+    res = data || {};
+  } catch (e) { res = { status: 'error' }; }
+
+  if (res.status !== 'ok') {
+    // Everything that isn't a live, someone-else's, unused code renders the same result
+    // cards acceptInvite would have shown — without ever consuming anything.
+    if (res.status === 'already_accepted') {
+      const who = res.friend_username ? UI.esc('@' + res.friend_username) : 'your friend';
+      notice('Already connected',
+        'You and ' + who + ' are already friends — you can see each other’s crates.', false, {
+          kicker: 'FRIENDS',
+          actions: UI.btnLink('GO TO YOUR CRATE', '/app', { variant: 'primary' }),
+        });
+      return;
+    }
+    const msg = {
+      invalid_or_expired: 'That invite link is invalid or has expired. If you two are already connected you’re all set — otherwise ask your friend for a fresh one.',
+      own_invite: 'That’s your own invite link — share it with a friend instead.',
+      no_auth: 'Please sign in first, then open the link again.',
+      no_profile: 'Finish setting up your crate first, then open the link again.',
+    }[res.status] || 'Something went wrong reading that invite.';
+    notice('Invite couldn’t be used', msg, false, {
+      kicker: 'FRIENDS',
+      actions: UI.btnLink('GO TO YOUR CRATE', '/app', { variant: 'secondary' }),
+    });
+    return;
+  }
+
+  const who = res.inviter_username ? UI.esc('@' + res.inviter_username) : 'A collector';
+  notice('Crate invite',
+    who + ' wants to connect crates. Accepting makes you friends both ways — under your ' +
+    'sharing settings, friends can see each other’s shelves.', false, {
+      kicker: 'FRIENDS',
+      rule: 'muted',
+      actions: UI.btn('ACCEPT INVITE', { id: 'tw-inv-accept' }) +
+               UI.btnLink('NOT NOW', '/app', { variant: 'secondary', style: 'margin-left:12px' }),
+    });
+  const btn = document.getElementById('tw-inv-accept');
+  if (btn) btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Connecting…';
+    await acceptInvite(code);   // the existing consume path renders its own result card
+  });
 }
 
 /* S2 / S3: TraxWax chrome, stock card. Our state card supplies the wordmark + kicker +
@@ -983,7 +1040,7 @@ async function render() {
   try { _inviteCode = sessionStorage.getItem('tw_invite_code'); } catch (e) {}
   if (_inviteCode) {
     try { sessionStorage.removeItem('tw_invite_code'); } catch (e) {}
-    await acceptInvite(_inviteCode);
+    await confirmInvite(_inviteCode);   // B4 #72: preview + ask before the consuming accept
     return;
   }
 
@@ -1010,7 +1067,7 @@ async function render() {
   // a signed-out visitor to sign-in, preserving the URL so the code survives). acceptInvite
   // renders its own result card, then routes the user onward.
   if (segments[0] && segments[0].toLowerCase() === 'i' && segments[1]) {
-    await acceptInvite(decodeURIComponent(segments[1]));
+    await confirmInvite(decodeURIComponent(segments[1]));   // B4 #72: preview + ask first
     return;
   }
 
@@ -1176,8 +1233,16 @@ async function render() {
               ? 'One connect attempt at a time — try again in a few seconds.'
               : (d.error || ('HTTP ' + r.status)));
           }
+          // B8 (#76): trust-but-verify the server's URL — one compromised/buggy function
+          // response must not become an open redirect from a page where the user is primed
+          // to type Discogs credentials.
+          const authU = new URL(d.authorize_url);
+          if (authU.protocol !== 'https:' ||
+              (authU.hostname !== 'www.discogs.com' && authU.hostname !== 'discogs.com')) {
+            throw new Error('unexpected authorize URL');
+          }
           track('connect_started');   // handing off to Discogs OAuth (umami sendBeacon survives the nav)
-          window.location.href = d.authorize_url;
+          window.location.href = authU.href;
         } catch (e) {
           console.error(e);
           paintConnect(UI.esc('Could not start the connection: ' + ((e && e.message) || e)));

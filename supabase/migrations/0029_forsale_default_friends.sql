@@ -12,4 +12,6 @@ alter table public.profiles alter column forsale_visibility set default 'friends
 -- 0026 already set every user's crate to 'friends', so this makes each user's for-sale visible to their friends.
 -- The CHECK (profiles_forsale_visibility_chk) already permits 'friends'. On a fresh db reset this UPDATE hits
 -- 0 rows (users sign up at runtime) → no-op → the migration is safe to keep in the tree.
-update public.profiles set forsale_visibility = 'friends';
+-- B6 (#74, audit v1.25): the one-time backfill UPDATE that lived here was EXECUTED
+-- 2026-09-04 against the alpha cohort and has been REMOVED from the tree 2026-09-07 —
+-- same replay-safety reasoning as 0026. The SET DEFAULT above is the durable part.
