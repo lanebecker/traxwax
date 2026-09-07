@@ -19,8 +19,17 @@ const SETTINGS = {
 /* Wave 5a: Collection DNA card variant. localStorage-only (Design D2) — does not follow the user across
    devices; a profiles column is the upgrade path. Unknown/missing → 'A'. */
 const DNA_NAMES = { A:'A · THE DECADES', B:'B · THE STAT WALL', C:'C · THE SPLIT' };
-function dnaVariant(){ try{ const v=localStorage.getItem('tw_dna_variant'); return (v==='B'||v==='C')?v:'A'; }catch(e){ return 'A'; } }
-function setDnaVariant(v){ try{ localStorage.setItem('tw_dna_variant', v); }catch(e){} }
+/* C3 (#80, audit v1.25): per-USER state must not live under per-BROWSER keys — user B on A's
+   machine inherited A's feed seen-state, onboarding skip and DNA pick. Every such key is now
+   suffixed with the Clerk user id (baked/dev mode has no Clerk → legacy unsuffixed key). One
+   deliberate cost: existing values reset once at rollout (skippable card, feed re-primes silently). */
+const _uid = () => { try { return (window.Clerk && window.Clerk.user && window.Clerk.user.id) || ''; } catch(e){ return ''; } };
+const _userKey = (base) => { const u=_uid(); return u ? base + ':' + u : base; };
+/* C4 (#81): a superseded boot (sign-out / account switch mid-load) must never paint or write
+   globals. Bumped at every bootCrate; async work captures the value + user and self-checks. */
+let _bootGen = 0;
+function dnaVariant(){ try{ const v=localStorage.getItem(_userKey('tw_dna_variant')); return (v==='B'||v==='C')?v:'A'; }catch(e){ return 'A'; } }
+function setDnaVariant(v){ try{ localStorage.setItem(_userKey('tw_dna_variant'), v); }catch(e){} }
 
 /* The owner line ends in a wink, not a taxonomy: "<name>'s shelf · filed by <word>". The word is
    picked at random ONCE per page load and frozen for the session, so re-renders (filter/sort/view
@@ -240,6 +249,19 @@ const THIS_MONTH = _tmNow.getFullYear() + '-' + String(_tmNow.getMonth() + 1).pa
 let RECORDS = [];
 let WANTLIST_RECORDS = null;   // Wave 2 B1: null = not loaded/failed; [] = loaded-empty. Lazy-loaded on THE WANTLIST tab.
 let _wlLoading = false;   // #51: true while TraxWaxWantlistData() is in flight. The load paths flip WANTLIST_RECORDS to [] to arm the reload-guard BEFORE the rows return, so [] alone can't distinguish "loading" from "loaded-empty" — this does.
+let _wlError = false;     // C2 (#79): a FAILED load renders a retry state — never a stuck LOADING… (the old catch skipped render()) and never the lying "isn't hunting anything" empty state.
+/* C2 (#79): the one wantlist loader — the three former copies drifted (none re-rendered on
+   failure). Gen-guarded (C4): a stale resolution from a superseded boot writes nothing.
+   _wlReq (pass-2 minor): a per-load token, bumped by every load AND every cache reset, so an
+   in-flight SAME-boot load can't overwrite a later reset/load (e.g. RE-SYNC's C8 refresh). */
+let _wlReq = 0;
+function _loadWantlist(){
+  const g=_bootGen, u=_uid(), r=++_wlReq;
+  WANTLIST_RECORDS=[]; _wlLoading=true; _wlError=false;
+  window.TraxWaxWantlistData()
+    .then((rows)=>{ if(g!==_bootGen||u!==_uid()||r!==_wlReq) return; WANTLIST_RECORDS=rows; _wlLoading=false; render(); })
+    .catch((e)=>{ if(g!==_bootGen||u!==_uid()||r!==_wlReq) return; console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; _wlLoading=false; _wlError=true; render(); });
+}
 let _removedThisSession = false;   // wantlist-remove redesign: set the moment you remove anything this session (optimistically, not on Discogs commit), so an emptied wantlist shows the "cleared" empty state instead of the "genuinely empty" one. Resets on reload.
 // Wave 2 B1: resolve a record by id from whichever dataset the current view renders — the WANTLIST tab
 // draws from WANTLIST_RECORDS, so the detail modal must look there too (else a wantlist card is a dead click).
@@ -916,14 +938,14 @@ const _circle = (act,label,inner,dark)=>`<button data-act="${act}" title="${esc(
    overlaps); feedCompute() runs ONCE per load, diffs against a localStorage baseline, picks the one event to show, and caches it
    on window.__twFeedActive. stripHtml() reads that cache — it never runs the engine, so incidental re-renders can't flip the
    message or advance rotation. All per-device. */
-const FEED_KEY = 'tw_feed_v1';           // { seen:{ [evKey]:{ids:[...],firstSeen:ms,dismissed:bool} }, rot:int, primed:bool }
+const _feedKey = () => _userKey('tw_feed_v1');   // C3 (#80): per-user — { seen:{ [evKey]:{ids:[...],firstSeen:ms,dismissed:bool} }, rot:int, primed:bool }
 const FEED_TTL = { activity: 7*864e5, milestone: 30*864e5 };
 const FEED_MILESTONE = new Set(['newFriend','openedCrate','openedForsale','openedWantlist']);
 const FEED_PRIORITY = ['forsaleYouWant','theyWantYouSell','theyWantYouHave','crateYouWant',
   'newFriend','openedCrate','openedForsale','openedWantlist','crateYouOwn','mutualWant'];   // 10 types; lower index wins ties
 const FEED_POOL_CAP = 5;
-function _feedLoad(){ try { const v=JSON.parse(localStorage.getItem(FEED_KEY)); return (v && typeof v==='object' && !Array.isArray(v)) ? v : {}; } catch(e){ return {}; } }   // guard non-object/array blobs, not just malformed JSON — a primitive would crash feedCompute
-function _feedSave(s){ try { localStorage.setItem(FEED_KEY, JSON.stringify(s)); } catch(e){} }
+function _feedLoad(){ try { const v=JSON.parse(localStorage.getItem(_feedKey())); return (v && typeof v==='object' && !Array.isArray(v)) ? v : {}; } catch(e){ return {}; } }   // guard non-object/array blobs, not just malformed JSON — a primitive would crash feedCompute
+function _feedSave(s){ try { localStorage.setItem(_feedKey(), JSON.stringify(s)); } catch(e){} }
 const _feedTtl = (type) => FEED_MILESTONE.has(type) ? FEED_TTL.milestone : FEED_TTL.activity;
 const _evKey = (friendId, type) => type + ':' + friendId;
 
@@ -1263,7 +1285,15 @@ function render(){
     if(v.all.length===0){
       // #51: while the wantlist dataset is still loading (WANTLIST_RECORDS flipped to [] to arm the reload-guard,
       // rows not back yet), show a neutral LOADING line — NOT emptyCrateHtml's "isn't hunting anything" flash.
-      content = (_wlLoading && state.view==='wantlist')
+      // C2 (#79): a FAILED load gets its own honest state with a retry — the old code left LOADING…
+      // painted forever (the catch never re-rendered) or lied with the empty state.
+      content = (_wlError && state.view==='wantlist')
+        ? `<div style="display:flex; flex-direction:column; align-items:center; gap:12px; padding:90px 24px 96px; text-align:center">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.18em; color:var(--muted)">COULDN’T LOAD THE WANTLIST</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--muted); max-width:440px; line-height:1.6">The network hiccuped. The records are still there.</span>
+            <button data-act="wlRetry" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; padding:8px 14px; margin-top:6px; background:var(--accent); color:var(--on-accent); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow)">RETRY</button>
+          </div>`
+        : (_wlLoading && state.view==='wantlist')
         ? `<div style="display:flex; justify-content:center; padding:90px 24px 96px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; color:var(--muted)">LOADING…</span></div>`
         : emptyCrateHtml();
     } else {
@@ -1466,7 +1496,7 @@ function modalHtml(){
    stop); the rest are -1. Never focuses anything — that would steal focus on the debounced
    search render. Focus only moves on an explicit arrow key, in onKeydown. */
 function _syncGridRoving(){
-  if (state.view!=='crate' && state.view!=='wantlist') return;   // Wave 2 B1: the wantlist grid is keyboard-navigable too
+  if (state.view!=='crate' && state.view!=='wantlist' && state.view!=='forsale') return;   // Wave 2 B1: the wantlist grid too; C1 (#78): THE GOODS was left out when the 5th tab landed — its whole grid was keyboard-unreachable
   const cells = Array.from(document.querySelectorAll('.tw-grid .tw-cell'));
   if (!cells.length) return;
   let idx = cells.findIndex(c=>Number(c.dataset.arg)===_gridFocusId);
@@ -1531,7 +1561,18 @@ function _gridColumns(cells){
 
 function onKeydown(e){
   // Wave 5a: the DNA picker is a separate top-layer modal; Escape closes it first.
-  if (state.dnaOpen){ if (e.key==='Escape'){ state.dnaOpen=false; renderDna(); return; } return; }
+  if (state.dnaOpen){
+    if (e.key==='Escape'){ state.dnaOpen=false; renderDna(); return; }
+    if (e.key==='Tab'){   // C10 (#87): an aria-modal dialog must trap Tab — mirror the detail modal's cycle
+      const root=document.getElementById('tw-dna-root');
+      const panel=root && root.querySelector('[data-act="stop"]'); if(!panel) return;
+      const list=Array.from(panel.querySelectorAll(FOCUSABLE_SEL)); if(!list.length) return;
+      const i=list.indexOf(document.activeElement);
+      if (e.shiftKey && i<=0){ e.preventDefault(); list[list.length-1].focus(); }
+      else if (!e.shiftKey && i===list.length-1){ e.preventDefault(); list[0].focus(); }
+    }
+    return;
+  }
   // Modal open: Escape closes; Tab cycles within the dialog.
   if (state.detailId){
     if (e.key==='Escape'){ state.detailId=null; renderModal(); return; }
@@ -1929,9 +1970,7 @@ function onClick(e){
       // Wave 2 B1: lazy-load THE WANTLIST dataset on first switch. WANTLIST_RECORDS: null=not loaded,
       // []=loaded (guards re-entry while the async load is in flight; [] shows an empty grid, not RECORDS).
       if ((arg==='wantlist' || (arg==='ledger' && !IS_OWN())) && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
-        WANTLIST_RECORDS=[]; _wlLoading=true;
-        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; _wlLoading=false; render(); })
-          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; _wlLoading=false; });
+        _loadWantlist();   // C2 (#79): the one loader — renders on failure too
       }
       render();
       break;
@@ -1950,7 +1989,8 @@ function onClick(e){
     case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; renderModal(); _loadRelease(r); } break; }
     case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
-    case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; state.matchFilter=null; render(); break;
+    case 'wlRetry': _loadWantlist(); render(); break;   // C2 (#79)
+    case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; state.matchFilter=null; _clearSellingHash(); render(); break;   // C5 (#82)
     case 'closeDetail': state.detailId=null; renderModal(); break;
     case 'matchYouWant':   // #47: their crate, narrowed to records you want that they have
       state.view='crate'; state.matchFilter='youWant'; track('match_filter', { dir: 'youWant' });
@@ -1964,9 +2004,7 @@ function onClick(e){
       state.view='wantlist'; state.matchFilter='theyWant'; track('match_filter', { dir: 'theyWant' });
       try { history.replaceState(null, '', location.pathname + location.search + '#wantlist'); } catch(e){}
       if (WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {   // lazy-load the friend wantlist, as case 'view' does
-        WANTLIST_RECORDS=[]; _wlLoading=true;
-        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; _wlLoading=false; render(); })
-          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; _wlLoading=false; });
+        _loadWantlist();   // C2 (#79)
       }
       render(); break;
     case 'want': (t.dataset.want==='remove' ? friendRemove : friendAdd)(Number(arg)); break;
@@ -1988,7 +2026,16 @@ function removeFacet(kind, val){
   else if(kind==='ARTIST') state.artist=null;
   else if(kind==='COLOR') state.color=null;
   else if(kind==='SEARCH') state.query='';
-  else if(kind==='MATCH') state.matchFilter=null;   // #47
+  else if(kind==='MATCH'){ state.matchFilter=null; _clearSellingHash(); }   // #47; C5 (#82)
+}
+/* C5 (#82): removing the MATCH facet must also clear the #selling hash, or a reload (and any
+   shared copy of the URL) resurrects the filter bootCrate re-applies from that hash — the
+   user's explicit removal didn't survive its own address bar. The view keeps its normal hash. */
+function _clearSellingHash(){
+  try{
+    if((location.hash||'')==='#selling')
+      history.replaceState(null,'',location.pathname+location.search+(state.view==='crate'?'':'#'+state.view));
+  }catch(e){}
 }
 function onInput(e){
   if(e.target.id==='tw-search'){
@@ -2011,9 +2058,14 @@ function onInput(e){
 /* ── Re-sync (DB mode) ─────────────────────────────────────────────────────── */
 async function _resync(){
   if(state._resyncing || !DB_MODE() || !window.TraxWaxRefresh) return;
+  // C4/F1: _resync writes the same globals bootCrate does — same capture-check-assign rule,
+  // or a reboot mid-resync lets these late writes clobber the new boot's state.
+  const _g=_bootGen, _u=_uid();
+  const _rstale = () => _g!==_bootGen || _u!==_uid();
   state._resyncing = true; render();
   try {
     const ok = await window.TraxWaxRefresh();   // runs the import pipeline with its own UI
+    if (_rstale()) { state._resyncing=false; return; }   // C4/F1: a newer boot owns the screen
     if(!ok){
       // runImport rendered "Import hit a wall" with a resume link -- leave it on screen.
       // An unconditional render() here would paint the crate over the failure silently
@@ -2021,7 +2073,21 @@ async function _resync(){
       state._resyncing = false;
       return;
     }
-    RECORDS = await window.TraxWaxData();
+    const _rows = await window.TraxWaxData();
+    if (_rstale()) { state._resyncing=false; return; }   // C4/F1
+    RECORDS = _rows;
+    // C8 (#85): the sync's background wantlist/inventory imports made the DB fresher than the
+    // screen — refresh the siblings too, or the UI actively disagrees with the data it just
+    // synced ("Listed for sale · 3" after the listing sold). Wantlist: drop the cache so the
+    // next visit reloads (and reload NOW if the user is looking at it); inventory: re-await.
+    WANTLIST_RECORDS = null; _wlError = false; _wlLoading = false; _wlReq++;   // token bump: orphan any in-flight pre-sync load
+    if (state.view==='wantlist' && window.TraxWaxWantlistData) _loadWantlist();
+    if (window.TraxWaxInventory) {
+      let _inv = null;
+      try { _inv = await window.TraxWaxInventory(); } catch(e){ _inv = null; /* keep the old map */ }
+      if (_rstale()) { state._resyncing=false; return; }   // C4/F1
+      if (_inv) window.__twInventory = _inv;
+    }
   } catch(e) {
     // Rare seam: runImport succeeded but the row refetch threw -- the crate below renders
     // pre-sync data with a stale tooltip. Self-heals on reload or a second RE-SYNC
@@ -2029,6 +2095,7 @@ async function _resync(){
     console.error(e);
   }
   state._resyncing = false;
+  if (_rstale()) return;   // C4/F1: never repaint over a newer boot's screen
   render();
 }
 
@@ -2040,9 +2107,16 @@ const DB_MODE = () => !!window.TraxWaxData;
 let _crateReady = false;   // true once the first render has painted — gates window.TraxWaxRerender (below) so an async
                            // provider (e.g. the friend-status count) can safely repaint, but never before the crate exists.
 async function bootCrate(){
+  // C4 (#81): this boot's generation + user. Any await below may resolve after a sign-out or
+  // account switch has superseded this boot; _stale() turns every later paint/global-write
+  // into a no-op instead of a signed-out screen showing the previous user's crate.
+  const _gen = ++_bootGen;
+  const _bootUser = _uid();
+  const _stale = () => _gen !== _bootGen || _uid() !== _bootUser;
   _crateReady = false;     // re-boot (Clerk auth-state change): re-arm the gate so an async repaint can't paint over "Loading…" with stale data
   window.__twFeedComputed = false;   // #59: recompute the status-feed choice for this (re)boot
   WANTLIST_RECORDS=null;   // Wave 2 B1: fresh dataset per boot (defense-in-depth: own↔friend/user changes never bleed the wrong dataset)
+  _wlLoading=false; _wlError=false; _wlReq++;   // C2/F4: an in-flight load's callbacks are gen+token-guarded silent — flags must not survive it
   state.matchFilter=null;  // #47: match filter is per-crate context — never inherit it across a (re)boot
   state.detailId = null;   // #44/#37: never inherit a stale open modal across a (re)boot
   state.dnaOpen = false; state.dnaPick = null;   // Wave 5a: never inherit a stale-open DNA picker across a (re)boot
@@ -2094,34 +2168,46 @@ async function bootCrate(){
   document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted)">Loading the crate…</div>`;
   try{
     if (DB_MODE()) {
-      RECORDS = await window.TraxWaxData();
+      // C4 (#81, remediation-audit F1): CAPTURE → CHECK → ASSIGN, at every awaited site. The
+      // first cut checked AFTER assigning, so a slow stale boot's write could land on top of
+      // a faster newer boot's — reproduced as user A's rows under user B's session. The
+      // stale check must come between the await and the global write, every time.
+      const _rows = await window.TraxWaxData();
+      if (_stale()) return;
+      RECORDS = _rows;
       // Wave 2 B1: reset first (defensive) so a stale friend ctx never renders badges on the own crate;
       // then, on a FRIEND crate only, load the viewer's own wants/haves (badges) + the match counts (stat).
       window.__twMatchCtx = null; window.__twOwnerWants = null;   // #28: __twOwnerWants is an array of {id, master}
       window.__twInventory = null;   // Wave 4: own-crate for-sale map (release_id → listing_id); null on friend crate
       if (!IS_OWN() && window.TraxWaxMatchCtx) {
-        try { window.__twMatchCtx = await window.TraxWaxMatchCtx(); } catch (e) { window.__twMatchCtx = null; }
+        let _ctx = null, _wants = [], _ffs = new Map();
+        try { _ctx = await window.TraxWaxMatchCtx(); } catch (e) { _ctx = null; }
+        if (_stale()) return;   // C4/F1
         // #43: AWAIT the owner-wantlist entries so the "they want" count is ready at first paint — never a
         // transient null that _matchCounts would misread as PRIVATE. Fetch failure → empty array (best-effort
         // real 0 on a shared list; self-heals on reload), never "PRIVATE" (that's flag-driven).
-        try { window.__twOwnerWants = await window.TraxWaxOwnerWantIds(); } catch (e) { window.__twOwnerWants = []; }
+        try { _wants = await window.TraxWaxOwnerWantIds(); } catch (e) { _wants = []; }
+        if (_stale()) return;   // C4/F1
         // Wave 4 Stage 2: the FRIEND's consented for-sale (empty Map unless friends + crate-friends + forsale=friends).
         // Wire it as ctx.forSale so badgesFor lights the FOR SALE badge; __twInventory also drives forSaleHref
         // (→ the friend's /sell/item/{listing}) + the FOR SALE facet — the Stage 1 own-crate surfaces, reused.
-        try { window.__twInventory = window.TraxWaxFriendForSale ? await window.TraxWaxFriendForSale() : new Map(); }
-        catch (e) { window.__twInventory = new Map(); }
+        try { _ffs = window.TraxWaxFriendForSale ? await window.TraxWaxFriendForSale() : new Map(); }
+        catch (e) { _ffs = new Map(); }
+        if (_stale()) return;   // C4/F1
+        window.__twMatchCtx = _ctx; window.__twOwnerWants = _wants; window.__twInventory = _ffs;
         if (window.__twMatchCtx) window.__twMatchCtx.forSale = window.__twInventory;
       }
       if (IS_OWN() && window.TraxWaxInventory) {   // Wave 4: load the caller's for-sale listings for badges/facet/ledger/modal
-        try { window.__twInventory = await window.TraxWaxInventory(); } catch (e) { window.__twInventory = new Map(); }   // never strand the render
+        let _inv = new Map();
+        try { _inv = await window.TraxWaxInventory(); } catch (e) { _inv = new Map(); }   // never strand the render
+        if (_stale()) return;   // C4/F1
+        window.__twInventory = _inv;
       }
       // Wave 2: a hash-restored WANTLIST tab needs its dataset loaded on a direct reload (the case 'view'
       // lazy-load never ran). Mirror that load; render() below paints the briefly-empty grid, then this
       // fills it. Own+DB only — guaranteed by _validTabs above.
       if ((state.view==='wantlist' || (state.view==='ledger' && !IS_OWN())) && WANTLIST_RECORDS===null && window.TraxWaxWantlistData) {
-        WANTLIST_RECORDS=[]; _wlLoading=true;
-        window.TraxWaxWantlistData().then((rows)=>{ WANTLIST_RECORDS=rows; _wlLoading=false; render(); })
-          .catch((e)=>{ console.warn('wantlist load failed', e); WANTLIST_RECORDS=null; _wlLoading=false; });
+        _loadWantlist();   // C2 (#79)
       }
     } else {
       // ABSOLUTE path, deliberately. A relative './collection.json' resolves against the
@@ -2130,6 +2216,7 @@ async function bootCrate(){
       const res=await fetch('/collection.json'); RECORDS=await res.json();
     }
   }catch(e){
+    if (_stale()) return;   // C4 (#81): never paint an error card for a boot that no longer owns the screen
     console.error(e);
     document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; color:var(--accent)">Couldn't load the collection. <button id="tw-reload" style="font-family:inherit; font-size:inherit; padding:4px 10px; margin-left:6px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer">RETRY</button></div>`;
     // Attached DIRECTLY to the button. Round-1 audit MAJOR-3: a document-level listener
@@ -2153,12 +2240,17 @@ async function bootCrate(){
   // above (so __twInventory/__twMatchCtx exist for the context-gated forsale/match), and BEFORE the first
   // render so the opening paint is already filtered. Passes _bootSelling so the #selling deep-link's youWant+
   // forsale isn't second-guessed by a stray ?match param.
+  if (_stale()) return;   // C4 (#81): final gate before the paint
   _applyUrlFilters(_bootSelling);
   if (window.TraxWaxFeedCompute) window.TraxWaxFeedCompute();   // #59: compute the feed choice now if the RPC already resolved (else boot's .finally does it)
   render();
   _crateReady = true;   // first paint done — async repaints (TraxWaxRerender) are now safe
   if (DB_MODE()) {
-    window.TraxWaxStats().then(v=>{ if(v && v.value){ state.headerValue=v.value; render(); } });
+    // C9 (#86): a rejected value fetch (expired session mid-refresh, network drop) was an
+    // unhandled rejection; the header shows — either way. C4: stale resolutions paint nothing.
+    window.TraxWaxStats()
+      .then(v=>{ if(!_stale() && v && v.value){ state.headerValue=v.value; render(); } })
+      .catch(()=>{});
   }
   // Baked/local-dev mode: the header EST. is the baked total (valueLabel(v.total)) —
   // the old live /api/value fetch died with its endpoint (issue #6, cold-audit #24).

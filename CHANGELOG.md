@@ -13,6 +13,43 @@ _Nothing yet._
 
 ---
 
+## [1.26.1] — 2026-09-07
+
+### Fixed (audit Wave C — "the UI tells the truth")
+- **THE GOODS grid is keyboard-reachable again (C1, #78)** — `_syncGridRoving` never learned
+  the fifth tab existed, so every cover cell stayed `tabindex="-1"`; one guard fixes the
+  roving tab stop and the arrow-key navigation it feeds.
+- **A failed wantlist load now says so (C2, #79)** — the three drifted copies of the loader
+  are one gen-guarded `_loadWantlist()`, and failure renders an honest "couldn't load — retry"
+  state instead of an eternal LOADING… or the lying "isn't hunting anything" empty state.
+- **Per-user state is keyed per user (C3, #80)** — `tw_feed_v1`, `tw_profile_skip`, and
+  `tw_dna_variant` now carry the Clerk user id, so user B on A's browser no longer inherits
+  A's feed seen-state, onboarding skip, or DNA pick. One-time cost: existing values reset at
+  rollout (the feed re-primes silently; the skippable card shows once).
+- **A superseded boot can't paint (C4, #81)** — bootCrate carries a generation + user check;
+  sign-out or account-switch mid-load turns every late resolution (data, friend ctx,
+  inventory, header value, wantlist rows) into a no-op instead of a signed-out screen
+  wearing the previous user's crate.
+- **Removing the MATCH chip survives its own URL (C5, #82)** — clearing the facet (or CLEAR
+  ALL) also clears `#selling`, which bootCrate would otherwise re-apply on every reload.
+- **Account-page focus traps no longer stack (C6, #83)** — re-entry releases the prior
+  document-level listener (and its popstate hook) and hands focus back to the control the
+  user was on instead of yanking to the top of the page.
+- **Friends-list failures stop impersonating "0 friends" (C7, #84)** — a failed load shows an
+  error + RETRY with an em-dash count; a failed removal says so in the live-region line.
+- **RE-SYNC refreshes its siblings (C8, #85)** — the wantlist cache drops (reloading in place
+  if you're looking at it) and the inventory map re-fetches, so the UI can't disagree with
+  the data it just synced.
+- **Header EST. fetch failure is handled (C9, #86)** — no more unhandled promise rejection.
+- **The DNA dialog traps Tab (C10, #87)** — mirroring the detail modal's cycle, as its
+  `aria-modal` already promised.
+- **Non-retryable 4xx fail fast (C11, #88)** — the retry ladder now short-circuits every 4xx
+  except 408/429 instead of burning ~17s on a 404 that can never change.
+- **Connect-status lookups are own-key only (C12, #89)** — `?connect=constructor` no longer
+  renders a stringified native function via `Object.prototype`.
+
+---
+
 ## [1.26.0] — 2026-09-07
 
 ### Changed (audit Wave B — "close the cheap attacks")
