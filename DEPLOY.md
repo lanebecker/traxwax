@@ -74,8 +74,9 @@ events (v1.4.8): activation funnel `connect_started`/`connect_completed`/`connec
 ## Surface 2 — Supabase Edge Functions
 
 Project `sfipqknrbvamwwahwxnl` (`https://sfipqknrbvamwwahwxnl.supabase.co`). **Nine
-functions**, all `verify_jwt: false` with in-handler `jose.jwtVerify` against Clerk's JWKS
-(the platform gate cannot validate Clerk RS256 — Stage B finding C1):
+functions**, all `verify_jwt: false` with in-handler verification against Clerk's JWKS via
+the shared `_shared/auth.ts` (`verifyClerk` — E1/#99; the platform gate cannot validate
+Clerk RS256, Stage B finding C1):
 
 | Function | Role |
 |---|---|
@@ -99,7 +100,8 @@ closed** (throws at boot) if either is unset — there are no dev/preview fallba
 **Deploying:** via the **break-glass** Supabase MCP connector — the standing `Supabase — TraxWax` connector
 is read-only; Lane arms `Supabase — TraxWax — Break-Glass` for a deploy, then disarms it (see `CLAUDE.md`).
 Then `deploy_edge_function` (file layout
-`{<fn>/index.ts, _shared/discogs.ts}`, entrypoint `<fn>/index.ts`, `verify_jwt: false`) or
+`{<fn>/index.ts, _shared/discogs.ts, _shared/auth.ts}` since E1/#99, entrypoint
+`<fn>/index.ts`, `verify_jwt: false`) or
 `supabase functions deploy <fn>` with the CLI. Supabase keeps every version — rollback is
 redeploying the previous one. **After any deploy, verify the 401 gate:** POST with a forged
 Bearer token must return `{"error":"invalid_token"}` (proves the bundle booted AND JWKS
@@ -108,7 +110,7 @@ verification runs).
 ## Surface 3 — Database
 
 Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids; RLS policies use the
-`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0033` applied; the migration
+`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0036` applied; the migration
 map lives in `CLAUDE.md`. Apply via the **break-glass** MCP `apply_migration` (or
 `supabase db push`), verify with the checks each migration's plan documents, then commit the
 file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
@@ -156,6 +158,32 @@ unauthenticated surfaces only; authenticated testing happens in prod (rollback i
 - **Edge Functions:** redeploy the previous version (Supabase retains them).
 - **Migrations:** no automatic down-migrations; each plan documents its rollback SQL as an
   operator tool. Prefer fixing forward.
+
+## Monitoring & backup (E6, audit #104)
+
+The backend fails CLOSED by design: since #52, every authenticated Edge Function throws at
+boot if `CLERK_ISSUER`/`APP_ORIGIN` are unset (via `_shared/auth.ts` since E1/#99) — a bad
+secrets change 500s the entire authenticated product until someone notices. That someone
+should be a robot:
+
+- **Uptime probe 1 (static):** GET `https://traxwax.com/boot.js` — expect HTTP 200 with
+  `cache-control: no-cache`. Covers Pages + DNS + certs.
+- **Uptime probe 2 (backend boots + JWKS gate live):** POST
+  `https://sfipqknrbvamwwahwxnl.supabase.co/functions/v1/live-stats` with header
+  `Authorization: Bearer probe` — expect **HTTP 401** body `{"error":"invalid_token"}`.
+  A 503 means a function failed its fail-closed boot (secrets!); a 200 would mean the auth
+  gate is broken — page yourself for either. (Run the curl once by hand when configuring
+  the monitor; if the gateway wants it, add the `apikey: <publishable key>` header.) Any monitor that can assert on status + body
+  substring works (UptimeRobot free tier does; 5-minute interval is plenty).
+- **Logs:** Supabase Dashboard → Edge Functions → Logs; every function logs errors by
+  status/name only (never token or secret values).
+
+**Database backup posture:** Supabase project `sfipqknrbvamwwahwxnl` is on the plan's
+automatic daily backups. <!-- TODO (Lane): confirm the tier's retention (Dashboard →
+Database → Backups) and whether PITR is enabled, then replace this comment with the actual
+setting + date checked. Migrations have no down-migrations; this is the restore story. -->
+One project holds every user's crate — if the backup answer above is "daily, 7 days, no
+PITR", that is an accepted risk at current scale, but it must be a *written* one.
 
 ---
 

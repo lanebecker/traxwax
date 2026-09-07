@@ -22,8 +22,10 @@ export const COND = "font-family:'Barlow Condensed',sans-serif";
 export const BODY = "font-family:Archivo,Helvetica,sans-serif";
 
 export function esc(s) {
+  // E4 (#102): apostrophes too — mirrors app.js's esc(); safety must not depend on every
+  // attribute sink staying double-quoted forever.
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /* Buttons. Five variants, one function. See spec §4.1.

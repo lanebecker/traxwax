@@ -13,6 +13,41 @@ _Nothing yet._
 
 ---
 
+## [1.28.0] — 2026-09-07
+
+### Changed (audit Wave E — "consolidate"; closes the v1.25 cold audit)
+- **`_shared/auth.ts` is the one auth/CORS preamble (E1, #99).** The ~35-line Clerk-verify +
+  CORS + json block that was pasted verbatim into all eight authenticated Edge Functions —
+  the copy-drift that produced B1's missed fail-closed fix — is now a single module
+  (`verifyClerk`/`CORS`/`json`, module-load fail-closed on missing env). The callback
+  imports its `APP_ORIGIN` from the same module. All nine functions redeployed.
+- **One Edge-call helper in the client (E2, #100).** The three divergent copies (two
+  swallow-to-null `fnCall`s + the throwing `_pipeCall`) collapse into `edgeCall` with a
+  `throwOnError` knob; the dual-arity `TraxWaxStats` accident is split into `TraxWaxValue`
+  (header EST.) and per-release `TraxWaxStats`.
+- **Dead weight removed (E3, #101):** dna.js no longer computes the 12-month histogram +
+  topGenres/topArtists/topLabels/addedThisYear (four full passes over the collection per
+  card render, consumed by nothing), and `videos` — fetched and localStorage-cached by every
+  release-detail tier for a feature that was never built — is no longer fetched anywhere.
+- **Escaping hardening (E4, #102):** both `esc()` implementations now escape apostrophes;
+  all eleven raw `data-arg="${r.id}"` interpolations go through `esc()` and the one raw
+  discogs href through `encodeURIComponent` (uniform with the already-encoded site); `_sL`'s
+  raw-HTML contract is documented at the definition.
+- **Repo hygiene (E5, #103):** `supabase/.temp/` and `.impeccable/` gitignored, and the
+  tracked `linked-project.json` (CLI link state carrying the org id) untracked in this
+  commit; `.impeccable/` was never committed — now it can't be; the dead
+  `DISCOGS_USER` secret doc removed from wrangler.toml; the refresh workflow rebases before
+  its final push; **release tags start at v1.28.0** (decision: no backfill of the prior 79).
+- **Monitoring & backup posture recorded (E6, #104):** DEPLOY.md gains the probe recipes
+  (static + a 401-expecting POST that catches fail-closed boot failures) and the backup
+  section awaiting the PITR/retention values; the two-probe uptime monitor is Lane's
+  5-minute setup task.
+- **The no-FK deferral is re-ratified at its true scope (E7, #105)** — all 8 user-data
+  tables, documented in CLAUDE.md with the A1 cost acknowledged and the revisit trigger
+  named.
+
+---
+
 ## [1.27.0] — 2026-09-07
 
 ### Changed (audit Wave D — "cheap at 100×")

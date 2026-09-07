@@ -176,20 +176,9 @@ async function ensureProfile(userId) {
    When they are absent (main branch until the merge; local dev), app.js falls back to the
    baked collection.json unchanged. */
 function installCrateProviders(profile) {
-  const fnCall = async (path, payload) => {
-    const token = await window.Clerk.session.getToken();
-    const r = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + token,
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!r.ok) return null;
-    return r.json().catch(() => null);
-  };
+  // E2 (#100): thin alias over the ONE edgeCall — swallow-to-null is this installer's
+  // deliberate contract (optimistic UI shows "—", never an error card, on a stats miss).
+  const fnCall = (path, payload) => edgeCall(path, payload, { throwOnError: false });
 
   // The crate rows: collection_items ⋈ releases via the 0005 FK embed, PAGINATED —
   // PostgREST silently caps any select at 1,000 rows and this user owns ~1,861.
@@ -272,19 +261,23 @@ function installCrateProviders(profile) {
   window.TraxWaxReleaseData = async (id) => {
     const { data, error } = await supabase
       .from('releases')
-      .select('tracks, country, released, videos')
+      .select('tracks, country, released')   // E3 #101: videos never rendered — stop fetching
       .eq('release_id', id)
       .maybeSingle();
     if (error || !data || data.tracks == null) return null;
     return {
       tracks: data.tracks || [], country: data.country || '',
-      released: data.released || '', videos: data.videos || [],
+      released: data.released || '',
     };
   };
 
   // Restricted data, live under the caller's token, server-cached ≤6h.
-  window.TraxWaxStats = async (id) => fnCall('live-stats',
-    id == null ? { kind: 'value' } : { kind: 'release', id });
+  // E2 (#100): the dual-arity accident is split — TraxWaxValue is the header EST. figure,
+  // TraxWaxStats is per-release only (matching the friend installer's shape). A caller can
+  // no longer get the whole-collection value by forgetting an argument.
+  window.TraxWaxValue = async () => fnCall('live-stats', { kind: 'value' });
+  window.TraxWaxStats = async (id) =>
+    id == null ? {} : fnCall('live-stats', { kind: 'release', id });
 
   // RE-SYNC: the Stage C pipeline is idempotent and client-driven; run it again, then
   // refresh the profile so last_import_at is current for the indicator.
@@ -333,20 +326,8 @@ function ownerInfo(profile) {
    Deliberately installs NO TraxWaxRefresh / TraxWaxAccount (nothing to re-sync, no account of
    theirs), and the stats call carries `owner` so live-stats suppresses price server-side. */
 function installFriendCrateProviders(owner) {
-  const fnCall = async (path, payload) => {
-    const token = await window.Clerk.session.getToken();
-    const r = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + token,
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!r.ok) return null;
-    return r.json().catch(() => null);
-  };
+  // E2 (#100): same thin alias as the own-crate installer — the duplicated body is gone.
+  const fnCall = (path, payload) => edgeCall(path, payload, { throwOnError: false });
 
   window.TraxWaxViewer = { isOwn: false, ownerUserId: owner.user_id, ownerProfile: owner,
     canViewCrate: owner._canViewCrate === true, canViewWantlist: owner._canViewWantlist === true,
@@ -474,11 +455,11 @@ function installFriendCrateProviders(owner) {
 
   window.TraxWaxReleaseData = async (id) => {
     const { data, error } = await supabase
-      .from('releases').select('tracks, country, released, videos')
+      .from('releases').select('tracks, country, released')   // E3 #101: videos never rendered — stop fetching
       .eq('release_id', id).maybeSingle();
     if (error || !data || data.tracks == null) return null;
     return { tracks: data.tracks || [], country: data.country || '',
-      released: data.released || '', videos: data.videos || [] };
+      released: data.released || '' };
   };
 
   // Per-release stats under the VIEWER's own token; price suppressed server-side via `owner`.
@@ -493,7 +474,19 @@ function installFriendCrateProviders(owner) {
    proceeds. last_import_at is set server-side only when enrichment reaches zero remaining,
    so the boot gate keeps healing interrupted runs on later loads. */
 
-const _pipeCall = async (path, payload) => {
+/* E2 (#100, audit v1.25): THE one Edge-call helper. Three near-identical copies used to
+   coexist with DIVERGENT error contracts (two swallow-to-null fnCalls + this throwing
+   _pipeCall) — the friend installer's own comment admitted the swallow had already
+   stranded an optimistic UI once. One implementation, one knob:
+     throwOnError: true  → throws Error carrying .status (HTTP) and .upstream (the edge
+                           function's reported Discogs status — audit #13: an upstream 429
+                           arrives as {error:'discogs_failed', status:429} on an HTTP 502,
+                           surfaced so retry logic can wait out the 60s rate window).
+     throwOnError: false → resolves null on any HTTP failure (the optimistic-UI contract).
+   In BOTH modes a thrown getToken()/fetch (network drop, expired session) REJECTS — that
+   is the contract C9 (#86) taught the header-value caller to catch. */
+const edgeCall = async (path, payload, opts) => {
+  const throwOnError = !!(opts && opts.throwOnError);
   const token = await window.Clerk.session.getToken();
   const r = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
     method: 'POST',
@@ -504,17 +497,20 @@ const _pipeCall = async (path, payload) => {
     },
     body: JSON.stringify(payload),
   });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const err = new Error(d.error || ('HTTP ' + r.status));
-    err.status = r.status;
-    // Audit #13: an upstream Discogs 429 arrives as {error:'discogs_failed', status:429}
-    // on an HTTP 502 -- surface it so retry logic can wait out the 60s rate window.
-    err.upstream = d.status;
-    throw err;
+  if (throwOnError) {
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const err = new Error(d.error || ('HTTP ' + r.status));
+      err.status = r.status;
+      err.upstream = d.status;
+      throw err;
+    }
+    return d;
   }
-  return d;
+  if (!r.ok) return null;
+  return r.json().catch(() => null);
 };
+const _pipeCall = (path, payload) => edgeCall(path, payload, { throwOnError: true });
 
 // Retries with backoff -- but NOT on non-retryable 4xx (bad request, auth, not
 // connected), and with a 60s wait when the upstream reported a rate limit (audit #13; #36 widened 30s→60s to clear Discogs' ~60s window).

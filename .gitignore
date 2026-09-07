@@ -11,3 +11,11 @@ seed_releases.sql
 # The append-only session log lives at the PROJECT ROOT, outside this repo — never commit a
 # copy here. Guards against a stray created by a mis-cd'd `>> log.md` append.
 log.md
+
+# E5 (#103): Supabase CLI link state is machine-local (carries the org id); never track it.
+supabase/.temp/
+
+# E5 (#103): impeccable plugin cache/state — was only excluded via .git/info/exclude, which
+# a fresh clone doesn't have (never actually committed — pass-1 audit verified by git log —
+# but one absent-minded `git add -A` away from it until this line).
+.impeccable/
