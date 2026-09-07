@@ -7,11 +7,16 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest, sha256hex }
+import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, decrypt, selfTest, sha256hex }
   from '../_shared/discogs.ts';
 
 // Audit #31: env-first so the production flip is a secret change, not five redeploys.
-const APP_ORIGIN = Deno.env.get('APP_ORIGIN') ?? 'https://multi-user.traxwax.pages.dev';
+// B1 (#69): fail CLOSED like every other function — the old '?? multi-user.traxwax.pages.dev'
+// fallback was the one file #52 missed, and this is the function that redirects a browser
+// carrying the one-time finalize code: an unset APP_ORIGIN must 503 at boot, never send
+// #twcode to a stale preview.
+const APP_ORIGIN = Deno.env.get('APP_ORIGIN');
+if (!APP_ORIGIN) throw new Error('APP_ORIGIN env var is required');
 
 function back(status: string) {
   return new Response(null, {
@@ -63,6 +68,23 @@ async function handle(req: Request): Promise<Response> {
   if (!state) return back('unknown_or_used');
   if (new Date(state.expires_at) < new Date()) return back('expired');
 
+  // A6 (#67): leg-1 secrets rest encrypted since this deploy. A row written by the PREVIOUS
+  // connect-discogs (deploy skew, or a pre-deploy handshake still in flight — rows live
+  // ≤15 min) is plaintext: fall back to the raw value on decrypt failure. The value is
+  // server-generated and the table service-role-only, so treating an undecryptable value as
+  // legacy plaintext admits nothing an attacker controls; at worst leg 3 fails at Discogs.
+  // DEPLOY ORDER: this callback deploys FIRST (it tolerates both formats), THEN
+  // connect-discogs — the reverse order signs leg 3 with ciphertext for up to 15 min.
+  // Log the fallback (names only): after the transition window every decrypt failure is
+  // anomalous (key rotation mid-flight, row corruption) and must not hide inside a generic
+  // access_denied (remediation-audit F1).
+  let tokenSecret: string;
+  try { tokenSecret = await decrypt(state.oauth_token_secret, encKey); }
+  catch (e) {
+    console.error('leg-1 secret decrypt failed, using raw value:', (e as Error).message);
+    tokenSecret = state.oauth_token_secret;
+  }
+
   // Spec-correct PLAINTEXT signature: consumer_secret & token_secret. See "The one
   // remaining unknown" in docs/phase-1-stage-b-plan.md for why there is no fallback here.
   const accessRes = await fetch('https://api.discogs.com/oauth/access_token', {
@@ -74,7 +96,7 @@ async function handle(req: Request): Promise<Response> {
         oauth_consumer_key: consumerKey,
         oauth_nonce: nonce(),
         oauth_token: oauthToken,
-        oauth_signature: `${consumerSecret}&${state.oauth_token_secret}`,
+        oauth_signature: `${consumerSecret}&${tokenSecret}`,
         oauth_signature_method: 'PLAINTEXT',
         oauth_timestamp: timestamp(),
         oauth_verifier: verifier,

@@ -9,7 +9,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRemoteJWKSet, jwtVerify } from 'https://deno.land/x/jose@v5.9.6/index.ts';
-import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames }
+import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest }
   from '../_shared/discogs.ts';
 
 // Audit #31: env-first so the production flip is a secret change, not five redeploys.
@@ -70,7 +70,13 @@ async function handle(req: Request): Promise<Response> {
 
   const consumerKey = Deno.env.get('DISCOGS_CONSUMER_KEY');
   const consumerSecret = Deno.env.get('DISCOGS_CONSUMER_SECRET');
-  if (!consumerKey || !consumerSecret) return json({ error: 'not_configured' }, 500);
+  // A6 (#67): leg-1 request-token secrets now rest AES-GCM-encrypted like every other
+  // token, so this function needs the enc key too. Same self-test discipline as the
+  // callback: a bad key must fail HERE, not corrupt a stored secret silently.
+  const encKey = Deno.env.get('DISCOGS_TOKEN_ENC_KEY');
+  if (!consumerKey || !consumerSecret || !encKey) return json({ error: 'not_configured' }, 500);
+  try { await selfTest(encKey); }
+  catch { console.error('crypto self-test failed'); return json({ error: 'not_configured' }, 500); }
 
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -158,7 +164,10 @@ async function handle(req: Request): Promise<Response> {
 
   const { error } = await admin.from('discogs_oauth_state').insert({
     oauth_token: parsed.oauth_token,
-    oauth_token_secret: parsed.oauth_token_secret,
+    // A6 (#67): encrypted at rest (0003's comment already called this value "a credential");
+    // the callback decrypts before signing leg 3. Cooldown placeholders keep '' — they are
+    // never looked up by token and carry no secret.
+    oauth_token_secret: await encrypt(parsed.oauth_token_secret, encKey),
     user_id: userId,
   });
   if (error) {

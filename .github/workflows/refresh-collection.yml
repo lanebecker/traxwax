@@ -1,9 +1,8 @@
 name: Refresh collection
 
-# Rebuilds public/collection.json + public/releases/<id>.json from the Discogs API and
-# commits them; Cloudflare Pages auto-deploys. One get_release pass per record bakes the
-# modal data (tracklists + community stats + lowest price). Replaces the old Cowork task —
-# the site keeps itself up to date with no Claude and no local machine in the loop.
+# Rebuilds public/collection.json (dev fixture, CC0 fields only) + any missing
+# public/releases/<id>.json from the Discogs API and commits them; Cloudflare Pages
+# auto-deploys.
 #
 # Setup (one time): add the Discogs token as an Actions secret —
 #   repo → Settings → Secrets and variables → Actions → New repository secret
@@ -12,10 +11,13 @@ name: Refresh collection
 
 # Phase 1 cold audit #25: the weekly schedule is RETIRED. The multi-user site reads
 # Supabase (per-user import under each user's own OAuth token); the baked collection.json
-# is a dev fixture with Restricted fields (price/community stats) stripped, and this
-# workflow must not re-bake them into a public repo. Manual dispatch is kept for
-# deliberate dev-fixture refreshes only — if run, strip price/have/want/crating/crcount
-# before committing.
+# is a dev fixture. Manual dispatch is kept for deliberate dev-fixture refreshes only.
+#
+# Audit v1.25 A2 (#63): the "strip Restricted fields before committing" guard used to be
+# this comment — now it is CODE, twice over: refresh_collection.py no longer fetches or
+# writes price/crating/crcount/have/want at all (it exits 1 if they appear), and the
+# verify step below re-checks the emitted file and fails the run BEFORE the commit step
+# can push. A one-click dispatch can no longer republish priced data.
 on:
   workflow_dispatch: {}         # manual "Run workflow" button ONLY — no schedule
 
@@ -38,6 +40,17 @@ jobs:
           DISCOGS_USER: lanebecker
           # RELEASE_LIMIT: '700'   # uncomment to cap get_release calls per run
         run: python3 build/refresh_collection.py     # stdlib only — no pip install needed
+
+      - name: "Verify no Restricted fields in output (audit A2, #63)"
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+          data = json.load(open('public/collection.json'))
+          bad = sorted({k for r in data for k in ('price','crating','crcount','have','want') if k in r})
+          if bad:
+              sys.exit(f'Restricted key(s) {bad} present in public/collection.json — refusing to commit.')
+          print(f'OK: {len(data)} records, CC0 fields only.')
+          EOF
 
       - name: Commit if data changed
         run: |

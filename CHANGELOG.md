@@ -9,6 +9,36 @@ Versions follow [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [1.25.1] — 2026-09-07
+
+### Security (audit Wave A — "data that should die, dies")
+- **`link_discogs_account` now deletes wantlist + inventory rows and resets all three
+  import watermarks on a changed-handle re-link** (migration 0034; A1, #62) — the old
+  Discogs account's Restricted rows previously survived the re-link, attributed to the new
+  handle and visible to consenting friends.
+- **`profiles_guard` pins `import_started_collection/_wantlist/_inventory`** (0034; A4,
+  #65) — the sweep watermarks 0022 moved server-side were still client-PATCHable, re-opening
+  the self-wipe / indefinite-retention steering 0022 closed.
+- **Friend-invite retention:** used invites now die 30 days past expiry instead of living
+  forever, and `remove_friend` clears `accepted_by` in both directions (0034; A7, #68).
+- **`live-stats` value cache keyed on the linked Discogs username** (A5, #66) — a
+  disconnect→re-link to a different account could serve the old account's cached value
+  for up to 6h.
+- **Leg-1 OAuth request-token secrets now rest AES-GCM-encrypted** like every other token
+  (A6, #67); the callback decrypts with a logged legacy-plaintext fallback for the ≤15-min
+  deploy-skew window. Deploy order: callback first, then connect-discogs.
+- **`connect-discogs-callback` fails closed on missing `APP_ORIGIN`** (B1, #69 — pulled
+  forward from Wave B; the one function #52 missed). An unset origin now 503s instead of
+  redirecting the one-time finalize code to a stale pages.dev preview.
+- **`refresh_collection.py` can no longer emit Restricted fields** (A2, #63): the
+  price/community plumbing is deleted outright, the script exits 1 if any of the five keys
+  appears in its output, and the workflow re-verifies the emitted file in a separate step
+  before the commit step can push. The one-click priced-data republish is dead.
+
 ### Added
 - **Full-codebase cold audit at v1.25.0** — four independent adversarial subagents (frontend /
   Edge functions / all 33 migrations / infra + cross-layer contracts) + argue-down triage +

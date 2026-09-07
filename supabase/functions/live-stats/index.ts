@@ -131,7 +131,19 @@ async function handle(req: Request): Promise<Response> {
     else if (decision !== 'own') return json({ error: 'forbidden' }, 403);       // 'denied' | 'no_owner'
   }
 
-  const cacheKey = kind === 'value' ? `value:${userId}` : `release:${releaseId}`;
+  // A5 (#66): the value cache must not outlive the Discogs connection it came from — keyed
+  // on the Clerk sub alone, a disconnect→re-link to a DIFFERENT account served the old
+  // account's cached value for up to 6h. Key it on the CURRENTLY linked username instead
+  // (fetched before the cache read; the value branch below reuses this row). A changed link
+  // changes the key, so the stale entry is simply never hit again and FIFO-ages out.
+  let valueUsername = '';
+  if (kind === 'value') {
+    const { data: prof } = await admin.from('profiles')
+      .select('discogs_username').eq('user_id', userId).maybeSingle();
+    if (!prof?.discogs_username) return json({ error: 'not_connected' }, 409);
+    valueUsername = prof.discogs_username;
+  }
+  const cacheKey = kind === 'value' ? `value:${userId}:${valueUsername}` : `release:${releaseId}`;
   const cached = cacheGet(cacheKey);
   if (cached) return json(suppressPrice ? { ...(cached as Record<string, unknown>), price: null } : cached);
 
@@ -155,11 +167,9 @@ async function handle(req: Request): Promise<Response> {
   });
 
   if (kind === 'value') {
-    const { data: prof } = await admin.from('profiles')
-      .select('discogs_username').eq('user_id', userId).maybeSingle();
-    if (!prof?.discogs_username) return json({ error: 'not_connected' }, 409);
+    // Username already resolved above (A5 #66) — it is part of the cache key.
     const res = await fetch(
-      `https://api.discogs.com/users/${encodeURIComponent(prof.discogs_username)}/collection/value`,
+      `https://api.discogs.com/users/${encodeURIComponent(valueUsername)}/collection/value`,
       { headers: { 'User-Agent': DISCOGS_UA, Authorization: auth() } });
     if (!res.ok) {
       console.error('collection value failed, status', res.status);
