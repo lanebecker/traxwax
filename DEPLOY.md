@@ -171,9 +171,16 @@ should be a robot:
 - **Uptime probe 2 (backend boots + JWKS gate live):** POST
   `https://sfipqknrbvamwwahwxnl.supabase.co/functions/v1/live-stats` with header
   `Authorization: Bearer probe` — expect **HTTP 401** body `{"error":"invalid_token"}`.
-  A 503 means a function failed its fail-closed boot (secrets!); a 200 would mean the auth
-  gate is broken — page yourself for either. (Run the curl once by hand when configuring
-  the monitor; if the gateway wants it, add the `apikey: <publishable key>` header.) Any monitor that can assert on status + body
+  A 5xx means a function failed its fail-closed boot (secrets, or a broken bundle — see
+  #106); a 200 would mean the auth gate is broken — page yourself for either.
+
+**Implementation: `.github/workflows/uptime-probe.yml`** — both probes run on GitHub
+Actions every 15 minutes (free on this public repo; GitHub emails the owner on a failed
+scheduled run). Chosen over external free tiers because probe 2's success condition is an
+EXPECTED 401 — a paid feature (or a permanent false alarm) on most uptime services.
+Verified live at setup (2026-09-07): probe 2 returns `401 {"error":"invalid_token"}`.
+Platform caveats: scheduled runs can lag minutes at busy times, and GitHub pauses schedules
+after ~60 days without repo activity (any push resumes them). Any monitor that can assert on status + body
   substring works (UptimeRobot free tier does; 5-minute interval is plenty).
 - **Logs:** Supabase Dashboard → Edge Functions → Logs; every function logs errors by
   status/name only (never token or secret values).

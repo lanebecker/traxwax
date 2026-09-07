@@ -1,0 +1,55 @@
+name: Uptime probe
+
+# E6 (audit #104): the two-probe monitor, self-hosted on Actions — free on a public repo,
+# and unlike most free uptime services it can assert the WEIRD success condition probe 2
+# needs (an expected 401 — a paid-tier feature or a permanent false alarm elsewhere).
+# GitHub emails the repo owner when a scheduled workflow run fails.
+#
+# Probe 1: the static surface (Pages + DNS + cert + cache policy header).
+# Probe 2: the backend — proves the Edge bundle BOOTED (a fail-closed secrets failure or a
+#   boot-time SyntaxError, e.g. #106, returns 5xx here) AND that the JWKS auth gate is live
+#   (a 200 would mean the gate is broken; only 401 invalid_token is healthy).
+#
+# Caveats of the platform: scheduled runs can lag a few minutes at busy times, and GitHub
+# auto-disables schedules after ~60 days without repo activity (a push re-enables; the
+# repo's release cadence makes this moot in practice).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes
+  workflow_dispatch: {}       # manual "Run workflow" for testing
+
+permissions: {}               # probes need no repo access at all
+
+concurrency:
+  group: uptime-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: "Probe 1 — static surface (traxwax.com/boot.js)"
+        run: |
+          resp=$(curl -sS -o /dev/null -w '%{http_code} %{header_json}' --max-time 20 https://traxwax.com/boot.js)
+          code="${resp%% *}"
+          echo "status=$code"
+          if [ "$code" != "200" ]; then echo "::error::boot.js returned $code (expected 200)"; exit 1; fi
+          echo "$resp" | grep -qi 'no-cache' || { echo "::error::boot.js missing no-cache header (zone Browser Cache TTL regressed? See DEPLOY.md)"; exit 1; }
+
+      - name: "Probe 2 — backend boot + auth gate (live-stats expects 401 invalid_token)"
+        run: |
+          body_file=$(mktemp)
+          code=$(curl -sS -o "$body_file" -w '%{http_code}' --max-time 20 \
+            -X POST \
+            -H 'Authorization: Bearer probe' \
+            -H 'Content-Type: application/json' \
+            -d '{"kind":"value"}' \
+            https://sfipqknrbvamwwahwxnl.supabase.co/functions/v1/live-stats)
+          echo "status=$code body=$(cat "$body_file")"
+          if [ "$code" != "401" ]; then
+            echo "::error::live-stats returned $code (expected 401). 5xx = fail-closed boot failure or broken bundle; 200 = AUTH GATE BROKEN — investigate immediately."
+            exit 1
+          fi
+          grep -q 'invalid_token' "$body_file" || { echo "::error::401 body lacks invalid_token — unexpected gate behavior"; exit 1; }
