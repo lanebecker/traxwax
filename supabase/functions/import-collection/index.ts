@@ -115,10 +115,15 @@ async function handle(req: Request): Promise<Response> {
   let body: { page?: unknown; started_at?: unknown; kind?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'bad_request' }, 400); }
   const page = Number(body.page);
-  // 500-page cap = 50,000 items. A collection beyond it cannot finish and would loop;
-  // acceptable at launch scale, revisit if a real user ever approaches it.
-  if (!Number.isInteger(page) || page < 1 || page > 500) {
+  // 500-page cap = 50,000 items. A collection beyond it cannot finish; D7 (#96) makes that
+  // failure LOUD — a named error the client surfaces — instead of a generic bad_request
+  // (the DB-side import_status reset happens at the pages>500 check further down, where the
+  // admin client exists; a raw page>500 REQUEST can only follow that response anyway).
+  if (!Number.isInteger(page) || page < 1) {
     return json({ error: 'bad_request' }, 400);
+  }
+  if (page > 500) {
+    return json({ error: 'collection_too_large' }, 400);
   }
   // Wave 2 Stage A: one function, multiple kinds. Wave 4 adds 'inventory'. Default preserves collection.
   // (CRITICAL: this gate is derived BEFORE the KIND object — an unlisted value here makes its whole branch
@@ -314,6 +319,20 @@ async function handle(req: Request): Promise<Response> {
 
   const pages = Number(d.pagination?.pages ?? 1);
   const totalItems = Number(d.pagination?.items ?? 0);
+
+  // D7 (#96): a collection past the 500-page cap could never finish — the client could never
+  // send the page that flips import_status back — so the DB wedged in 'running' forever with
+  // only unlink as an escape. Fail LOUDLY at first sight of the size instead: named error,
+  // clean state. (Collection kind owns import_status; other kinds just refuse.)
+  if (pages > 500) {
+    console.error(kind + ' import refused: ' + pages + ' pages exceeds the 500-page cap');
+    if (kind === 'collection') {
+      const { error: bigErr } = await admin.from('profiles')
+        .update({ import_status: 'error' }).eq('user_id', userId);
+      if (bigErr) console.error('import_status=error update failed:', bigErr.message);
+    }
+    return json({ error: 'collection_too_large' }, 400);
+  }
   const listRaw = (d as Record<string, unknown>)[KIND.listKey];
   const entries = Array.isArray(listRaw) ? listRaw as Array<Record<string, unknown>> : [];
 
@@ -379,6 +398,19 @@ async function handle(req: Request): Promise<Response> {
         .select(KIND.wmCol).eq('user_id', userId).maybeSingle();
       if (wmErr) console.error('watermark read failed:', wmErr.message);
       sweepWm = wmRow ? ((wmRow as Record<string, unknown>)[KIND.wmCol] as string | null) : null;
+      // D6 (#95): the sweep belongs to the run that MINTED the persisted watermark. If a
+      // second same-kind import started meanwhile (its page 1 overwrote the column), this
+      // run's final page would otherwise sweep against the NEWER run's bound and delete rows
+      // it upserted that the newer run hasn't re-upserted yet. Same-run values are
+      // ms-IDENTICAL by construction (both sides truncate the page-1 µs value the same way),
+      // so ANY ms-level mismatch — future (newer run) or past (forged/stale echo) — means
+      // this run doesn't own the sweep: skip it (stale rows are safe; the owning run's final
+      // page sweeps correctly). A mismatched echo can only ever SKIP a sweep, never steer
+      // one — the delete bound itself is still the persisted value.
+      if (sweepWm && Date.parse(sweepWm) !== Date.parse(startedAt)) {
+        console.error(KIND.table + ' stale sweep skipped: watermark belongs to a different run');
+        sweepWm = null;
+      }
     }
     if (!sweepWm) {
       console.error(KIND.table + ' stale sweep skipped: no page-1 watermark');

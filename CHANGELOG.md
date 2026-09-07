@@ -13,6 +13,47 @@ _Nothing yet._
 
 ---
 
+## [1.27.0] — 2026-09-07
+
+### Changed (audit Wave D — "cheap at 100×")
+- **`get_social_feed` rewritten set-based (D1, #90; migration 0036).** The caller's three
+  sides now materialize once per call instead of up to 6× per friend; consent probes drop
+  from 9 to 3 per friend; friends capped at 100. At 30 friends: ~180 aggregate
+  materializations + ~270 probes → one statement over shared CTEs. Output contract
+  unchanged. The now-unreferenced `private._feed_overlap*` helpers (B5's overlap-oracle
+  worry) are dropped outright.
+- **Friend wantlist reads move to `get_friend_wantlist` (D2, #91).** The last table-wide
+  friend RLS policy (`wantlist_select_friends`) is gone — it cost one SECURITY DEFINER probe
+  per candidate row and exposed the surrogate id, raw Clerk sub, and timestamps that 0021
+  deliberately strips from the crate read. `private.can_view_wantlist` loses its now-unused
+  `authenticated` grant (closing B5's last deferred item).
+- **The indexes the probes assumed exist now (D3, #92):** `collection_items` and
+  `inventory_items` gain `(user_id, release_id)` composites (inventory partial on
+  `for_sale`) — `selling_you_want` was ~370k row visits per friend per `list_friends` call
+  without them — plus a partial index for `pending_enrichment`'s pending class (the refresh
+  class stays unindexed by design: its OR-of-thresholds predicate can't use one).
+- **Enrichment budget 5 → 20 (D4, #93)** — a fresh 1,861-item import drops from ~373 polled
+  invocations (≈2,600 discovery aggregate scans) to ~94, each discovery pass now
+  index-backed.
+- **Friend-crate boot fetches run in parallel (D5, #94)** — records, match ctx, owner wants
+  and friend for-sale were strictly sequential before first paint; own crate parallelizes
+  records + inventory the same way.
+- **Concurrent same-kind imports can't sweep each other (D6, #95)** — the final-page sweep
+  runs only when the persisted watermark is ms-identical to the one this run minted; any
+  mismatch skips (retention-safe), never steers.
+- **>500-page collections fail loudly (D7, #96)** — `collection_too_large` + a clean
+  `import_status='error'` instead of a permanent silent `'running'` wedge, and the failure
+  card names the condition (with a route-home action, not a futile "resume").
+- **Three contract nits (D8, #97):** `seed_releases` dedupes intra-batch duplicates itself
+  (keep-last, matching the caller's Map semantics); wantlist-write's seed path now captures
+  the pressing's variant text; `create_friend_invite` answers `'retry'` on a hash collision
+  and the client actually retries with a fresh code (it used to hand out a link belonging to
+  a stranger's invite).
+- **`releases.master_id = 0` is now impossible (D9, #98)** — strays normalized to NULL and a
+  CHECK added, so no future writer can make every no-master release any-match every other.
+
+---
+
 ## [1.26.1] — 2026-09-07
 
 ### Fixed (audit Wave C — "the UI tells the truth")

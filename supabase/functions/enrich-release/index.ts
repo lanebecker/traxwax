@@ -25,7 +25,14 @@ import { DISCOGS_UA, oauthHeader, nonce, timestamp, decrypt }
 const CLERK_ISSUER = Deno.env.get('CLERK_ISSUER');
 const APP_ORIGIN   = Deno.env.get('APP_ORIGIN');
 if (!CLERK_ISSUER || !APP_ORIGIN) throw new Error('CLERK_ISSUER and APP_ORIGIN env vars are required');
-const BUDGET = 5;
+// D4 (#93): 5 → 20. Work discovery (pending_enrichment's seven aggregate subqueries) runs
+// once per invocation whatever the budget, so a fresh 1,861-item import cost ~373 polled
+// invocations ≈ 2,600 aggregate scans just deciding what to do. 20 quarters the invocation
+// count (~94 polls) at ~21s per call (20 × 1.1s pacing) — well inside function limits; the
+// client drain is timing-agnostic (it loops on `work`, not on wall-clock). 0036's
+// releases_pending_idx + composite item indexes cheapen each discovery pass on top (the
+// refresh class stays unindexed by design — its OR-predicate can't use one).
+const BUDGET = 20;
 const GAP_MS = 1100;
 
 const JWKS = createRemoteJWKSet(new URL(`${CLERK_ISSUER}/.well-known/jwks.json`));
