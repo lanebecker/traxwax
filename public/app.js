@@ -65,7 +65,7 @@ const ICO = {
 const IS_OWN = () => !window.TraxWaxViewer || window.TraxWaxViewer.isOwn !== false;
 
 // Header spec §1: today, signed-in ⇔ boot.js installed a viewer (own OR friend). §0.5 wordmark href depends on it.
-// ⚠️ WAVE 5b TODO (tracked): this proxy breaks for the PUBLIC tier. Two things must change together when /c/ ships,
+// ⚠️ WAVE 5b TODO (tracked: issue #60 — read its trigger comment first): this proxy breaks for the PUBLIC tier. Two things must change together when /c/ ships,
 // or the 'public-out' branch below is unreachable AND an anonymous viewer renders the OWNER header (leaking the gear/
 // account/EST./FILED BY to a stranger, wordmark → /app):
 //   1. IS_SIGNED_IN must read an explicit flag (e.g. window.TraxWaxViewer.signedIn), NOT mere object presence —
