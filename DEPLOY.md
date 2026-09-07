@@ -185,12 +185,16 @@ after ~60 days without repo activity (any push resumes them). Any monitor that c
 - **Logs:** Supabase Dashboard → Edge Functions → Logs; every function logs errors by
   status/name only (never token or secret values).
 
-**Database backup posture:** Supabase project `sfipqknrbvamwwahwxnl` is on the plan's
-automatic daily backups. <!-- TODO (Lane): confirm the tier's retention (Dashboard →
-Database → Backups) and whether PITR is enabled, then replace this comment with the actual
-setting + date checked. Migrations have no down-migrations; this is the restore story. -->
-One project holds every user's crate — if the backup answer above is "daily, 7 days, no
-PITR", that is an accepted risk at current scale, but it must be a *written* one.
+**Database backup posture** *(checked by Lane, 2026-09-07, Dashboard → Database → Backups)*:
+automatic **daily physical backups** (observed ~08:35–08:40 UTC), a rolling window of at
+least the last 8 daily snapshots, restorable from the dashboard. **PITR is NOT enabled**
+(it's a paid add-on) — so the restore story is: roll back to the most recent nightly
+snapshot, accepting **up to ~24h of data loss** (imports/wantlist changes since the
+snapshot; users re-sync from Discogs, so most of it self-heals on the next import — the
+truly unrecoverable slice is friendships/invites/visibility changes made that day).
+Storage-API objects aren't covered, which is moot: TraxWax stores none. This is an
+**accepted, written risk at current scale (4 users)**; the revisit trigger is real
+multi-user growth or the first restore that hurts — at which point PITR is the upgrade.
 
 ---
 
