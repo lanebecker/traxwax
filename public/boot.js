@@ -359,15 +359,12 @@ function installFriendCrateProviders(owner) {
   // wantlist-gated; `master` normalized to null (Discogs' no-master 0 never enters).
   window.TraxWaxOwnerWantIds = async () => {
     if (owner._canViewWantlist !== true) return [];   // wantlist private → unknown, not zero
-    const out = [];
-    for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from('wantlist_items')
-        .select('release_id, releases(master_id)').eq('user_id', owner.user_id).order('id', { ascending: true }).range(from, from + 999);
-      if (error) throw new Error('friend wantlist-ids query failed: ' + error.message);
-      for (const it of data ?? []) out.push({ id: it.release_id, master: (it.releases && it.releases.master_id) || null });
-      if (!data || data.length < 1000) break;
-    }
-    return out;
+    // D2 (#91): the get_friend_wantlist projection RPC replaces the table read — the
+    // wantlist_select_friends policy is gone (it cost one SECURITY DEFINER probe PER ROW
+    // and exposed the raw sub + timestamps). One call, no pagination (jsonb array).
+    const { data, error } = await supabase.rpc('get_friend_wantlist', { p_username: owner.discogs_username });
+    if (error) throw new Error('friend wantlist-ids query failed: ' + error.message);
+    return (Array.isArray(data) ? data : []).map((it) => ({ id: it.release_id, master: it.master_id || null }));
   };
 
   // Wave 4 Stage 2: the friend's CONSENTED for-sale listings → Map<release_id, listing_id>. The RPC is
@@ -413,33 +410,23 @@ function installFriendCrateProviders(owner) {
     }));
   };
 
-  // #47: THE WANTLIST tab on a friend's crate reads THEIR wantlist (read-only), under the
-  // wantlist_select_friends RLS gate (can_view_wantlist). Returns [] if the owner hasn't shared it.
+  // #47: THE WANTLIST tab on a friend's crate reads THEIR wantlist (read-only).
+  // D2 (#91): via the get_friend_wantlist projection RPC — the table-wide
+  // wantlist_select_friends policy is dropped (per-row definer probes, leaked columns).
+  // '[]' if the owner hasn't shared it; one call, ordered server-side, no pagination.
+  // NOTE: vinyl stays '' here on purpose — the friend wantlist card has never shown the
+  // variant; the RPC carries it for whenever that design call is made.
   window.TraxWaxWantlistData = async () => {
-    const rows = [];
-    for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase
-        .from('wantlist_items')
-        .select('release_id, added, ' +
-          'releases ( artist, title, year, label, styles, genres, thumb, cover_image, master_id )')
-        .eq('user_id', owner.user_id)
-        .order('id', { ascending: true })
-        .range(from, from + 999);
-      if (error) throw new Error('friend wantlist query failed: ' + error.message);
-      for (const it of data ?? []) {
-        const rel = it.releases || {};
-        rows.push({
-          id: it.release_id,
-          artist: rel.artist || '', title: rel.title || '', year: rel.year || 0,
-          label: rel.label || '', styles: rel.styles || [], genres: rel.genres || [],
-          vinyl: '', thumb: rel.thumb || '', cover_image: rel.cover_image || '',
-          added: it.added || '', rating: 0, master_id: rel.master_id || null,   // #28
-          price: null, crating: null, crcount: null, have: null, want: null,
-        });
-      }
-      if (!data || data.length < 1000) break;
-    }
-    return rows;
+    const { data, error } = await supabase.rpc('get_friend_wantlist', { p_username: owner.discogs_username });
+    if (error) throw new Error('friend wantlist query failed: ' + error.message);
+    return (Array.isArray(data) ? data : []).map((it) => ({
+      id: it.release_id,
+      artist: it.artist || '', title: it.title || '', year: it.year || 0,
+      label: it.label || '', styles: it.styles || [], genres: it.genres || [],
+      vinyl: '', thumb: it.thumb || '', cover_image: it.cover_image || '',
+      added: it.added || '', rating: 0, master_id: it.master_id || null,   // #28
+      price: null, crating: null, crcount: null, have: null, want: null,
+    }));
   };
 
   // Wave 2 B1: the VIEWER's own wants + haves as id Sets — the badges match these against the friend's
@@ -731,15 +718,29 @@ async function runImport() {
     await importLoop(setProgress, onHiccup);
   } catch (e) {
     console.error(e);
-    notice(UI.COPY.importFailed.headline, UI.COPY.importFailed.body, true, {
-      kicker: 'IMPORT · STOPPED AT PAGE ' + (_lastImportPage || 1),
+    const msg = (e && e.message) || '';
+    // D7 (#96, audit F1): the >500-page refusal is a NAMED terminal condition — say so
+    // instead of the generic wall (which invites a retry that can never succeed).
+    const tooLarge = /collection_too_large/i.test(msg);
+    notice(UI.COPY.importFailed.headline,
+      tooLarge
+        ? 'This collection is past the 50,000-record ceiling TraxWax can import today. The '
+          + 'import stopped cleanly — nothing partial was written. Retrying won’t change the '
+          + 'answer; if this is a real crate, open a GitHub issue and the ceiling gets revisited.'
+        : UI.COPY.importFailed.body, true, {
+      kicker: tooLarge ? 'IMPORT · COLLECTION TOO LARGE'
+        : 'IMPORT · STOPPED AT PAGE ' + (_lastImportPage || 1),
       extra: '<div>' + UI.progressBar(_lastImportPct, true) + '</div>',
-      actions: UI.btnLink(UI.COPY.importFailed.cta,
-        window.location.pathname + window.location.search, { variant: 'primary' }),
+      // Pass-2 catch: "Reload and resume" would invite exactly the retry the tooLarge copy
+      // just called futile — that terminal state routes home instead.
+      actions: tooLarge
+        ? UI.btnLink('BACK TO THE CRATE', '/app', { variant: 'secondary' })
+        : UI.btnLink(UI.COPY.importFailed.cta,
+            window.location.pathname + window.location.search, { variant: 'primary' }),
     });
     // Reason as a FIXED bucket, never the raw message (it can carry a token or URL).
-    const msg = (e && e.message) || '';
-    const reason = /rate|429/i.test(msg) ? 'rate_limit'
+    const reason = tooLarge ? 'too_large'
+      : /rate|429/i.test(msg) ? 'rate_limit'
       : /401|403|auth|token|unauthor/i.test(msg) ? 'auth'
       : /network|fetch|timeout|failed to fetch/i.test(msg) ? 'network'
       : 'other';
@@ -864,12 +865,21 @@ async function renderAccount(profile, section) {
     },
     onCreateInvite: async () => {
       // Random URL-safe code; only its SHA-256 hash is stored. Return the shareable link.
-      const bytes = crypto.getRandomValues(new Uint8Array(18));
-      const code = btoa(String.fromCharCode(...bytes))
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      const { data, error } = await supabase.rpc('create_friend_invite',
-        { p_code_hash: await sha256hex(code) });
-      if (error) throw new Error(error.message);
+      // D8c (#97c): the RPC now answers 'retry' on a hash collision (it used to claim 'ok'
+      // while storing nothing — the handed-out link belonged to a STRANGER's invite). One
+      // fresh-code retry, then the generic failure copy.
+      let data = null;
+      let code = '';
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const bytes = crypto.getRandomValues(new Uint8Array(18));
+        code = btoa(String.fromCharCode(...bytes))
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const res = await supabase.rpc('create_friend_invite',
+          { p_code_hash: await sha256hex(code) });
+        if (res.error) throw new Error(res.error.message);
+        data = res.data;
+        if (!(data && data.status === 'retry')) break;
+      }
       if (!data || data.status !== 'ok') {
         // Map internal status tokens to human copy (don't surface 'no_profile'/'no_auth' raw).
         const m = { no_profile: 'Finish setting up your profile first, then create a link.',

@@ -107,6 +107,10 @@ async function handle(req: Request): Promise<Response> {
   });
 
   if (action === 'add') {
+    // D8b (#97b): variant text for the mirror row, filled only when the seed path below has
+    // the full release in hand. Null = unknown; the upsert then omits the column entirely so
+    // it can never overwrite a value the import already reconciled.
+    let addVinyl: string | null = null;
     // FK guard, SERVER-AUTHORITATIVE. The release nearly always already exists in the shared catalog
     // (the card was rendered from it). If it exists, do nothing. If it is genuinely absent, fetch its
     // basics from Discogs (authoritative) and seed — NEVER trust client-supplied catalog content, which
@@ -140,6 +144,15 @@ async function handle(req: Request): Promise<Response> {
       let rel: Record<string, unknown>;
       try { rel = JSON.parse(await relRes.text()); }
       catch { console.error('discogs release non-JSON'); return json({ error: 'discogs_failed' }, 502); }
+      // D8b (#97b): the full release is in hand on this path — capture the pressing's
+      // variant text the same way import-collection's firstFormatText does, so the seeded
+      // wantlist row shows the real color/format instead of the fallback until the next
+      // full import silently corrects it. (The existing-release path has no fetch and
+      // stays vinyl-less on purpose — a Discogs call per add just for the variant would
+      // spend the user's rate budget on cosmetics; the import remains the reconciler.)
+      const _fmts = Array.isArray(rel.formats) ? rel.formats as Array<Record<string, unknown>> : [];
+      const _withText = _fmts.find((f) => typeof f.text === 'string' && (f.text as string).length > 0);
+      addVinyl = _withText ? String(_withText.text) : null;
       const seed = {
         release_id: releaseId,
         artist: ((rel.artists as Array<{ name?: string }>) ?? [])
@@ -170,7 +183,8 @@ async function handle(req: Request): Promise<Response> {
     }
 
     const { error: upErr } = await admin.from('wantlist_items').upsert(
-      { user_id: userId, release_id: releaseId, added: new Date().toISOString().slice(0, 10) },
+      { user_id: userId, release_id: releaseId, added: new Date().toISOString().slice(0, 10),
+        ...(addVinyl ? { vinyl: addVinyl } : {}) },   // D8b (#97b): omit when unknown — never null-over an imported value
       { onConflict: 'user_id,release_id' },
     );
     if (upErr) {

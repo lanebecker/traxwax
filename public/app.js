@@ -2168,40 +2168,45 @@ async function bootCrate(){
   document.getElementById('app').innerHTML=`<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted)">Loading the crate…</div>`;
   try{
     if (DB_MODE()) {
-      // C4 (#81, remediation-audit F1): CAPTURE → CHECK → ASSIGN, at every awaited site. The
-      // first cut checked AFTER assigning, so a slow stale boot's write could land on top of
-      // a faster newer boot's — reproduced as user A's rows under user B's session. The
-      // stale check must come between the await and the global write, every time.
-      const _rows = await window.TraxWaxData();
-      if (_stale()) return;
-      RECORDS = _rows;
-      // Wave 2 B1: reset first (defensive) so a stale friend ctx never renders badges on the own crate;
-      // then, on a FRIEND crate only, load the viewer's own wants/haves (badges) + the match counts (stat).
+      // C4 (#81, remediation-audit F1): CAPTURE → CHECK → ASSIGN. D5 (#94): the fetch series
+      // are independent, so they now run in PARALLEL (allSettled) — the friend crate paid
+      // three strictly-sequential round-trip series before first paint; the own crate two.
+      // One await point per branch also means ONE staleness check before any global write.
+      // Wave 2 B1: reset first (defensive) so a stale friend ctx never renders badges on the own crate.
       window.__twMatchCtx = null; window.__twOwnerWants = null;   // #28: __twOwnerWants is an array of {id, master}
       window.__twInventory = null;   // Wave 4: own-crate for-sale map (release_id → listing_id); null on friend crate
       if (!IS_OWN() && window.TraxWaxMatchCtx) {
-        let _ctx = null, _wants = [], _ffs = new Map();
-        try { _ctx = await window.TraxWaxMatchCtx(); } catch (e) { _ctx = null; }
-        if (_stale()) return;   // C4/F1
-        // #43: AWAIT the owner-wantlist entries so the "they want" count is ready at first paint — never a
-        // transient null that _matchCounts would misread as PRIVATE. Fetch failure → empty array (best-effort
-        // real 0 on a shared list; self-heals on reload), never "PRIVATE" (that's flag-driven).
-        try { _wants = await window.TraxWaxOwnerWantIds(); } catch (e) { _wants = []; }
-        if (_stale()) return;   // C4/F1
-        // Wave 4 Stage 2: the FRIEND's consented for-sale (empty Map unless friends + crate-friends + forsale=friends).
-        // Wire it as ctx.forSale so badgesFor lights the FOR SALE badge; __twInventory also drives forSaleHref
-        // (→ the friend's /sell/item/{listing}) + the FOR SALE facet — the Stage 1 own-crate surfaces, reused.
-        try { _ffs = window.TraxWaxFriendForSale ? await window.TraxWaxFriendForSale() : new Map(); }
-        catch (e) { _ffs = new Map(); }
-        if (_stale()) return;   // C4/F1
-        window.__twMatchCtx = _ctx; window.__twOwnerWants = _wants; window.__twInventory = _ffs;
+        const [rRows, rCtx, rWants, rFfs] = await Promise.allSettled([
+          window.TraxWaxData(),
+          // #43: the owner-wantlist entries must be ready at first paint — never a transient
+          // null that _matchCounts would misread as PRIVATE. Failure → [] (best-effort real 0
+          // on a shared list; self-heals on reload), never "PRIVATE" (that's flag-driven).
+          window.TraxWaxMatchCtx(),
+          window.TraxWaxOwnerWantIds(),
+          // Wave 4 Stage 2: the FRIEND's consented for-sale (empty Map unless consented).
+          // Wired as ctx.forSale below so badgesFor lights the FOR SALE badge; also drives
+          // forSaleHref + the FOR SALE facet — the Stage 1 own-crate surfaces, reused.
+          window.TraxWaxFriendForSale ? window.TraxWaxFriendForSale() : Promise.resolve(new Map()),
+        ]);
+        if (_stale()) return;   // C4/F1: single gate before any global write
+        if (rRows.status !== 'fulfilled') throw rRows.reason;   // records failure → the existing error card
+        RECORDS = rRows.value;
+        window.__twMatchCtx   = rCtx.status   === 'fulfilled' ? rCtx.value   : null;
+        window.__twOwnerWants = rWants.status === 'fulfilled' ? rWants.value : [];
+        window.__twInventory  = rFfs.status   === 'fulfilled' ? rFfs.value   : new Map();
         if (window.__twMatchCtx) window.__twMatchCtx.forSale = window.__twInventory;
-      }
-      if (IS_OWN() && window.TraxWaxInventory) {   // Wave 4: load the caller's for-sale listings for badges/facet/ledger/modal
-        let _inv = new Map();
-        try { _inv = await window.TraxWaxInventory(); } catch (e) { _inv = new Map(); }   // never strand the render
+      } else {
+        const [rRows, rInv] = await Promise.allSettled([
+          window.TraxWaxData(),
+          // Wave 4: the caller's own for-sale listings (badges/facet/ledger/modal); a
+          // resolved null means "no inventory provider" — the reset above stays in force.
+          (IS_OWN() && window.TraxWaxInventory) ? window.TraxWaxInventory() : Promise.resolve(null),
+        ]);
         if (_stale()) return;   // C4/F1
-        window.__twInventory = _inv;
+        if (rRows.status !== 'fulfilled') throw rRows.reason;
+        RECORDS = rRows.value;
+        if (rInv.status === 'fulfilled') { if (rInv.value !== null) window.__twInventory = rInv.value; }
+        else window.__twInventory = new Map();   // fetch failed — never strand the render
       }
       // Wave 2: a hash-restored WANTLIST tab needs its dataset loaded on a direct reload (the case 'view'
       // lazy-load never ran). Mirror that load; render() below paints the briefly-empty grid, then this
