@@ -143,8 +143,9 @@ async function handle(req: Request): Promise<Response> {
         mapItem: (r: Record<string, unknown>, releaseId: number): Record<string, unknown> => ({
           user_id: userId, release_id: releaseId,
           added: typeof r.date_added === 'string' ? r.date_added.slice(0, 10) : null,
-          // Fix (0030): capture the pressing's variant the SAME way the collection does (basic_information
-          // formats[0].text) so the wantlist card shows the real color/format, not a fallback "Black".
+          // Fix (0030): capture the pressing's variant the SAME way the collection does (first
+          // basic_information format WITH a text field — see firstFormatText) so the wantlist card
+          // shows the real color/format, not a fallback "Black".
           vinyl: firstFormatText(r.basic_information as Record<string, unknown> | undefined),
         }),
         seedRow: biSeedRow,

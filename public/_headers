@@ -52,6 +52,12 @@
   Cache-Control: no-cache
 /account/*
   Cache-Control: no-cache
+# /i/* serves the same app shell via _redirects; _headers matches the REQUEST path, so the
+# invite route needs its own no-cache entries (audit v1.25 F4 — same stale-shell class as #9).
+/i
+  Cache-Control: no-cache
+/i/*
+  Cache-Control: no-cache
 
 # The baked per-release files are write-once immutable (Stage C enriches the DB, not
 # these) — a week of browser cache is safe and spares the modal's fallback tier a fetch.

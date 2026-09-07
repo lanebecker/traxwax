@@ -108,7 +108,7 @@ verification runs).
 ## Surface 3 — Database
 
 Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids; RLS policies use the
-`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0032` applied; the migration
+`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0033` applied; the migration
 map lives in `CLAUDE.md`. Apply via the **break-glass** MCP `apply_migration` (or
 `supabase db push`), verify with the checks each migration's plan documents, then commit the
 file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
@@ -134,8 +134,11 @@ throws at boot if `CLERK_ISSUER`/`APP_ORIGIN` are unset (fail-closed).
 cd public && python3 -m http.server 8000     # baked fixture mode, no auth/import
 ```
 
-The full authenticated app needs the deployed Edge Functions; test on the
-`multi-user.traxwax.pages.dev` preview (dev Clerk) rather than running functions locally.
+The full authenticated app needs the deployed Edge Functions, and **only production can
+exercise them**: previews run prod Clerk (see Auth above) but every Edge function pins CORS
+and `azp` to `https://traxwax.com`, so authenticated calls from `*.pages.dev` fail preflight
+or 401 — that is fail-closed behavior, not a bug to debug. Previews are for static/
+unauthenticated surfaces only; authenticated testing happens in prod (rollback is cheap).
 
 ## Verifying a deploy
 

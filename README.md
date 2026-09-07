@@ -30,7 +30,7 @@ traxwax/
 ├── functions/api/
 │   └── release/[id].js       # legacy CC0 proxy — last-resort modal fallback only
 ├── supabase/
-│   ├── migrations/           # 0001–0032: schema, RLS, RPCs (see CLAUDE.md for the map)
+│   ├── migrations/           # 0001–0033: schema, RLS, RPCs (see CLAUDE.md for the map)
 │   └── functions/            # 9 Edge Functions — the real backend (see DEPLOY.md)
 ├── build/
 │   ├── refresh_collection.py # legacy single-user data builder (manual dispatch only)
@@ -106,7 +106,7 @@ above to match and warns if the changelog was not updated in the same push.
 
 ## Status
 
-**Shipped through v1.23.1**: the full single-user redesign (v0.x); multi-user launch —
+**Shipped through v1.25.0**: the full single-user redesign (v0.x); multi-user launch —
 Clerk auth, per-user Discogs OAuth (tokens AES-256-GCM at rest), client-driven import + background CC0
 enrichment, live-only Restricted data (v1.0.0); account controls + link-CSRF-safe finalize (v1.1.0);
 the self-healing catalog (v1.2.0); accessibility polish (v1.3.x); analytics (v1.4.7); wantlists + the
@@ -121,7 +121,9 @@ for-sale via Discogs: inventory import, the for-sale facet, consented friend for
 (v1.16–v1.19); **Wave 5a "share the shelf"** — the Collection DNA share card + master-year data lift +
 shareable filter URLs (v1.20.0), then the BY DECADE ledger chart + Top artist/Label strip (v1.20.8–.9); the
 FILED UNDER style **tray** (v1.21.0); FOR SALE promoted to a fifth **tab** + colored-count on its button
-(v1.22.0); and the header **icon trio** — SHARE / LIGHTS OUT / ACCOUNT circles (v1.23.x). Full history in
+(v1.22.0); the header **icon trio** — SHARE / LIGHTS OUT / ACCOUNT circles (v1.23.x); the FOR SALE tab
+renamed **THE GOODS** (v1.24.1); and the header **status feed** — `get_social_feed` + the client
+seen-state engine (#59, v1.25.0). Full history in
 `CHANGELOG.md`, release-by-release detail in `docs/roadmap.md`.
 
 **Next** — the public-crate tier (TraxWax slugs + signed-out crates + OG unfurl, Wave 5b) is the main

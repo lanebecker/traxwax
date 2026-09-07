@@ -9,7 +9,22 @@ Versions follow [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **Full-codebase cold audit at v1.25.0** — four independent adversarial subagents (frontend /
+  Edge functions / all 33 migrations / infra + cross-layer contracts) + argue-down triage +
+  verification pass. Report: `docs/cold-audit-v1.25.md`; 44 findings filed as issues #62–#105
+  across five milestone waves (A data lifecycle · B abuse/auth · C UX bugs · D perf · E arch/ops).
+
+### Fixed
+- **Wave F of the audit (docs, in-flow):** CLAUDE.md / README / DEPLOY.md caught up to
+  v1.25.0 + migration 0033; DEPLOY.md's dead "test on the pages.dev preview (dev Clerk)"
+  paragraph rewritten — previews can't reach the backend (CORS/azp pinned to traxwax.com), so
+  authenticated testing happens in prod; stale `formats[0].text` comment in import-collection
+  corrected to match `firstFormatText`.
+- **`/i` + `/i/*` added to the `_headers` no-cache list (audit F4)** — the invite route serves
+  the app shell via `_redirects` but `_headers` matches the request path, so invite links were
+  the one HTML route left to heuristic browser caching (the #9 stale-shell class, on the one
+  route a brand-new user hits first).
 
 ---
 
