@@ -10,13 +10,12 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, decrypt, selfTest, sha256hex }
   from '../_shared/discogs.ts';
 
-// Audit #31: env-first so the production flip is a secret change, not five redeploys.
-// B1 (#69): fail CLOSED like every other function — the old '?? multi-user.traxwax.pages.dev'
-// fallback was the one file #52 missed, and this is the function that redirects a browser
-// carrying the one-time finalize code: an unset APP_ORIGIN must 503 at boot, never send
-// #twcode to a stale preview.
-const APP_ORIGIN = Deno.env.get('APP_ORIGIN');
-if (!APP_ORIGIN) throw new Error('APP_ORIGIN env var is required');
+// B1 (#69) → E1 (#99): APP_ORIGIN comes from the shared preamble module, which fail-closes
+// at load on missing CLERK_ISSUER/APP_ORIGIN — this callback does no Clerk verification
+// (Discogs redirects the browser here; identity is the state row), but it must never send
+// #twcode anywhere but the one configured origin, and one shared module means the next #52
+// can't miss a file.
+import { APP_ORIGIN } from '../_shared/auth.ts';
 
 function back(status: string) {
   return new Response(null, {

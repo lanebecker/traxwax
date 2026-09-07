@@ -15,16 +15,10 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { createRemoteJWKSet, jwtVerify } from 'https://deno.land/x/jose@v5.9.6/index.ts';
+import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, decrypt }
   from '../_shared/discogs.ts';
 
-// Audit #31: env-first so the production flip is a secret change, not five redeploys.
-// #52: fail CLOSED — no dev fallback. Prod always sets these; an unset value (misconfigured deploy / a new
-// preview env) must refuse, never silently accept dev-issued tokens against production data.
-const CLERK_ISSUER = Deno.env.get('CLERK_ISSUER');
-const APP_ORIGIN   = Deno.env.get('APP_ORIGIN');
-if (!CLERK_ISSUER || !APP_ORIGIN) throw new Error('CLERK_ISSUER and APP_ORIGIN env vars are required');
 // D4 (#93): 5 → 20. Work discovery (pending_enrichment's seven aggregate subqueries) runs
 // once per invocation whatever the budget, so a fresh 1,861-item import cost ~373 polled
 // invocations ≈ 2,600 aggregate scans just deciding what to do. 20 quarters the invocation
@@ -35,21 +29,6 @@ if (!CLERK_ISSUER || !APP_ORIGIN) throw new Error('CLERK_ISSUER and APP_ORIGIN e
 const BUDGET = 20;
 const GAP_MS = 1100;
 
-const JWKS = createRemoteJWKSet(new URL(`${CLERK_ISSUER}/.well-known/jwks.json`));
-
-const CORS = {
-  'Access-Control-Allow-Origin': APP_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
-  });
-}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -64,18 +43,9 @@ Deno.serve(async (req: Request) => {
 });
 
 async function handle(req: Request): Promise<Response> {
-  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  if (!token) return json({ error: 'missing_token' }, 401);
-  let userId: string;
-  try {
-    const { payload } = await jwtVerify(token, JWKS, { issuer: CLERK_ISSUER });
-    if (!payload.sub) throw new Error('no sub claim');
-    if (payload.azp && payload.azp !== APP_ORIGIN) throw new Error('azp mismatch');
-    userId = payload.sub;
-  } catch (e) {
-    console.error('clerk token rejected:', (e as Error).message);
-    return json({ error: 'invalid_token' }, 401);
-  }
+  const auth = await verifyClerk(req);   // E1 (#99): shared verifier — sub or a ready 401
+  if ('response' in auth) return auth.response;
+  const userId = auth.userId;
 
   const consumerKey = Deno.env.get('DISCOGS_CONSUMER_KEY');
   const consumerSecret = Deno.env.get('DISCOGS_CONSUMER_SECRET');
@@ -105,7 +75,7 @@ async function handle(req: Request): Promise<Response> {
   //    owned-ids scan + chunked IN-list probes (~18 round trips per invocation, ~6,700
   //    queries over a fresh 1,861-item collection). pending_enrichment is SECURITY
   //    DEFINER and service-role-only (migration 0008); p_user_id is the VERIFIED Clerk
-  //    sub from jwtVerify above, never a client-supplied value. The RPC does its own
+  //    sub from verifyClerk above, never a client-supplied value. The RPC does its own
   //    LIMIT, so PostgREST's silent 1,000-row cap (Stage C rev 1's C-1) cannot bite. ──
   const { data: work, error: wErr } = await admin.rpc('pending_enrichment', {
     p_user_id: userId, p_limit: BUDGET });

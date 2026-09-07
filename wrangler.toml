@@ -4,4 +4,4 @@ pages_build_output_dir = "public"
 
 # Secrets (set in the Cloudflare dashboard or via `wrangler pages secret put`):
 #   DISCOGS_TOKEN   — required, the Discogs personal access token
-#   DISCOGS_USER    — optional, defaults to "lanebecker"
+# (E5 #103: the old DISCOGS_USER entry documented a secret no surviving function reads.)

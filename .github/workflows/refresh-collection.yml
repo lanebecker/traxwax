@@ -33,6 +33,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0   # E5 (#103), v1.28.0 remediation-audit: the rebase-before-push below needs a real history,
+                           # not a depth-1 tip that can lack a merge base after a long run
 
       - name: Refresh collection.json from Discogs
         env:
@@ -61,5 +64,8 @@ jobs:
             echo "No changes — nothing to commit."
           else
             git commit -m "chore: weekly data refresh ($(date -u +%Y-%m-%d))"
+            # E5 (#103): rebase first — the badge bot (or anything else) landing on main during
+            # this ~40-min run used to make the final push fail non-fast-forward.
+            git pull --rebase origin main
             git push
           fi

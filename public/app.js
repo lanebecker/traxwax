@@ -147,7 +147,9 @@ function _saveRelCache(){
     _relCache = {};
   }
 }
-// Tracklist (+ country/released/videos) for the modal. Prefer the immutable baked static
+// Tracklist (+ country/released) for the modal. Prefer the immutable baked static
+// (E3 #101: `videos` is no longer fetched or cached — every tier carried it into
+// tw_release_cache_v1 for a feature that was never built; old cached entries age out).
 // file — no live call, no rate limit, CDN-cached forever. Fall back to the live proxy only
 // for a brand-new record whose file hasn't been baked yet. Community stats + price come
 // from collection.json, not from here.
@@ -156,7 +158,7 @@ async function _fetchReleaseFile(id){
     const r = await fetch('/releases/' + id + '.json');
     if (!r.ok) return null;
     const d = await r.json();
-    return { tracks: d.tracks || [], country: d.country || '', released: d.released || '', videos: d.videos || [] };
+    return { tracks: d.tracks || [], country: d.country || '', released: d.released || '' };   // E3 #101: no videos
   } catch(e) { return null; }
 }
 async function _fetchReleaseLive(rec){
@@ -166,7 +168,7 @@ async function _fetchReleaseLive(rec){
       if (r.status === 429 || r.status >= 500) throw new Error('transient');
       if (!r.ok) return null;
       const d = await r.json();
-      return { tracks: d.tracks || [], country: d.country || '', released: d.released || '', videos: d.videos || [] };
+      return { tracks: d.tracks || [], country: d.country || '', released: d.released || '' };   // E3 #101: no videos
     } catch(e) { if (attempt < 2) await new Promise(res => setTimeout(res, 1200 * (attempt + 1))); }
   }
   return null;
@@ -180,7 +182,9 @@ const COLORS = {
 };
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// E4 (#102): apostrophes escape too — without it, esc()'s safety silently depended on
+// every attribute sink staying double-quoted forever (one single-quoted attr = injection).
+function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function swatchFor(text){
   const t=(text||'').toLowerCase(); const hits=[];
   for(const k of Object.keys(COLORS)) if(t.includes(k)) hits.push(COLORS[k]);
@@ -417,7 +421,7 @@ const WANT_BTN_STYLE_MODAL = "-webkit-appearance:none; appearance:none; margin:0
 function wantControlHtml(r, inModal){
   const st = inModal ? WANT_BTN_STYLE_MODAL : WANT_BTN_STYLE;
   if (IS_OWN() && state.view==='wantlist'){   // own wantlist: the destructive ✕REMOVE (delete FROM your own wantlist)
-    return `<button data-act="wantRemove" data-arg="${r.id}" style="${st}">✕ REMOVE FROM WANTLIST</button>`;
+    return `<button data-act="wantRemove" data-arg="${esc(r.id)}" style="${st}">✕ REMOVE FROM WANTLIST</button>`;
   }
   // #47 follow-up: the !IS_OWN branch now serves the friend CRATE and the friend WANTLIST alike — the
   // VIEWER's OWN +WANT/✕REMOVE toggle (data-act="want" → friendAdd/friendRemove; never edits the friend's
@@ -426,7 +430,7 @@ function wantControlHtml(r, inModal){
   if (!IS_OWN() && ctx){
     if (ctx.viewerHas && ctx.viewerHas.has(r.id)) return '';   // you own this release — no want action
     const wanted = ctx.viewerWants && ctx.viewerWants.has(r.id);
-    return `<button data-act="want" data-want="${wanted?'remove':'add'}" data-arg="${r.id}" style="${st}">${wanted?'✕ REMOVE FROM WANTLIST':'＋ ADD TO WANTLIST'}</button>`;
+    return `<button data-act="want" data-want="${wanted?'remove':'add'}" data-arg="${esc(r.id)}" style="${st}">${wanted?'✕ REMOVE FROM WANTLIST':'＋ ADD TO WANTLIST'}</button>`;
   }
   return '';
 }
@@ -438,16 +442,16 @@ function wantControlHtml(r, inModal){
 function metaCellHtml(r){
   if (state.view==='wantlist'){
     if (IS_OWN())   // own wantlist: the destructive ✕REMOVE (delete FROM your own wantlist)
-      return `<button data-act="wantRemove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
+      return `<button data-act="wantRemove" data-arg="${esc(r.id)}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
     // #47 follow-up: a friend's wantlist offers the VIEWER's OWN +WANT/✕REMOVE toggle (data-act="want" →
     // friendAdd/friendRemove; never touches the friend's list). Owned (a "they want, you have" match) → no
     // control. #28: _viewerOwns also covers any-pressing ("you own a pressing" → no inline want).
     // Close-audit fix: EXACT want first (✕ REMOVE, matches the badge), THEN own-suppression, else + WANT.
     const ctx = window.__twMatchCtx;
     if (ctx && ctx.viewerWants && ctx.viewerWants.has(r.id))
-      return `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
+      return `<button data-act="want" data-want="remove" data-arg="${esc(r.id)}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
     if (_viewerOwns(r)) return '';
-    return `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;
+    return `<button data-act="want" data-want="add" data-arg="${esc(r.id)}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;
   }
   if (IS_OWN())
     return SETTINGS.showPrices
@@ -459,9 +463,9 @@ function metaCellHtml(r){
   // "ON YOUR WANTLIST" badge (the prior order suppressed it via _viewerOwns when you also owned a pressing).
   // Then a record you own (exact OR, any-mode, a pressing) hides the inline + WANT (kit §1.4). Else + WANT.
   if (wanted)   // State B — wanted: the wantlist ✕ REMOVE control, verbatim (ink, underline, hover accent)
-    return `<button data-act="want" data-want="remove" data-arg="${r.id}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
+    return `<button data-act="want" data-want="remove" data-arg="${esc(r.id)}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
   if (_viewerOwns(r)) return '';
-  return `<button data-act="want" data-want="add" data-arg="${r.id}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;   // State A — not wanted/owned
+  return `<button data-act="want" data-want="add" data-arg="${esc(r.id)}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;   // State A — not wanted/owned
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────────── */
@@ -477,7 +481,7 @@ function card(r){
   const _badgeAria = _badges.length ? ' (' + _badges.map(b => b.label).join(', ') + ')' : '';
   return `<div class="tw-card" style="min-width:0; background:var(--panel); border:1.5px solid var(--line); box-shadow:3px 3px 0 var(--shadow); display:flex; flex-direction:column">
     <div style="position:relative; padding:6px 6px 0">
-      <button data-act="open" data-arg="${r.id}" class="tw-cell" tabindex="-1" aria-haspopup="dialog" aria-label="Open ${esc(r.artist)} — ${esc(r.title)}${_badgeAria}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
+      <button data-act="open" data-arg="${esc(r.id)}" class="tw-cell" tabindex="-1" aria-haspopup="dialog" aria-label="Open ${esc(r.artist)} — ${esc(r.title)}${_badgeAria}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
         <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
       </button>
       ${(r.isNew && state.view!=='wantlist')?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
@@ -485,7 +489,7 @@ function card(r){
     </div>
     <div style="min-width:0; flex:1; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
       <button class="tw-artist" data-act="artist" data-arg="${esc(r.artist)}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</button>
-      <button class="tw-title" data-act="open" data-arg="${r.id}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.02; color:var(--ink); text-wrap:pretty">${esc(r.title)}</button>
+      <button class="tw-title" data-act="open" data-arg="${esc(r.id)}" tabindex="-1" style="text-align:left; padding:0; border:0; background:transparent; font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; line-height:1.02; color:var(--ink); text-wrap:pretty">${esc(r.title)}</button>
       <button data-act="color" data-arg="${esc(r.vinylShort)}" tabindex="-1" style="display:flex; align-items:center; gap:6px; margin-top:1px; padding:0; border:0; background:transparent; text-align:left">
         <span style="width:9px; height:9px; flex:none; border:1.5px solid var(--line); background:${r.swatch}"></span>
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.vinylShort)}</span>
@@ -660,7 +664,7 @@ function overlapPanelHtml(){
     'you-outline': '<span style="' + _b + ' background:var(--panel); color:var(--accent); border:1.5px solid var(--accent)">A PRESSING YOU WANT</span>',
   }[kind]);
   const list = rows.length ? rows.map(({rec,kind})=>{ const r=deco(rec); return `
-            <button data-act="open" data-arg="${r.id}" style="display:flex; align-items:center; gap:12px; padding:8px 0; border:0; border-bottom:1px solid var(--hair); background:transparent; text-align:left; width:100%">
+            <button data-act="open" data-arg="${esc(r.id)}" style="display:flex; align-items:center; gap:12px; padding:8px 0; border:0; border-bottom:1px solid var(--hair); background:transparent; text-align:left; width:100%">
               <div role="img" aria-label="${esc(r.coverAlt)}" style="width:38px; height:38px; flex:none; border:1px solid var(--line); background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
               <span style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">
                 <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.artist)}</span>
@@ -928,6 +932,9 @@ function _copyFallback(text,done){
 /* Header spec §2 — the black strip renders in EVERY mode: context sentence on the left, utilities on the
    right. Ink in both themes (hard-coded #16171a/white). Desktop = one flowing span (.tw-fs-desktop); mobile
    = tappable rows (.tw-fs-mobile) + the utility cluster promoted to its own top row (.tw-strip-actions). */
+// E4 (#102) ⚠ CONTRACT: `t` is RAW HTML (callers pass authored markup/escaped counts).
+// Never pass a user-controlled string (a display name, a username) without esc()'ing it
+// at the call site — this sink renders verbatim.
 const _sL = (t,act,title)=>`<a href="#" data-act="${act}"${title?` title="${esc(title)}"`:''} style="color:#fff; text-decoration:underline; text-underline-offset:2px">${t}</a>`;
 const _sS = (t)=>`<span style="color:#fff">${esc(t)}</span>`;
 const _cnt = (n)=>Number(n).toLocaleString('en-US');   // header spec §2.1 — counts are numeric throughout (14, 2, 6 — never spelled "two")
@@ -1200,7 +1207,7 @@ function render(){
           ${IS_OWN() ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint)">${grp.valueLabel}</span>` : ''}
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:10px">${grp.items.map(r=>`
-          <button data-act="open" data-arg="${r.id}" title="${esc(r.coverAlt)}" style="padding:0; border:1.5px solid var(--line); background:transparent; box-shadow:2px 2px 0 var(--shadow)">
+          <button data-act="open" data-arg="${esc(r.id)}" title="${esc(r.coverAlt)}" style="padding:0; border:1.5px solid var(--line); background:transparent; box-shadow:2px 2px 0 var(--shadow)">
             <div role="img" aria-label="${esc(r.coverAlt)}" style="width:84px; height:84px; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
           </button>`).join('')}</div>
       </div>`).join('')}</div>`;
@@ -1405,7 +1412,7 @@ function modalHtml(){
   const rec=recordById(state.detailId);
   if(!rec) return '';
   const d=deco(rec);
-  const rel=rec._rel;  // tracklist/country/videos from the baked release file (or live fallback), via _loadRelease
+  const rel=rec._rel;  // tracklist/country/released from the baked release file (or live fallback), via _loadRelease
   const country=(rel && rel.country)?rel.country:'—';   // #34: don't fabricate "US" before the release loads / for unknown-country pressings
   const subLine=(rec.year||'—')+' · '+(rec.label||'Unknown label')+' · '+country;
   // DB mode: live stats live under rec._stats (see _loadStats -- MAJOR-2); baked mode
@@ -1479,7 +1486,7 @@ function modalHtml(){
           </div>
           <div style="display:flex; flex-direction:column; gap:7px; margin-top:auto">
             ${wantControlHtml(rec, true)}
-            <a href="https://www.discogs.com/release/${rec.id}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); color:var(--ink); text-align:center">VIEW ON DISCOGS ↗</a>
+            <a href="https://www.discogs.com/release/${encodeURIComponent(rec.id)}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); color:var(--ink); text-align:center">VIEW ON DISCOGS ↗</a>
             ${(IS_OWN() && state.view!=='wantlist')?(()=>{ const lid=window.__twInventory&&window.__twInventory.get(rec.id); const href=lid?('https://www.discogs.com/sell/item/'+lid):('https://www.discogs.com/sell/post/'+rec.id); const label=lid?'EDIT LISTING ↗':'LIST FOR SALE ↗'; return `<a href="${href}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); background:var(--ink); color:var(--panel); text-align:center">${label}</a>`; })():''}
             <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(rec.artist+' '+rec.title)}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:7px 10px; border:1.5px solid var(--line); background:var(--accent); color:var(--on-accent); text-align:center">▶ LISTEN</a>
           </div>
@@ -2250,10 +2257,12 @@ async function bootCrate(){
   if (window.TraxWaxFeedCompute) window.TraxWaxFeedCompute();   // #59: compute the feed choice now if the RPC already resolved (else boot's .finally does it)
   render();
   _crateReady = true;   // first paint done — async repaints (TraxWaxRerender) are now safe
-  if (DB_MODE()) {
+  if (DB_MODE() && window.TraxWaxValue) {
     // C9 (#86): a rejected value fetch (expired session mid-refresh, network drop) was an
     // unhandled rejection; the header shows — either way. C4: stale resolutions paint nothing.
-    window.TraxWaxStats()
+    // E2 (#100): TraxWaxValue replaces the dual-arity TraxWaxStats() no-arg accident; the
+    // friend crate installs no TraxWaxValue (its header carries no EST.), hence the guard.
+    window.TraxWaxValue()
       .then(v=>{ if(!_stale() && v && v.value){ state.headerValue=v.value; render(); } })
       .catch(()=>{});
   }

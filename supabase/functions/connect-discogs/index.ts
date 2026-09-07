@@ -2,39 +2,18 @@
  *
  * verify_jwt is FALSE at the platform level because Supabase's gate only validates
  * Supabase-issued JWTs and does not know Clerk's JWKS -- a Clerk RS256 token fails it.
- * Identity therefore comes from jwtVerify below, which enforces signature, issuer and
+ * Identity therefore comes from the shared verifyClerk (_shared/auth.ts), which enforces signature, issuer and
  * expiry. NOTHING else in this function may derive a user id: decoding the payload without
  * verifying would let anyone forge {"sub": "<someone else>"}. */
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { createRemoteJWKSet, jwtVerify } from 'https://deno.land/x/jose@v5.9.6/index.ts';
+import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest }
   from '../_shared/discogs.ts';
 
-// Audit #31: env-first so the production flip is a secret change, not five redeploys.
-// #52: fail CLOSED — no dev fallback. Prod always sets these; an unset value (misconfigured deploy / a new
-// preview env) must refuse, never silently accept dev-issued tokens against production data.
-const CLERK_ISSUER = Deno.env.get('CLERK_ISSUER');
-const APP_ORIGIN   = Deno.env.get('APP_ORIGIN');
-if (!CLERK_ISSUER || !APP_ORIGIN) throw new Error('CLERK_ISSUER and APP_ORIGIN env vars are required');
 const CALLBACK     = 'https://sfipqknrbvamwwahwxnl.supabase.co/functions/v1/connect-discogs-callback';
 
-const JWKS = createRemoteJWKSet(new URL(`${CLERK_ISSUER}/.well-known/jwks.json`));
-
-const CORS = {
-  'Access-Control-Allow-Origin': APP_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
-  });
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -52,21 +31,9 @@ Deno.serve(async (req: Request) => {
 async function handle(req: Request): Promise<Response> {
   // ── Identity: verified, never decoded. Runs BEFORE the config check so the forged-token
   //    negative test (B10 step 2) is meaningful even while the B2 secrets are unset. ──────
-  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  if (!token) return json({ error: 'missing_token' }, 401);
-
-  let userId: string;
-  try {
-    const { payload } = await jwtVerify(token, JWKS, { issuer: CLERK_ISSUER });
-    if (!payload.sub) throw new Error('no sub claim');
-    // Clerk stamps azp with the origin the token was minted for. Reject tokens minted for
-    // another site; tolerate absence, per Clerk's own guidance. Defense-in-depth only.
-    if (payload.azp && payload.azp !== APP_ORIGIN) throw new Error('azp mismatch');
-    userId = payload.sub;
-  } catch (e) {
-    console.error('clerk token rejected:', (e as Error).message);
-    return json({ error: 'invalid_token' }, 401);
-  }
+  const auth = await verifyClerk(req);   // E1 (#99): shared verifier — sub or a ready 401
+  if ('response' in auth) return auth.response;
+  const userId = auth.userId;
 
   const consumerKey = Deno.env.get('DISCOGS_CONSUMER_KEY');
   const consumerSecret = Deno.env.get('DISCOGS_CONSUMER_SECRET');

@@ -29,23 +29,17 @@ export function computeStats(records, owner){
   const decadeList=Object.keys(decades).map(Number).sort((a,b)=>a-b).map(d=>({decade:d,label:String(d).slice(2)+'s',count:decades[d]}));
   const peak=decadeList.slice().sort((a,b)=>b.count-a.count)[0]||null;
   const colored=R.filter(r=>isColored(r.vinyl)).length;
-  const now=new Date(); const thisYear=String(now.getFullYear());
-  const months=[]; for(let i=11;i>=0;i--){ const d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({key:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'),count:0,label:d.toLocaleString('en-US',{month:'short'}).toUpperCase()}); }
-  const mIdx=new Map(months.map((m,i)=>[m.key,i]));
-  R.forEach(r=>{ const k=(r.added||'').slice(0,7); if(mIdx.has(k)) months[mIdx.get(k)].count++; });
+  // E3 (#101): the 12-month histogram + topGenres/topArtists/topLabels/addedThisYear were
+  // computed on EVERY card render (~4 full passes over 1,861 records) and consumed by none
+  // of the three draw functions. Gone; recompute them the day a card actually draws them.
   const artistOf=r=>{ const a=(r.artist||'').trim(); return /^various( artists)?$/i.test(a)?null:a; };   // D5
   return {
     total, colored, coloredPct: total?Math.round(colored/total*100):0, black: total-colored,
     minYear: yrs.length?Math.min(...yrs):null, maxYear: yrs.length?Math.max(...yrs):null,
     decades: decadeList, peak, peakPct: (peak&&yrs.length)?Math.round(peak.count/yrs.length*100):0,
     topStyles: rank(R.flatMap(r=>r.styles||[]),5),
-    topGenres: rank(R.flatMap(r=>r.genres||[]),5),
-    topArtists: rank(R.map(artistOf),5),
-    topLabels: rank(R.map(r=>r.label),5),
     nStyles: new Set(R.flatMap(r=>r.styles||[])).size,
     nArtists: new Set(R.map(artistOf).filter(Boolean)).size,
-    addedThisYear: R.filter(r=>(r.added||'').slice(0,4)===thisYear).length,
-    months,
     collectingSince: owner&&owner.collectingSince?String(owner.collectingSince):null,   // profile field — label as such (D6)
   };
 }
