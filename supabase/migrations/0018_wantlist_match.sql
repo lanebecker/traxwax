@@ -32,6 +32,7 @@ revoke all on function private.can_view_wantlist(text, text) from public, anon;
 grant execute on function private.can_view_wantlist(text, text) to authenticated, service_role;
 
 -- ── wantlist_items: friend-readable SELECT under the wantlist gate. ORed with wantlist_select_own.
+drop policy if exists wantlist_select_friends on public.wantlist_items;   -- B7 #75: replay-safe
 create policy wantlist_select_friends on public.wantlist_items
   for select using (private.can_view_wantlist(auth.jwt()->>'sub', user_id));
 

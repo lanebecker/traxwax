@@ -13,6 +13,43 @@ _Nothing yet._
 
 ---
 
+## [1.26.0] — 2026-09-07
+
+### Changed (audit Wave B — "close the cheap attacks")
+- **Invite links now ask before they act (B4, #72).** Opening `/i/<code>` while signed in
+  previously executed the accept on page load — a GET-driven consent grant. Now a
+  confirmation card names the inviter ("@username wants to connect crates", via the new
+  read-only `get_invite_preview` RPC, migration 0035) and the consuming accept fires only on
+  an explicit ACCEPT INVITE click; NOT NOW leaves the code unconsumed and valid.
+
+### Security
+- **The connect cooldown is atomic (B3, #71).** `discogs_oauth_state` now carries a unique
+  index per user (0035) and connect-discogs arms via touch-or-insert against the DB clock —
+  N parallel requests can no longer all slip past the 10s check and drain the site-wide
+  request_token budget; concurrent losers get the same 429 a serial retry would.
+- **`/api/release/:id` hardened (B2, #70):** same-origin cost gate (Sec-Fetch-Site /
+  Referer), negative caching with honest status codes (404s 6h, other failures 60s), and the
+  budget-doubling 429 retry removed — an anonymous id-scanning loop no longer burns the
+  shared site token per-request.
+- **`private`-schema ACLs normalized (B5, #73):** `can_view_forsale` loses its accidental
+  default PUBLIC EXECUTE; `_feed_overlap`/`_feed_overlap_unlisted` lose their unused
+  `authenticated` grants (they were a ready-made cross-user overlap oracle if the schema
+  were ever exposed); `can_view_crate`'s dead post-0021 grant removed. `can_view_wantlist`
+  keeps `authenticated` — the one genuine RLS caller — until D2 (#91).
+- **Spent consent-widening backfills neutered in-tree (B6, #74):** the unconditional
+  `UPDATE profiles SET *_visibility='friends'` statements in 0026/0029 (executed once
+  against the alpha cohort) are removed, so no replay path can re-open privacy settings
+  users have since closed. Migration idempotence restored across the set (B7, #75):
+  drop-first guards on all 14 bare `create policy` statements (0001/0012/0017/0018/0027) +
+  0028's constraint, with solo-replay warnings beside the two policies later migrations
+  deliberately drop.
+- **Client-side origin check on `authorize_url` (B8, #76)** — the connect redirect refuses
+  any non-discogs.com destination.
+- Invite result copy no longer tells already-connected friends to request a fresh link
+  (audit F5 residue).
+
+---
+
 ## [1.25.1] — 2026-09-07
 
 ### Security (audit Wave A — "data that should die, dies")

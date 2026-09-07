@@ -27,6 +27,7 @@ create table if not exists public.friendships (
 alter table public.friendships enable row level security;
 -- Own-side SELECT only: you can read rows where YOU are the viewer side. Used by the friend
 -- list. (Reading the FRIEND's profile/crate goes through can_view_crate, not this policy.)
+drop policy if exists friendships_select_own on public.friendships;   -- B7 #75: replay-safe
 create policy friendships_select_own on public.friendships
   for select using (auth.jwt()->>'sub' = user_id);
 -- No INSERT/UPDATE/DELETE policies for anon/authenticated: friendships are created/removed ONLY
@@ -43,8 +44,10 @@ create table if not exists public.friend_invites (
 );
 alter table public.friend_invites enable row level security;
 -- The inviter may list + delete (revoke) their own unused invites; accept happens via the RPC.
+drop policy if exists friend_invites_select_own on public.friend_invites;   -- B7 #75: replay-safe
 create policy friend_invites_select_own on public.friend_invites
   for select using (auth.jwt()->>'sub' = inviter_id);
+drop policy if exists friend_invites_delete_own on public.friend_invites;   -- B7 #75: replay-safe
 create policy friend_invites_delete_own on public.friend_invites
   for delete using (auth.jwt()->>'sub' = inviter_id);
 create index if not exists friend_invites_inviter_idx on public.friend_invites (inviter_id);
@@ -75,6 +78,7 @@ $$;
 -- ── collection_items: friend-readable SELECT (the highest-risk change) ───────────
 -- Permissive policy ORed with the existing collection_select_own. can_view_crate already returns
 -- true for viewer==owner, so this alone would suffice; own is kept for clarity + a fast path.
+drop policy if exists collection_select_friends on public.collection_items;   -- B7 #75: replay-safe
 create policy collection_select_friends on public.collection_items
   for select using (public.can_view_crate(auth.jwt()->>'sub', user_id));
 

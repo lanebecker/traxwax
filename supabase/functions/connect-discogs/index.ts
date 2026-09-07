@@ -83,48 +83,76 @@ async function handle(req: Request): Promise<Response> {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  // ── Cooldown (issue #2, cold audit #7). Every request past this point burns a
-  //    request_token round-trip under the SHARED consumer key (60/min for the whole
-  //    site), so a signed-in user in a loop could exhaust the budget and break connect
-  //    for everyone. The user's newest state row — real handshake state or the armed
-  //    placeholder below — is the cooldown record: created <10s ago → refuse BEFORE
-  //    touching Discogs. Both timestamps are DB-clocked (db_now(), created_at default
-  //    now()) — one clock, per the Stage C watermark lesson; the Edge instance's own
-  //    clock never enters the comparison. A human clicking Connect never sees this. ──
-  const { data: recentRows, error: recentErr } = await admin.from('discogs_oauth_state')
-    .select('created_at').eq('user_id', userId)
-    .order('created_at', { ascending: false }).limit(1);
-  // Fail OPEN, but never silently (remediation-audit F5): a broken probe must not lock
-  // legitimate users out of connect, but it must leave a trail in the logs.
-  if (recentErr) console.error('cooldown probe failed (failing open):', recentErr.message);
-  const recent = recentRows?.[0];
-  if (recent) {
-    const { data: dbNow, error: nowErr } = await admin.rpc('db_now');
-    if (nowErr) console.error('db_now failed (cooldown failing open):', nowErr.message);
-    if (!nowErr && dbNow &&
-        new Date(dbNow as string).getTime() - new Date(recent.created_at as string).getTime() < 10_000) {
-      return json({ error: 'cooldown', retry_after: 10 }, 429);
+  // ── Cooldown (issue #2 → B3 #71): ATOMIC since 0035's unique(user_id) index. Every
+  //    request past this point burns a request_token round-trip under the SHARED consumer
+  //    key (60/min site-wide), so the throttle must hold under CONCURRENCY — the old
+  //    SELECT-then-INSERT let N parallel requests all pass the check before any placeholder
+  //    committed. Now at most ONE state row per user exists, and arming is two atomic
+  //    steps against the DB clock:
+  //      1. UPDATE ... set created_at = db_now where user_id = me AND created_at < db_now-10s
+  //         → a row came back: an old row (real handshake OR placeholder) existed and we
+  //           touched it — we hold the cooldown. Touch, not delete: a real in-flight
+  //           handshake from another tab keeps its token/secret (its callback still works;
+  //           only created_at moves — expires_at is untouched). (Pass-2 property kept.)
+  //      2. else INSERT the placeholder → a 23505 conflict means a concurrent request armed
+  //         between our two steps (or a <10s row exists) → 429. Under READ COMMITTED a
+  //         concurrent UPDATE re-evaluates its predicate after the winner's row lock
+  //         releases, sees created_at = now, matches nothing, falls to INSERT, conflicts,
+  //         and 429s — the Promise.all drain now costs ONE request_token call per 10s.
+  //    A failed leg 1 leaves the touched/inserted row in place, so the throttle survives
+  //    exactly when Discogs starts erroring (the original F4 property). One clock: the
+  //    cutoff derives from db_now(), never the edge clock. Fail OPEN on infrastructure
+  //    errors (never on conflicts), loudly — a broken DB must not lock everyone out.
+  //    Caveat (pass-2 F-1): under DEGRADED infra the fail-open branches skip the 10s
+  //    refusal, so a success there can replace another tab's <10s in-flight handshake via
+  //    the delete on the success path below — accepted as inherent to failing open;
+  //    self-healing (the other tab's callback lands on 'unknown_or_used', user reconnects). ──
+  // ⚠ DEPLOY ORDER (audit F1): 0035's unique(user_id) index must exist BEFORE this deploys —
+  //    the only refusal path below is its 23505 conflict; without the index the throttle is gone.
+  await admin.from('discogs_oauth_state').delete().lt('expires_at', new Date().toISOString());
+  const { data: dbNow, error: nowErr } = await admin.rpc('db_now');
+  if (nowErr || !dbNow) {
+    // F2: even failing open, ARM — the old code always left a cooldown record behind, so the
+    // NEXT request was throttled while infrastructure was degraded. Preserve that: best-effort
+    // placeholder insert, result deliberately ignored (a 23505 here means someone is armed).
+    console.error('db_now failed (cooldown failing open):', nowErr?.message ?? 'no value');
+    await admin.from('discogs_oauth_state').insert({
+      oauth_token: 'cooldown-' + crypto.randomUUID(),
+      oauth_token_secret: '',
+      user_id: userId,
+    }).then(({ error }) => {
+      if (error && error.code !== '23505') console.error('fail-open arm failed:', error.message);
+    });
+  } else {
+    const cutoffIso = new Date(new Date(dbNow as string).getTime() - 10_000).toISOString();
+    const touched = await admin.from('discogs_oauth_state')
+      .update({ created_at: dbNow as string })
+      .eq('user_id', userId).lt('created_at', cutoffIso)
+      .select('oauth_token');
+    if (touched.error) {
+      // F2: same fail-open-but-armed rule as the db_now branch above.
+      console.error('cooldown touch failed (failing open):', touched.error.message);
+      await admin.from('discogs_oauth_state').insert({
+        oauth_token: 'cooldown-' + crypto.randomUUID(),
+        oauth_token_secret: '',
+        user_id: userId,
+      }).then(({ error }) => {
+        if (error && error.code !== '23505') console.error('fail-open arm failed:', error.message);
+      });
+    } else if (!touched.data || touched.data.length === 0) {
+      const armed = await admin.from('discogs_oauth_state').insert({
+        oauth_token: 'cooldown-' + crypto.randomUUID(),
+        oauth_token_secret: '',
+        user_id: userId,
+      });
+      if (armed.error) {
+        if (armed.error.code === '23505') {
+          return json({ error: 'cooldown', retry_after: 10 }, 429);
+        }
+        console.error('cooldown arm failed (failing open):', armed.error.message);
+      }
     }
   }
-
-  // ── Arm the cooldown BEFORE touching Discogs (remediation-audit F4): the throttle
-  //    must survive a FAILED leg 1, or a hostile loop runs unthrottled exactly when
-  //    Discogs starts returning errors — the moment the shared budget most needs the
-  //    protection. The placeholder row is the cooldown record: its random token can
-  //    never match a callback lookup, the success path below replaces it with the real
-  //    state row, and the expiry sweep clears abandoned ones within 15 minutes. ──────
-  await admin.from('discogs_oauth_state').delete().lt('expires_at', new Date().toISOString());
-  // Clear only stale PLACEHOLDERS here (pass-2 audit): deleting the user's real row
-  // before a leg 1 that then FAILS would destroy a valid in-flight handshake from
-  // another tab. Real rows are replaced only on the success path below.
-  await admin.from('discogs_oauth_state').delete().eq('user_id', userId)
-    .like('oauth_token', 'cooldown-%');
-  const { error: armErr } = await admin.from('discogs_oauth_state').insert({
-    oauth_token: 'cooldown-' + crypto.randomUUID(),
-    oauth_token_secret: '',
-    user_id: userId,
-  });
-  if (armErr) console.error('cooldown arm failed (failing open):', armErr.message);
 
   // ── Leg 1: ask Discogs for a request token. NOTE: GET, not POST. ───────────
   const res = await fetch('https://api.discogs.com/oauth/request_token', {

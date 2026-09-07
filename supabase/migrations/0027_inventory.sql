@@ -23,6 +23,7 @@ create trigger inventory_items_touch before insert or update on public.inventory
 alter table public.inventory_items enable row level security;
 
 -- SELECT: own rows only, initplan form (matches every other *_own policy since 0025).
+drop policy if exists inventory_select_own on public.inventory_items;   -- B7 #75: replay-safe
 create policy inventory_select_own on public.inventory_items
   for select using (((select auth.jwt()) ->> 'sub') = user_id);
 
