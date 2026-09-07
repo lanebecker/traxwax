@@ -536,7 +536,11 @@ const _pipeAttempt = async (fn, onLine) => {
   for (let i = 0; ; i++) {
     try { return await fn(); }
     catch (e) {
-      if ([400, 401, 403, 409].includes(e && e.status)) throw e;
+      // C11 (#88): every 4xx except 408 (timeout) and 429 (rate limit) is non-retryable —
+      // the old whitelist let a 404/410/422 eat the full ~17s ladder for an answer that
+      // could never change.
+      const s = e && e.status;
+      if (typeof s === 'number' && s >= 400 && s < 500 && s !== 408 && s !== 429) throw e;
       if (i >= delays.length) throw e;
       const wait = (e && e.upstream === 429) ? 60000 : delays[i];   // #36: Discogs' rate window is ~60s; 30s retried into a still-closed window
       if (onLine) onLine('Hiccup (' + ((e && e.message) || e) + ') — retrying…');
@@ -760,8 +764,17 @@ async function runImport() {
    pixels; every network action is injected here so that module stays Clerk/Supabase-free.
    Why a page, not a modal: Wave 1's friend list is browsable content that needs a URL, and
    the consent toggles need room for copy that carries weight. (Surfaces spec \u00a76.) */
+/* C6 (#83): renderAccount re-enters in place (visibility toggles call it again), and each
+   pass used to stack a fresh document-level trapFocus keydown listener — the popstate
+   release never fires in-document (account-tab navigation is full page loads). Hold the
+   current release; drop it (listener + its popstate hook) before re-trapping. */
+let _acctTrapRelease = null;
+
 async function renderAccount(profile, section) {
   clearAuthMount();
+  // C6 (#83): remember what had focus (by id) so a re-entry can put it back — trapFocus
+  // otherwise yanks focus to the top of the page mid-form.
+  const _prevFocusId = (document.activeElement && document.activeElement.id) || null;
   let count = null;
   try {
     const res = await supabase.from('collection_items')
@@ -873,9 +886,25 @@ async function renderAccount(profile, section) {
       if (error) throw new Error(error.message);
     },
   });
+  // C6 (#83): release the previous trap AFTER the re-render (its `prev` node is gone from the
+  // DOM by now, so release only removes the stale keydown listener — no focus jump), and take
+  // its popstate hook down with it.
+  if (_acctTrapRelease) {
+    try { window.removeEventListener('popstate', _acctTrapRelease); _acctTrapRelease(); } catch (e) {}
+  }
   const release = UI.trapFocus(el, null);   // no Escape handler -- it's a page, not a modal
+  _acctTrapRelease = release;
   window.addEventListener('popstate', release, { once: true });
+  // C6 (#83): on re-entry, hand focus back to the control the user was on (id-matched in the
+  // fresh DOM); falls through silently to trapFocus's first-element default when absent.
+  if (_prevFocusId) { const n = document.getElementById(_prevFocusId); if (n) n.focus(); }
 }
+
+/* C12 (#89): own-key membership for the connect-status copy maps. A URL-controlled status
+   like ?connect=constructor is truthy through Object.prototype on a bare [status] lookup —
+   not XSS (the coerced strings carry no markup), but a stringified native function reached
+   the slab and analytics. Object.hasOwn confines lookups to authored keys. */
+const _knownConnect = (map, key) => !!(map && typeof key === 'string' && Object.hasOwn(map, key));
 
 /* Wave 1: SHA-256 hex of a string. Invite codes are hashed client-side — the plaintext code
    lives only in the /i/<code> link the inviter shares; only the hash is ever stored. */
@@ -1076,7 +1105,9 @@ async function render() {
   // arrive complete and never see this). Skipping is remembered per browser; completing
   // sets the Clerk name, so the condition never re-fires anywhere.
   let profileSkip = false;
-  try { profileSkip = !!localStorage.getItem('tw_profile_skip'); } catch (e) {}
+  // C3 (#80): per-user key — user B on A's browser must not inherit A's skip (they'd never
+  // see the onboarding card at all). A clean cut: pre-fix skips re-show the card once.
+  try { profileSkip = !!localStorage.getItem('tw_profile_skip:' + window.Clerk.user.id); } catch (e) {}
   // rev1-F9: never intercept an in-flight OAuth return — the parked link expires in
   // 15 minutes and the verify handler must run first.
   const inVerifyLeg = new URLSearchParams(window.location.search).get('connect') === 'verify';
@@ -1117,7 +1148,7 @@ async function render() {
       if (slot) { try { slot.innerHTML = UI.avatar(URL.createObjectURL(f), 56); } catch (e) {} }
     });
     document.getElementById('tw-ob-skip').addEventListener('click', () => {
-      try { localStorage.setItem('tw_profile_skip', '1'); } catch (e) {}
+      try { localStorage.setItem('tw_profile_skip:' + window.Clerk.user.id, '1'); } catch (e) {}   // C3 (#80): per-user
       route();
     });
     document.getElementById('tw-ob-save').addEventListener('click', async () => {
@@ -1169,7 +1200,8 @@ async function render() {
         // Close-audit fix: only a KNOWN connect-status key reaches the URL/history — an unmapped server
         // error (e.g. "Failed to fetch") is bucketed to store_failed, mirroring the analytics path, so no
         // raw error string is ever reflected into the address bar.
-        const urlStatus = (UI.COPY.connectErrors && UI.COPY.connectErrors[failStatus]) ? failStatus : 'store_failed';
+        // C12 (#89): own-key check — ?connect=constructor was truthy via Object.prototype.
+        const urlStatus = _knownConnect(UI.COPY.connectErrors, failStatus) ? failStatus : 'store_failed';
         window.location.replace('/app?connect=' + encodeURIComponent(urlStatus));
         return;
       }
@@ -1191,7 +1223,7 @@ async function render() {
       // raw error message (which finalize can put in the URL) ever reaches analytics.
       if (failed) track('connect_failed', {
         reason: problemOverride ? 'start_failed'
-          : ((UI.COPY.connectErrors && UI.COPY.connectErrors[status]) ? status : 'other'),
+          : (_knownConnect(UI.COPY.connectErrors, status) ? status : 'other'),   // C12 (#89)
       });
       notice(UI.COPY.connect.headline,
         '<div style="' + UI.BODY + '; font-size:13px; line-height:1.65">' +
@@ -1205,10 +1237,10 @@ async function render() {
         true,
         {
           kicker: failed
-            ? (UI.COPY.connectErrorKickers[status] || 'CONNECT · SOMETHING FAILED')
+            ? ((_knownConnect(UI.COPY.connectErrorKickers, status) && UI.COPY.connectErrorKickers[status]) || 'CONNECT · SOMETHING FAILED')   // C12 (#89)
             : UI.COPY.connect.kicker,
           problem: problemOverride ||
-            (failed ? (UI.COPY.connectErrors[status] || 'Connection failed. Try again.') : null),
+            (failed ? ((_knownConnect(UI.COPY.connectErrors, status) && UI.COPY.connectErrors[status]) || 'Connection failed. Try again.') : null),   // C12 (#89)
           actions: UI.btn(failed ? 'Try again' : UI.COPY.connect.cta, { id: 'tw-connect' }),
         });
       const btn = document.getElementById('tw-connect');

@@ -496,9 +496,12 @@ function friendsSection(o) {
 /* v1.15.0: one PRIVATE ▸ FRIENDS segment for the 1c visibility control. Same idiom as segBtn (the MATCHING
    control), keyed on data-vis (the value 'private'|'friends'). padding:8px 12px = pixel-identical to segBtn
    so the two segmented controls on the SHARING tab read as one language. The wire re-styles on click. */
-function visSegBtn(v, label, cur) {
+function visSegBtn(group, v, label, cur) {
   const on = cur === v;
-  return '<button data-vis="' + v + '" aria-pressed="' + on + '" style="' + MONO + '; font-size:10.5px; ' +
+  // C6 (#83): a deterministic id per group×value so renderAccount's re-entry focus restore
+  // can find "the control the user was on" in the fresh DOM (an id-less button made the
+  // restore dead code — remediation-audit F2).
+  return '<button id="tw-vis-' + group + '-' + v + '" data-vis="' + v + '" aria-pressed="' + on + '" style="' + MONO + '; font-size:10.5px; ' +
     'letter-spacing:.06em; padding:8px 12px; border:0; cursor:pointer; ' +
     (on ? 'background:var(--ink); color:var(--panel)' : 'background:var(--panel); color:var(--muted)') + '">' + label + '</button>';
 }
@@ -542,7 +545,7 @@ function sharingSection(o) {
         '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My crate') + rowSub('The records you own') + '</div>' +
         '<div id="tw-vis-crate-seg" role="group" aria-label="Crate visibility" style="display:flex; ' +
           'border:1.5px solid var(--line); flex:none">' +
-          visSegBtn('private', 'PRIVATE', crateVis) + visSegBtn('friends', 'FRIENDS', crateVis) +
+          visSegBtn('crate', 'private', 'PRIVATE', crateVis) + visSegBtn('crate', 'friends', 'FRIENDS', crateVis) +
         '</div>' +
       '</div>' +
       // wantlist row (hairline between)
@@ -551,7 +554,7 @@ function sharingSection(o) {
         '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My wantlist') + rowSub('The records you’re hunting') + '</div>' +
         '<div id="tw-vis-wl-seg" role="group" aria-label="Wantlist visibility" style="display:flex; ' +
           'border:1.5px solid var(--line); flex:none">' +
-          visSegBtn('private', 'PRIVATE', wlVis) + visSegBtn('friends', 'FRIENDS', wlVis) +
+          visSegBtn('wantlist', 'private', 'PRIVATE', wlVis) + visSegBtn('wantlist', 'friends', 'FRIENDS', wlVis) +
         '</div>' +
       '</div>' +
       // Wave 4 Stage 2 (E): for-sale row, gated UNDER crate visibility. Live segmented control when the crate is
@@ -567,7 +570,7 @@ function sharingSection(o) {
         (crateFriends
           ? '<div id="tw-vis-forsale-seg" role="group" aria-label="For-sale visibility" style="display:flex; ' +
               'border:1.5px solid var(--line); flex:none">' +
-              visSegBtn('private', 'PRIVATE', fsVis) + visSegBtn('friends', 'FRIENDS', fsVis) +
+              visSegBtn('forsale', 'private', 'PRIVATE', fsVis) + visSegBtn('forsale', 'friends', 'FRIENDS', fsVis) +
             '</div>'
           : '<div role="group" aria-label="For-sale visibility" aria-disabled="true" style="display:flex; ' +
               'flex-direction:column; align-items:flex-end; gap:5px; flex:none; max-width:236px">' +
@@ -626,7 +629,20 @@ async function renderFriendsList(root, deps) {
   if (!host) return;
   const setCount = (n) => { const c = root.querySelector('#tw-friends-count'); if (c) c.textContent = String(n); };
   let friends = [];
-  try { friends = await deps.onListFriends(); } catch (e) { host.innerHTML = ''; setCount(0); return; }
+  try { friends = await deps.onListFriends(); } catch (e) {
+    // C7 (#84): a failed load must not impersonate "0 friends" — a transient RPC error read
+    // as "my friends were deleted". Honest error line + retry; the count shows an em-dash.
+    const c = root.querySelector('#tw-friends-count'); if (c) c.textContent = '—';
+    host.innerHTML = '<div style="border:1px solid var(--hair); padding:22px; text-align:center; ' +
+      MONO + '; font-size:11px; letter-spacing:.05em; color:var(--accent)">' +
+      'Couldn’t load your friends — the network hiccuped. ' +
+      '<button id="tw-friends-retry" style="' + MONO + '; font-size:10.5px; font-weight:700; ' +
+      'letter-spacing:.1em; padding:6px 12px; margin-left:8px; background:var(--panel); ' +
+      'color:var(--ink); border:1.5px solid var(--line); cursor:pointer">RETRY</button></div>';
+    const rb = host.querySelector('#tw-friends-retry');
+    if (rb) rb.addEventListener('click', () => renderFriendsList(root, deps));
+    return;
+  }
   setCount(friends.length);
   if (!friends.length) {
     // Empty state is a single hairline box (NOT an empty ink container) — FRIENDS-SPEC §3.4.
@@ -698,11 +714,19 @@ async function renderFriendsList(root, deps) {
       btn.disabled = true; btn.textContent = 'REMOVING…';
       try {
         await deps.onRemoveFriend(btn.getAttribute('data-remove-friend'));
+        // C7 (#84, audit F3): a prior failure message must not outlive the removal it
+        // described — clear the line once a removal succeeds.
+        { const m = root.querySelector('#tw-friends-msg'); if (m) m.textContent = ''; }
         await renderFriendsList(root, deps);
         // Focus doesn't vanish to <body> after the list re-renders (a11y).
         const ib = root.querySelector('#tw-invite-btn');
         if (ib) ib.focus();
-      } catch (e) { btn.disabled = false; rest(); }
+      } catch (e) {
+        // C7 (#84): a failed removal must say so, not silently reset the button.
+        btn.disabled = false; rest();
+        const m = root.querySelector('#tw-friends-msg');
+        if (m) m.textContent = 'Couldn’t remove that friend — try again.';
+      }
     });
   });
 }
