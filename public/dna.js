@@ -36,7 +36,11 @@ export function computeStats(records, owner){
   return {
     total, colored, coloredPct: total?Math.round(colored/total*100):0, black: total-colored,
     minYear: yrs.length?Math.min(...yrs):null, maxYear: yrs.length?Math.max(...yrs):null,
-    decades: decadeList, peak, peakPct: (peak&&yrs.length)?Math.round(peak.count/yrs.length*100):0,
+    // T2.17c (#141): Card A's lede names S.total as the denominator ("% of N records,
+    // released this decade"), so peakPct MUST divide by total — not by yrs.length (dated only) —
+    // or the printed percentage doesn't follow from the denominator it names. Matches app.js:808,
+    // which divides the on-screen ledger's "% of the shelf" by all.length.
+    decades: decadeList, peak, peakPct: (peak&&total)?Math.round(peak.count/total*100):0,
     topStyles: rank(R.flatMap(r=>r.styles||[]),5),
     nStyles: new Set(R.flatMap(r=>r.styles||[])).size,
     nArtists: new Set(R.map(artistOf).filter(Boolean)).size,
