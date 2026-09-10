@@ -13,6 +13,26 @@ _Nothing yet._
 
 ---
 
+## [1.31.0] — 2026-09-10
+
+### Added
+- **The friend ledger joins the family (CHECK-IN 2, Option C).** A friend's LEDGER now shows
+  the same panel pair as every other viewer — MOST-FILED STYLES with the Top artist / Label
+  strip, BY DECADE with Peak / Span — and THE OVERLAP is promoted from the right panel to its
+  own full-width band beneath the pair: everything a stranger sees, plus the one section only
+  a friend gets. Overlap rows flow two columns (one below 820px; a single shared record takes
+  the full width). One ledger geometry for all three tiers.
+
+### Fixed
+- **BY DECADE binned friend and public views by pressing year (#116).** `get_friend_crate`
+  and `get_public_crate` never returned `master_year`, so non-owner histograms fell back to
+  the pressing year — 755 of 1,875 rows (40%) landed in a different decade than the owner
+  sees. Migration `0040_ledger_master_year` threads `master_year` through both RPCs (applied
+  via break-glass, verified as anon); the friend/public projections now carry the owner
+  path's exact `releaseYear` semantics. Deploy-order safe either direction.
+
+---
+
 ## [1.30.1] — 2026-09-10
 
 ### Fixed
