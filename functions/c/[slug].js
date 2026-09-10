@@ -95,9 +95,11 @@ export async function onRequestGet({ params, request, env }) {
 
   // The shell ships its own <title>TraxWax</title> + meta description (audit F7) — a SECOND
   // title appended before </head> would lose to the first in every parser. Replace both.
-  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`);
-  html = html.replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${esc(desc)}">`);
-  html = html.replace('</head>', meta + '\n</head>');
+  // Audit T1.3: FUNCTION replacements — the returned string is inserted literally, so a
+  // display_name containing $ (e.g. "$&", "$`") can never be reinterpreted as a replace pattern.
+  html = html.replace(/<title>[\s\S]*?<\/title>/, () => `<title>${esc(title)}</title>`);
+  html = html.replace(/<meta name="description"[^>]*>/, () => `<meta name="description" content="${esc(desc)}">`);
+  html = html.replace('</head>', () => meta + '\n</head>');
   return new Response(html, {
     headers: { ...SEC_HEADERS, 'Content-Type': 'text/html; charset=utf-8',
                'Cache-Control': 'public, max-age=300' },

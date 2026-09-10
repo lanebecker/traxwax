@@ -36,9 +36,16 @@ export function parseForm(body: string): Record<string, string> {
   return out;
 }
 
-/** Names only, never values — for logging an unexpected OAuth response safely. */
+/** Names only, never values — for logging an unexpected OAuth response safely.
+ *  Audit T1.5: URLSearchParams treats a NON-form body (a JSON/HTML error page) as a single
+ *  key = the ENTIRE string, so the old version could echo an oauth_token_secret into the logs.
+ *  Emit field names only when the body is genuinely form-encoded; otherwise a shape summary. */
 export function fieldNames(body: string): string {
-  return Object.keys(parseForm(body)).join(',') || '(none)';
+  const s = String(body ?? '');
+  if (!/^[\w.\-%+]+=[^&]*(?:&[\w.\-%+]+=[^&]*)*$/.test(s.trim())) {
+    return `(non-form body, ${s.length} bytes)`;
+  }
+  return Object.keys(parseForm(s)).map((k) => k.slice(0, 40)).join(',') || '(none)';
 }
 
 /* ── AES-256-GCM at rest ─────────────────────────────────────────────────────
