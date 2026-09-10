@@ -24,12 +24,12 @@ vanilla renderer on Cloudflare Pages.
 | `public/app.js` | The crate renderer. Does **not** self-start — it exposes `window.TraxWaxBootCrate`, which `boot.js` calls. |
 | `public/_redirects` | Rewrites `/app` and `/app/*` to the app shell. **No executable asset may live under `/app/`** — Pages follows redirects even when a real file matches, so a script there would be served as HTML and rejected by the module MIME check. |
 | `public/styles.css`, `collection.json`, `releases/<id>.json` | Tokens/base/responsive; the baked DEV FIXTURE (Restricted fields removed at v1.0.0); baked CC0 release files (modal fallback tier) |
-| `public/_headers` · `_routes.json` | Security headers + cache policy (v1.0.1: no-cache entry points, 7d releases); Functions pinned to `/api/*` |
+| `public/_headers` · `_routes.json` | Security headers + cache policy (v1.0.1: no-cache entry points, 7d releases); `_routes.json` includes `/api/*`, `/c/*`, `/og/*` (since v1.30.0) |
 | `functions/api/` | Legacy Pages proxy — **only** `release/[id].js` remains (CC0 modal fallback). `/api/value` + `/api/price` deleted in the 1.0.0 cold audit. |
-| `supabase/functions/` | **The real backend** — 9 Edge Functions (connect-discogs, callback, finalize-connect, disconnect-discogs, delete-account, import-collection, enrich-release, live-stats, wantlist-write) + `_shared/discogs.ts`. Deployed directly, not via git — see `DEPLOY.md`. |
+| `supabase/functions/` | **The real backend** — 9 Edge Functions (connect-discogs, callback, finalize-connect, disconnect-discogs, delete-account, import-collection, enrich-release, live-stats, wantlist-write) + `_shared/auth.ts` (the one Clerk-verify/CORS preamble, E1/#99) + `_shared/discogs.ts`. Deployed directly, not via git — see `DEPLOY.md`. |
 | `supabase/migrations/` | `0001_init` … `0040_ledger_master_year` (0002 username unique · 0003 OAuth state + link RPC · 0004 import watermark · 0005 collection→releases FK · 0006 audit hardening · 0007 profiles guard trigger · 0008 pending_enrichment RPC + display_name drop · 0009 pending links + finalize/unlink/delete RPCs · 0010 gone_at + refresh + seed_releases merge · 0011 profile fields · 0012 friendships + friend_invites + crate_visibility + friend-read RLS · 0013 can_view_crate→private schema · 0014 crate_view_decision · 0015 soft-consume invites · 0016 friends hardening · 0017–0019 wantlist + match · 0020 wave-3 integrity · 0021 get_friend_crate · 0022 import watermark persist · 0023 crate-owner visibility flags · 0024 any-pressing (master_id + match_mode) · 0025 close-audit hardening · 0026 sharing defaults→friends · 0027 inventory_items (selling) · 0028 forsale_visibility + get_friend_forsale · 0029 forsale default→friends · 0030 wantlist_items.vinyl · 0031 list_friends · 0032 master_year · 0033 social feed (`get_social_feed`) · 0034 audit Wave A — re-link cleanup + guard pins + invite retention · 0035 audit Wave B — unique oauth-state + `get_invite_preview` + private ACLs · 0036 audit Wave D — set-based feed rewrite + `get_friend_wantlist` + indexes + `master_id` CHECK · 0037 public tier — `'public'` on the three visibility CHECKs + `public_slug` + `og_palette` + `get_public_crate` (anon) + `can_view_*` widened · 0038 relation-first in `get_public_crate` (owner `open` flag) · 0039 friend-redirect gate (all-private → 404) · 0040 ledger master_year — `master_year` through `get_friend_crate`/`get_public_crate` so friend/public BY DECADE bins on original-release year (#116)) |
 | `build/` | Legacy single-user data builders (`refresh_collection.py` now manual-dispatch only; `seed_catalog.py` was the one-shot Phase 0 seed) |
-| `docs/roadmap.md` | Shipped versions (defers to `CHANGELOG.md`/`VERSION` for the current one) and what's next |
+| `docs/roadmap.md` | Shipped versions and what's next (⚠ its header still hardcodes an old version — trust `VERSION`) |
 | `docs/multi-user-spec.md` | The multi-user DESIGN (period doc — see its as-built note; the shipped system diverges where the plans say so) |
 | `docs/phase-*.md`, `phase-1-cold-audit.md` | Period records of the build: phase 0/1 plans, stage A–D plans, cold audit, phase-2 account + catalog-refresh plans. Never edited retroactively. |
 | `DEPLOY.md` | Operations reference: all three deploy surfaces, secrets, cache policy, verification, rollback |
@@ -37,9 +37,9 @@ vanilla renderer on Cloudflare Pages.
 
 ## Design source
 
-The design is Lane's Claude Design kit at `../traxwax-design-kit/new design kit/`.
-`TraxWax App.dc.html` is authoritative and `TRAXWAX-DESIGN-SPEC.md` documents the tokens,
-filter model, views, and data seams. `public/app.js` copies the kit's inline styling
+The in-repo design docs are `docs/design-crate-spec.md` (the crate kit) and
+`docs/design-surfaces-spec.md` (everything else), with the runnable source under
+`docs/design-source/`; the original external kit lives at `../traxwax-design-kit/`. `public/app.js` copies the kit's inline styling
 **verbatim** so the design stays authoritative; only the Claude Design runtime (`support.js`,
 `<x-dc>`, `{{ }}`, `<sc-for>`, `<sc-if>`) was replaced by the vanilla renderer.
 
@@ -87,7 +87,7 @@ cd "…/Projects/Lane's Record Collection/traxwax-clone"
 git add -A && git commit -m "…" && git pull --rebase origin main && git push
 ```
 
-## Multi-user — SHIPPED (v1.0.0 launched 2026-08-29; current v1.25.0). Social waves shipped through friend-crate visibility (#43), any-pressing matching (#28), the selling wave (for-sale via Discogs, v1.16–1.19), Wave 5a "share the shelf" (Collection DNA card + shareable filter URLs, v1.20.0) + the header status feed (`get_social_feed` + client seen-state engine, #59, v1.25.0). Recent UI: FILED UNDER style tray (v1.21.0), FOR SALE promoted to a 5th tab (v1.22.0) then renamed THE GOODS (v1.24.1), header icon trio (v1.23.x). Cold audits: end-of-phase at v1.14.0; full-codebase at v1.25.0 (`docs/cold-audit-v1.25.md` — 44 findings filed as #62–#105)
+## Multi-user — SHIPPED (v1.0.0 launched 2026-08-29; current version in `VERSION`, 1.31.0 at this audit). Social waves shipped through friend-crate visibility (#43), any-pressing matching (#28), the selling wave (for-sale via Discogs, v1.16–1.19), Wave 5a "share the shelf" (Collection DNA card + shareable filter URLs, v1.20.0) + the header status feed (`get_social_feed` + client seen-state engine, #59, v1.25.0). Recent UI: FILED UNDER style tray (v1.21.0), FOR SALE promoted to a 5th tab (v1.22.0) then renamed THE GOODS (v1.24.1), header icon trio (v1.23.x). Cold audits: end-of-phase at v1.14.0; full-codebase at v1.25.0 (`docs/cold-audit-v1.25.md` — 44 findings filed as #62–#105)
 
 Supabase project `traxwax` (ref `sfipqknrbvamwwahwxnl`) holds **ten tables**: `profiles`
 (Wave 1 `crate_visibility`; later `wantlist_visibility`, `match_mode`, `forsale_visibility`), `collection_items`,
