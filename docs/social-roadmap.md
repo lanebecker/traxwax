@@ -17,7 +17,7 @@ Current shipped version: **v1.23.2**. SHIPPED SINCE: Wave 1 (friends & consented
 wantlist + match-matrix wave (v1.5.0) and THE OVERLAP (v1.6.0); the friend-crate visibility/header/card
 work (v1.10.0–v1.12.0); optional any-pressing matching (#28, v1.13.0); **Wave 4 — selling via Discogs
 (v1.16.0–v1.19.0)**; and **Wave 5a — share the shelf: the Collection DNA card + shareable filter URLs
-(v1.20.0)**. Still unshipped: Wave 5b (public tier) and Wave 6 (community). The §4–§8 wave targets below are
+(v1.20.0)**, plus Wave 5b (public tier — v1.29.0–v1.31.0). Still unshipped: Wrapped and Wave 6 (community). The §4–§8 wave targets below are
 historical — treat any `→ vX.Y` as its shipped version (actuals differ: Wave 4 shipped v1.16–1.19, Wave 5a
 v1.20.0); `CHANGELOG.md` is authoritative. Original Wave 1
 note — **Wave 1 SHIPPED (2026-08-30)**: friends, consented crates,
@@ -416,7 +416,7 @@ Commerce-shaped without touching commerce.
     `https://www.discogs.com/sell/post/{release_id}` — verified live 2026-08-29 (W0.2a #11).
 - **Cut v1.7.0**: "The record store between friends."
 
-## 8. Wave 5 — Share the shelf (off-platform) → **v1.8.0**, then Wrapped — ⏳ 5a SHIPPED (v1.20.0: Collection DNA card + shareable filter URLs); 5b (public tier — slugs, signed-out crates, OG unfurl) + Wrapped remain
+## 8. Wave 5 — Share the shelf (off-platform) — ⏳ 5a SHIPPED (v1.20.0: Collection DNA card + shareable filter URLs); 5b SHIPPED (public tier — slugs, signed-out crates, OG unfurl — v1.29.0–v1.31.0); Wrapped remains
 
 Growth mechanics, aggregate-only, terms-clean by construction.
 

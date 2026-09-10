@@ -4,10 +4,10 @@
 
 **Live at [traxwax.com](https://traxwax.com)** — anyone's Discogs vinyl collection as a
 browsable, filterable crate. Sign in, connect Discogs, and your records import in about a
-minute. Static front-end on Cloudflare Pages (no framework, no build step) over a Supabase
+minute. Static front-end on Cloudflare Pages (no framework; one `npm install` build step for the OG-card Function) over a Supabase
 backend (Postgres + Edge Functions) with Clerk auth.
 
-**Views:** THE CRATE · THE TIMELINE · THE LEDGER · THE WANTLIST · FOR SALE, with composable filters (the
+**Views:** THE CRATE · THE TIMELINE · THE LEDGER · THE WANTLIST · THE GOODS, with composable filters (the
 FILED UNDER style tray, colored-wax, color, search), light/dark, and a responsive grid. THE LEDGER carries a
 BY DECADE chart and a Collection DNA share card; friends can see consented crates, wantlists, and for-sale
 listings, with optional any-pressing matching. Filtered views have shareable URLs.
@@ -26,18 +26,21 @@ traxwax/
 │   ├── releases/<id>.json    # baked CC0 release files — modal fallback tier for local dev
 │   ├── _headers              # security headers + cache policy (no-cache entry points)
 │   ├── _redirects            # rewrites /app/* to the app shell (see Routing)
-│   └── _routes.json          # pins Pages Functions to /api/* so the static rules above apply
-├── functions/api/
-│   └── release/[id].js       # legacy CC0 proxy — last-resort modal fallback only
+│   └── _routes.json          # routes /api/*, /c/*, /og/* to Pages Functions (static rules skip those)
+├── functions/
+│   ├── api/release/[id].js   # legacy CC0 proxy — last-resort modal fallback only
+│   ├── c/[slug].js           # public-crate crawler meta (v1.29.0)
+│   └── og/[slug].js          # 1200×630 OG unfurl card (v1.30.0)
 ├── supabase/
-│   ├── migrations/           # 0001–0033: schema, RLS, RPCs (see CLAUDE.md for the map)
+│   ├── migrations/           # 0001–0040: schema, RLS, RPCs (see CLAUDE.md for the map)
 │   └── functions/            # 9 Edge Functions — the real backend (see DEPLOY.md)
 ├── build/
 │   ├── refresh_collection.py # legacy single-user data builder (manual dispatch only)
 │   └── seed_catalog.py       # one-shot: emitted the CC0 catalog seed for Supabase (Phase 0)
 ├── .github/workflows/
 │   ├── refresh-collection.yml  # RETIRED from cron; workflow_dispatch only (dev fixture)
-│   └── sync-version-badge.yml  # keeps the README badge in sync with VERSION
+│   ├── sync-version-badge.yml  # keeps the README badge in sync with VERSION
+│   └── uptime-probe.yml        # 15-min liveness probe (static surface + Supabase Edge)
 ├── docs/                     # roadmap, multi-user spec, phase plans + audits
 ├── screenshots/              # rendered reference states
 ├── VERSION · CHANGELOG.md · CLAUDE.md · DEPLOY.md
@@ -106,7 +109,7 @@ above to match and warns if the changelog was not updated in the same push.
 
 ## Status
 
-**Shipped through v1.25.0**: the full single-user redesign (v0.x); multi-user launch —
+**Shipped through v1.31.0** (Wave 5b public tier + OG unfurl live): the full single-user redesign (v0.x); multi-user launch —
 Clerk auth, per-user Discogs OAuth (tokens AES-256-GCM at rest), client-driven import + background CC0
 enrichment, live-only Restricted data (v1.0.0); account controls + link-CSRF-safe finalize (v1.1.0);
 the self-healing catalog (v1.2.0); accessibility polish (v1.3.x); analytics (v1.4.7); wantlists + the
@@ -126,6 +129,6 @@ renamed **THE GOODS** (v1.24.1); and the header **status feed** — `get_social_
 seen-state engine (#59, v1.25.0). Full history in
 `CHANGELOG.md`, release-by-release detail in `docs/roadmap.md`.
 
-**Next** — the public-crate tier (TraxWax slugs + signed-out crates + OG unfurl, Wave 5b) is the main
-remaining item, gated on a Discogs API-terms outreach note; friend link-sharing (#10) stays parked. See
+**Next** — the public-crate tier shipped (v1.29.0–v1.31.0). Remaining: Wrapped and Wave 6 (community);
+friend link-sharing (#10) stays parked. See
 `docs/social-roadmap.md`.

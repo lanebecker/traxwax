@@ -13,14 +13,14 @@ Design team's concise sync anchor (repo/branch + a high-level map + sync history
 design sync diffs against; it points here for detail. Keep this current when a surface moves.
 
 Written 2026-08-29, against v1.3.2 (the pass that built these). Design truth:
-`docs/design-surfaces-spec.md`; crate spec `docs/design-crate-spec.md` (identical to the
-delivered `docs/design-source/DESIGN-KIT-V1.md`); runnable doc `docs/design-source/TraxWax
+`docs/design-surfaces-spec.md`; crate spec `docs/design-crate-spec.md` (`DESIGN-KIT-V1.md` with
+shipped-status annotations folded in — `docs/design-source/DESIGN-KIT-V1.md` is the frozen as-delivered copy); runnable doc `docs/design-source/TraxWax
 Surfaces.dc.html`.
 
 | ID | Surface | Rendered by | Notes |
 |---|---|---|---|
 | **S0** | Shell system (buttons, fields, toggle, progress, state card, empty-state, avatar) | `public/boot.ui.js` | Pure functions, no Clerk/Supabase coupling. Classes for the landing live in `public/styles.css` (`.tw-btn*`, `.tw-wordmark*`, `.tw-tape*`). |
-| **S1** | Landing page | `public/index.html` + `.tw-land-*` in `public/styles.css` | Static, no JS beyond the theme IIFE. Hero image is `/screenshots/crate-hero.png` (**ASSET TODO**, spec §11). |
+| **S1** | Landing page | `public/index.html` + `.tw-land-*` in `public/styles.css` | Static, no JS beyond the theme IIFE. Hero image is `/screenshots/crate-hero.jpg` (DONE, captured 2026-08-29). |
 | **S2 / S3** | Auth — sign-in / sign-up chrome | `boot.js` `mountAuth()` + `public/boot.clerk.js` (`clerkAppearance`) | Our `stateCard` frame, Clerk's component in the `extra` slot. Merged into `Clerk.load()`. |
 | **S4** | Onboarding (name + photo) | `boot.js` `render()` onboarding block | `stateCard` + `UI.field` + `UI.avatar`; `COPY.onboarding`. Kicker `STEP 2 OF 3`. |
 | **S5 / S6** | Connect Discogs (+ 13 errors) | `boot.js` `render()` `paintConnect()` | Reassurance panel in body; errors → problem slab. Copy in `UI.COPY.connect*`. |
@@ -44,7 +44,7 @@ Surfaces.dc.html`.
 - `/api/*` → Cloudflare Pages Functions (`functions/api/`, the CC0 release proxy)
 
 `public/_redirects` rewrites `/app*` and `/account*` to the `/app/` shell (200, URL preserved).
-`public/_routes.json` pins Functions to `/api/*` only, so those rewrites take effect in the
+`public/_routes.json` routes `/api/*`, `/c/*`, `/og/*` to Functions (since v1.30.0); the `_redirects`/`_headers` rules take effect only off those prefixes, so those rewrites take effect in the
 static asset store. `public/_headers` marks the entry-point JS + shells `no-cache`.
 
 ## Reserved-but-unbuilt (do not wire until the named wave)
