@@ -519,3 +519,9 @@ a.tw-badge-else:hover, a.tw-badge-else:focus-visible { background:var(--ink); co
   .tw-tab-the{ display:none; }
   .tw-strip-crate{ display:none; }
 }
+
+/* CHECK-IN 2 (v1.31.0): the friend ledger's WHERE YOU OVERLAP band — rows flow two columns on
+   desktop; below 820px (the account-page breakpoint) they stack into one continuous list. */
+@media (max-width:820px) {
+  .tw-overlap-grid { grid-template-columns:1fr !important; }
+}

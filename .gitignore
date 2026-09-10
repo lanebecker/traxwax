@@ -19,3 +19,4 @@ supabase/.temp/
 # a fresh clone doesn't have (never actually committed — pass-1 audit verified by git log —
 # but one absent-minded `git add -A` away from it until this line).
 .impeccable/
+_to_delete/

@@ -671,9 +671,12 @@ function _overlapRecords(){
   }
   return out;
 }
-/* 2A: the friend LEDGER's second panel — the records you both care about. #28: outlined variants for
-   any-pressing-only overlaps (panel-fill + a colored rule, mirroring the card badge outline idiom). */
-function overlapPanelHtml(){
+/* 2A → CHECK-IN 2 (v1.31.0): the friend LEDGER's full-width WHERE YOU OVERLAP band. The panel pair
+   above it is now identical for every viewer (owner/friend/public); the overlap — the one thing only a
+   friend can see — sits beneath as its own band, rows flowing two columns (one under 820px; styles.css).
+   #28: outlined variants for any-pressing-only overlaps (panel-fill + a colored rule, mirroring the card
+   badge outline idiom). */
+function overlapBandHtml(){
   const rows = _overlapRecords();
   const _b = 'font-family:\'IBM Plex Mono\',monospace; font-size:9px; font-weight:800; letter-spacing:.1em; padding:3px 6px;';
   const badge = (kind) => ({
@@ -682,7 +685,7 @@ function overlapPanelHtml(){
     you:           '<span style="' + _b + ' background:var(--accent); color:var(--on-accent)">ON YOUR WANTLIST</span>',
     'you-outline': '<span style="' + _b + ' background:var(--panel); color:var(--accent); border:1.5px solid var(--accent)">A PRESSING YOU WANT</span>',
   }[kind]);
-  const list = rows.length ? rows.map(({rec,kind})=>{ const r=deco(rec); return `
+  const rendered = rows.map(({rec,kind})=>{ const r=deco(rec); return `
             <button data-act="open" data-arg="${esc(r.id)}" style="display:flex; align-items:center; gap:12px; padding:8px 0; border:0; border-bottom:1px solid var(--hair); background:transparent; text-align:left; width:100%">
               <div role="img" aria-label="${esc(r.coverAlt)}" style="width:38px; height:38px; flex:none; border:1px solid var(--line); background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
               <span style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px">
@@ -690,11 +693,15 @@ function overlapPanelHtml(){
                 <span style="font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:600; line-height:1.05">${esc(r.title)}</span>
               </span>
               ${badge(kind)}
-            </button>`; }).join('')
-    : `<span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">No shared records yet.</span>`;
-  return `<div style="padding:22px 24px">
+            </button>`; });
+  const half = Math.ceil(rendered.length/2);
+  const col = (items)=>`<div style="display:flex; flex-direction:column; min-width:0">${items.join('')}</div>`;
+  const body = rendered.length
+    ? `<div class="tw-overlap-grid" style="display:grid; grid-template-columns:${rendered.length>1?'1fr 1fr':'1fr'}; column-gap:48px; margin-top:14px">${col(rendered.slice(0,half))}${rendered.length>1?col(rendered.slice(half)):''}</div>`
+    : `<div style="margin-top:14px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">No shared records yet.</span></div>`;
+  return `<div class="tw-overlap-band" style="border-top:1px solid var(--hair); padding:22px 24px 26px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Where you overlap</span>
-          <div style="display:flex; flex-direction:column; margin-top:14px">${list}</div>
+          ${body}
         </div>`;
 }
 
@@ -1250,13 +1257,13 @@ function render(){
       <div class="tw-ledger-panels" style="display:grid; grid-template-columns:1fr 1fr; gap:0">
         <div style="padding:22px 24px; border-right:1px solid var(--hair); display:flex; flex-direction:column">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Most-filed styles</span>
-          <div style="display:flex; flex-direction:column; gap:9px; margin-top:16px;${(IS_OWN()||VIEWER_MODE().startsWith('public'))?' min-height:170px':''}">${v.styleBars.map(b=>`
+          <div style="display:flex; flex-direction:column; gap:9px; margin-top:16px; min-height:170px">${v.styleBars.map(b=>`
             <div style="display:flex; align-items:center; gap:12px">
               <span style="width:150px; flex:none; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(b.label)}</span>
               <span style="flex:1; height:12px; background:var(--bar); position:relative"><span style="position:absolute; inset:0 auto 0 0; width:${b.width}; background:var(--accent)"></span></span>
               <span style="width:26px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${b.count}</span>
             </div>`).join('')}</div>
-          ${(IS_OWN()||VIEWER_MODE().startsWith('public')) ? `<div class="tw-ledger-strip" style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
+          <div class="tw-ledger-strip" style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
             <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; padding-right:14px">
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Top artist</span>
               <span title="${v.topArtist?esc(v.topArtist.name):''}" style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1.05; color:var(--ink); overflow-wrap:anywhere">${v.topArtist?esc(v.topArtist.name):'—'}</span>
@@ -1267,9 +1274,9 @@ function render(){
               <span title="${v.topLabel?esc(v.topLabel.name):''}" style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1.05; color:var(--ink); overflow-wrap:anywhere">${v.topLabel?esc(v.topLabel.name):'—'}</span>
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted)">${v.topLabel?v.topLabel.count.toLocaleString('en-US')+(v.topLabel.count===1?' record':' records'):''}</span>
             </div>
-          </div>` : ''}
+          </div>
         </div>
-        ${(IS_OWN()||VIEWER_MODE().startsWith('public')) ? (()=>{ const ds=v.decadeStats; const mx=ds.maxCount||1; return `<div style="padding:22px 24px; display:flex; flex-direction:column">
+        ${(()=>{ const ds=v.decadeStats; const mx=ds.maxCount||1; return `<div style="padding:22px 24px; display:flex; flex-direction:column">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">By decade</span>
           <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:6px; height:170px; margin-top:16px">${v.decades.map(d=>{ const pk=ds.peak && d.decade===ds.peak.decade; const h=Math.max(3,Math.round(d.count/mx*120)); return `
             <div style="flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%">
@@ -1289,8 +1296,9 @@ function render(){
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted)">${ds.medianYear!=null?'median '+ds.medianYear:''}</span>
             </div>
           </div>
-        </div>`; })() : overlapPanelHtml()}
+        </div>`; })()}
       </div>
+      ${VIEWER_MODE()==='friend' ? overlapBandHtml() : ''}
       ${IS_OWN() ? `<div class="tw-dna-band" style="display:flex; align-items:center; justify-content:space-between; gap:32px; padding:22px 24px 26px; border-top:1px solid var(--hair); background:var(--bar)">
         <div style="display:flex; flex-direction:column; gap:8px; max-width:520px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Collection DNA</span>

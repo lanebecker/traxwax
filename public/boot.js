@@ -435,6 +435,7 @@ function installFriendCrateProviders(owner) {
       label: it.label || '', styles: it.styles || [], genres: it.genres || [],
       vinyl: it.vinyl || '', thumb: it.thumb || '', cover_image: it.cover_image || '',
       added: it.added || '', rating: it.rating || 0, master_id: it.master_id || null,   // #28
+      releaseYear: (it.master_year && it.master_year > 0) ? it.master_year : (it.year || 0),   // 0040: decade panel bins on original-release year (CHECK-IN 2)
       price: null, crating: null, crcount: null, have: null, want: null,
     }));
   };
@@ -1553,6 +1554,7 @@ function _installPublicCrate(d) {
     label: it.label || '', styles: it.styles || [], genres: it.genres || [],
     vinyl: it.vinyl || '', thumb: it.thumb || '', cover_image: it.cover_image || '',
     added: it.added || '', rating: 0, master_id: it.master_id || null,
+    releaseYear: (it.master_year && it.master_year > 0) ? it.master_year : (it.year || 0),   // 0040: decade panel bins on original-release year
     price: null, crating: null, crcount: null, have: null, want: null,
   }));
   window.TraxWaxViewer = {

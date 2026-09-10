@@ -112,7 +112,7 @@ verification runs).
 ## Surface 3 — Database
 
 Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids; RLS policies use the
-`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0039` applied; the migration
+`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0040` applied; the migration
 map lives in `CLAUDE.md`. Apply via the **break-glass** MCP `apply_migration` (or
 `supabase db push`), verify with the checks each migration's plan documents, then commit the
 file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
@@ -134,7 +134,9 @@ gates) are SECURITY DEFINER granted to `authenticated`.
   Function will claim `/c/*` + `/og/*` via `_routes.json` `include`, at which point those
   `_redirects` rules go inert for those paths (they stay as a Functions-outage fallback).
 - Applied 2026-09-10 via break-glass: 0037_public_tier, 0038_public_relation_first,
-  0039_friend_redirect_gate (all three amend/replace `get_public_crate`; 0039 is the live body).
+  0039_friend_redirect_gate, and (v1.31.0) 0040_ledger_master_year — all four amend/replace
+  `get_public_crate`; **0040 is the live body** (0039 + `master_year` in the row projections),
+  and 0040 also re-issues `get_friend_crate` (0024 + `master_year`).
 - **S2 (v1.30.0): the Pages project has a BUILD STEP now** — build command `npm install`, build
   output directory `public` (set in the Pages dashboard, rehearsed on a branch preview before
   main). `package.json` pins `workers-og` for `functions/og/[slug].js`; the compressed function
