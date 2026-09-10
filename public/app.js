@@ -1353,7 +1353,6 @@ function render(){
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
           <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} ${s.view==='wantlist'?'ON WANTLIST':s.view==='forsale'?'FOR SALE':'IN CRATE'}</span>
           ${(IS_OWN() && s.view!=='wantlist' && s.view!=='forsale')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
-          ${(VIEWER_MODE()==='public-out'||VIEWER_MODE()==='public-in')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount.toLocaleString('en-US')} COLORED</span>`:''}
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
       </div>
