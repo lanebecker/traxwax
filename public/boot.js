@@ -37,12 +37,15 @@ const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_RLxgLYBzZoh5YCkYJ3NJZw_8BLFMIWg
    the old constant to prove no reference survives, comments included.) */
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  // #124 (T2.2): return null ONLY when there is genuinely no session (signed out / public path) —
+  // a correct anonymous request. Do NOT swallow a getToken() failure to null: an anonymous read
+  // passes RLS and returns [] with no error, which the crate paints as "you own nothing" right after
+  // a successful import. Letting getToken() fail makes supabase-js resolve the query {data:null, error}
+  // (it does NOT throw — the request just aborts before fetch), and every provider's `if (error) throw`
+  // turns that into the "Couldn't load … RETRY" card instead of a silently-empty crate.
   accessToken: async () => {
-    try {
-      return window.Clerk?.session ? await window.Clerk.session.getToken() : null;
-    } catch (e) {
-      return null;
-    }
+    if (!window.Clerk?.session) return null;
+    return await window.Clerk.session.getToken();
   },
 });
 
@@ -1100,9 +1103,15 @@ function mountAuth() {
   }
 }
 
+// #126 (T2.4): a malformed %-escape in a path segment must not throw out of render() into the
+// error card (whose Reload links back to the same URL → a permanent loop). Fall back to the RAW
+// segment, which matches no real username/invite code and lands on the calm "no crate"/"invalid
+// invite" render rather than being mistaken for the /app own-crate case (null routeUsername).
+function safeDecode(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
+
 async function render() {
   const segments = window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
-  const routeUsername = segments[1] ? decodeURIComponent(segments[1]) : null;
+  const routeUsername = segments[1] ? safeDecode(segments[1]) : null;
 
   // #32 (cold audit): guard on the USER object too, not just isSignedIn. Clerk can briefly report
   // isSignedIn===true with a null user (mid-refresh / partial hydration); proceeding would dereference
@@ -1153,7 +1162,7 @@ async function render() {
   // a signed-out visitor to sign-in, preserving the URL so the code survives). acceptInvite
   // renders its own result card, then routes the user onward.
   if (segments[0] && segments[0].toLowerCase() === 'i' && segments[1]) {
-    await confirmInvite(decodeURIComponent(segments[1]));   // B4 #72: preview + ask first
+    await confirmInvite(safeDecode(segments[1]));   // B4 #72: preview + ask first (#126: never throw on a bad %-escape)
     return;
   }
 
@@ -1353,22 +1362,28 @@ async function render() {
     // username's existence. On authorization it mounts the crate READ-ONLY and returns.
     // NOTE (Lane, 2026-08-30): this branch sits AFTER the connect-Discogs gate by design, so a
     // viewer must have connected their own Discogs before browsing a friend's crate.
-    let friendOwner = null;
+    let friendOwner = null, _ownerErr = null;
     try {
-      const { data } = await supabase.rpc('get_crate_owner', { p_username: routeUsername });
-      if (data && data.status === 'ok') {
+      const { data, error } = await supabase.rpc('get_crate_owner', { p_username: routeUsername });
+      if (error) _ownerErr = error;                                     // #125 (T2.3): transport/RPC failure
+      else if (data && data.status === 'ok') {
         friendOwner = data.owner;
         friendOwner._canViewCrate = data.can_view_crate === true;      // #43 visibility flags
         friendOwner._canViewWantlist = data.can_view_wantlist === true;
         friendOwner._canViewForSale = data.can_view_forsale === true;   // Wave 4 Stage 2 (fail-closed)
       }
-    } catch (e) { friendOwner = null; }
+      else if (data && data.status === 'no_auth') _ownerErr = new Error('auth check did not complete');
+    } catch (e) { _ownerErr = e; }
     if (friendOwner) {
       installFriendCrateProviders(friendOwner);
       await import('/app.js');
       window.TraxWaxBootCrate();
       return;
     }
+    // #125 (T2.3): a transport failure or an incomplete auth check is NOT a privacy denial — it is
+    // transient, and Reload (showError's CTA) recovers it. Only a genuine miss (no_crate / no such
+    // user) falls through to the deliberately-ambiguous S10 card below (never confirms existence).
+    if (_ownerErr) { showError(_ownerErr); return; }
     // S10 — PRIVACY-CRITICAL. Grey rule (not accent): this is not an error and must not
     // alarm someone who mistyped a URL. In Wave 1 this SAME render must serve both "no such
     // user" and "exists but hasn't shared with you" — UI.COPY.noCrate is written to be true
@@ -1522,10 +1537,13 @@ async function bootPublicCrate(slug) {
     payload = data;
   } catch (err) { showError(err); return; }
 
-  if (!payload) { renderPublicNotFound(); _publicClerkPass(slug, null); return; }
+  // #123 (T2.1): after _publicIdentifyFirst loaded Clerk, this "first" call can actually run
+  // AUTHENTICATED and return a {status:'redirect'} (owner/friend) shape that _installPublicCrate
+  // cannot consume (no .sections). Only an 'ok' payload installs; anything else (a redirect or a
+  // miss) paints the 404 placeholder and hands off to _publicClerkPass, which re-checks authed and
+  // redirects owner→/app, friend→/app/<handle>, or upgrades a signed-in stranger to mode D.
+  if (!payload || payload.status !== 'ok') { renderPublicNotFound(); _publicClerkPass(slug, null); return; }
 
-  // First call runs anonymous (Clerk not loaded → accessToken null), so relation can only be
-  // 'stranger' here; the authenticated re-check happens in _publicClerkPass.
   _installPublicCrate(payload);
   await import('/app.js');
   window.TraxWaxBootCrate();
