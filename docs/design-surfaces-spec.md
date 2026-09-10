@@ -43,7 +43,7 @@ type system were already right; only the assembly was missing.
 
 ## 2. Tokens — none added
 
-**Every surface in this pass composes from the thirteen tokens already in `styles.css`.**
+**Every surface in this pass composes from the fifteen tokens in `styles.css`** (thirteen original + `--lock`/`--lockbg`, #43).
 No new custom properties, no new hex values, one deliberate exception:
 
 | Exception | Value | Why |
@@ -188,13 +188,13 @@ proof → position slab → attribution.
   contradicted its own spec.
 - **Two CTAs.** `CREATE AN ACCOUNT` → `/app?mode=signup`, `SIGN IN` → `/app`. There was
   previously no route to sign-up from the landing page at all.
-- Copy of record: eyebrow `FOR PEOPLE WITH TOO MUCH VINYL`; hero `YOU OWN RECORDS, / NOW
-  FIND THEM.` (second line accent); three-up ledes `Post-punk, on pink, from 2019` / `We
-  speak variant` / `The damage, itemized`.
+- Copy of record (as shipped v1.30.0): eyebrow `FOR PEOPLE WITH TOO MUCH VINYL`; hero `DIG YOUR /
+  OWN CRATE.` (second line accent); a FOUR-up (the three original ledes + `FILE BY FRIEND` / "Show your
+  work"), followed by a `PUBLIC CRATES` slab that fills the §9.8 reserved slot.
 - **American spelling throughout** (`color`, not `colour`).
 - Attribution footer uses the stacked left-aligned treatment (link, `<br>`, disclaimer) —
   the two-column version wrapped badly at every intermediate width.
-- Twelve cover tiles at `rotate(1.4deg)`, flattening to a 6-across row ≤900px.
+- The hero art is a single exported mosaic image (`/screenshots/hero-mosaic.jpg`), replacing the former twelve rotated cover tiles.
 
 ### S2 / S3 · Auth — "TraxWax chrome, stock card"
 
@@ -502,10 +502,10 @@ author a second from scratch.
 
 | Asset | State | Action |
 |---|---|---|
-| `screenshots/crate-hero.png` | **MISSING** | Capture fresh. The repo's `01-crate-light.png` was taken before covers loaded — empty skeleton tiles, em-dash prices, `— EST.` in the header. Requirements: full-width, light theme, covers loaded, prices populated, at least one `JUST IN` badge visible, varied wax swatches in the visible rows. It is the largest piece of evidence on the landing page. |
-| Fonts | present | Anton · Archivo · Barlow Condensed · IBM Plex Mono, already loaded on both entry points. `public/index.html` must load **Barlow Condensed** too — the current landing page omits it, and the three-up ledes need it. |
+| `screenshots/crate-hero.jpg` | **DONE (2026-08-29)** | Captured full-width, light theme, covers loaded, `JUST IN` badge, varied wax. Serves as the landing hero and the site-wide `og:image`. (v1.31 audit: the `$…EST.` valuation pill was retouched out — Restricted Discogs data must never bake into a committed image.) |
+| Fonts | **DONE** | Anton · Archivo · Barlow Condensed · IBM Plex Mono, loaded on both entry points AND the landing page (`public/index.html:16`). |
 | Icons | none needed | The house user glyph is the only icon; it's inline SVG in `boot.ui.js`. No icon font, no sprite. |
-| OG image | uses `crate-hero.png` | Fine until Wave 5 introduces per-crate OG rendering. |
+| OG image | **DONE** | Landing `og:image` is `crate-hero.jpg`; per-crate cards ship via `functions/og/[slug].js` (v1.30.0). |
 
 ---
 

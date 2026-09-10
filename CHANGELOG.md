@@ -158,7 +158,7 @@ _Nothing yet._
 - **Dead weight removed (E3, #101):** dna.js no longer computes the 12-month histogram +
   topGenres/topArtists/topLabels/addedThisYear (four full passes over the collection per
   card render, consumed by nothing), and `videos` — fetched and localStorage-cached by every
-  release-detail tier for a feature that was never built — is no longer fetched anywhere.
+  release-detail tier for a feature that was never built — is no longer fetched by the client (the column and the enrichment write remain).
 - **Escaping hardening (E4, #102):** both `esc()` implementations now escape apostrophes;
   all eleven raw `data-arg="${r.id}"` interpolations go through `esc()` and the one raw
   discogs href through `encodeURIComponent` (uniform with the already-encoded site); `_sL`'s
@@ -167,7 +167,7 @@ _Nothing yet._
   tracked `linked-project.json` (CLI link state carrying the org id) untracked in this
   commit; `.impeccable/` was never committed — now it can't be; the dead
   `DISCOGS_USER` secret doc removed from wrangler.toml; the refresh workflow rebases before
-  its final push; **release tags start at v1.28.0** (decision: no backfill of the prior 79).
+  its final push; **release tags resume at v1.28.0** (v1.0.0 is the one earlier tag; no backfill of the 83 versions between).
 - **Monitoring & backup posture recorded (E6, #104):** DEPLOY.md gains the probe recipes
   (static + a 401-expecting POST that catches fail-closed boot failures) and the backup
   section awaiting the PITR/retention values; the two-probe uptime monitor is Lane's

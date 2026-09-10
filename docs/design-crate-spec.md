@@ -43,7 +43,7 @@ No gradients, no shadows on the covers themselves, no image treatments.
 
 ## 2. Tokens
 
-Defined as CSS custom properties on `:root`, overridden by `body[data-theme="dark"]`.
+Defined as CSS custom properties on `:root`, overridden by `body[data-theme="dark"]`. (Since #43 there are also `--lock`/`--lockbg` for the locked-section label and fill, in both themes — fifteen tokens total.)
 
 | Token | Light | Dark | Used for |
 |---|---|---|---|

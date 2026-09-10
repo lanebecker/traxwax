@@ -12,7 +12,7 @@
 # measured: the rules parsed, /_redirects was consumed as a config file rather than served,
 # and /app/lanebecker still fell through to the SPA fallback (the landing page).
 #
-# public/_routes.json now pins Functions to /api/* ONLY. Everything else is served by the
+# public/_routes.json routes /api/*, /c/*, /og/* to Functions (since v1.30.0). Everything else is served by the
 # static asset store, where these rules DO apply. Keep the two files in sync: if a Function
 # is ever added outside /api/, add its prefix to _routes.json "include" and move any
 # affected routing here into that Function.

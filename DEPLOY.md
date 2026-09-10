@@ -23,7 +23,7 @@ then commit the matching files.
 |---|---|
 | **Host** | Cloudflare Pages, project `traxwax` |
 | **Source** | `github.com/lanebecker/traxwax`, branch `main` |
-| **Build command / preset** | *(none)* — output directory `public` |
+| **Build command** | `npm install` — output directory `public` (since v1.30.0; `workers-og` is required by `functions/og/[slug].js`) |
 | **Deploy trigger** | Every push to `main`. Branches get previews at `https://<branch>.traxwax.pages.dev`. |
 
 Pages auto-detects `functions/` — `/api/release/:id` (the CC0 proxy) plus, since v1.30.0,
@@ -32,8 +32,9 @@ exactly `/api/*`, `/c/*`, `/og/*`; `_redirects` and `_headers` govern everything
 NOT apply to those three routes (the functions carry their own headers; `_redirects`' `/c`
 rules are the Functions-outage fallback).
 
-**Cache policy** (`public/_headers`, v1.0.1): `no-cache` on HTML, `/app.js`, `/boot.js`,
-`/styles.css`, `/collection.json` — browsers revalidate every load (cheap 304s) and pick up
+**Cache policy** (`public/_headers`, v1.0.1): `no-cache` on HTML, every entry-point script
+(`/app.js`, `/boot.js`, `/boot.ui.js`, `/boot.clerk.js`, `/dna.js`), `/styles.css`, `/collection.json`,
+and the rewritten routes `/account*` and `/i*` — browsers revalidate every load (cheap 304s) and pick up
 each deploy immediately; `public, max-age=604800` on the immutable `/releases/*.json`.
 
 > ⚠️ **Zone setting that can silently defeat this:** the traxwax.com zone's **Caching →
@@ -118,10 +119,11 @@ map lives in `CLAUDE.md`. Apply via the **break-glass** MCP `apply_migration` (o
 file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
 `unlink_discogs_account`, `delete_account`, `pending_enrichment`, `seed_releases`, `db_now`)
 are SECURITY DEFINER and `service_role`-only; the friend-read RPCs (`get_friend_crate` 0021,
-`get_crate_owner` 0023, `get_friend_forsale` 0028, `list_friends` 0031, and the `private.can_view_*`
-gates) are SECURITY DEFINER granted to `authenticated`.
+`get_friend_wantlist` 0036 (the only friend wantlist read path since D2/#91), `get_crate_owner` 0023,
+`get_friend_forsale` 0028, `list_friends` 0031, `get_social_feed` 0033/0036, `crate_match`, and the
+`private.can_view_*` gates) are SECURITY DEFINER granted to `authenticated`.
 
-### Wave 5b — the public tier (v1.29.0, migrations 0037–0039)
+### Wave 5b — the public tier (v1.29.0–v1.31.0, migrations 0037–0040)
 
 - **The anonymous surface is exactly one function**: `public.get_public_crate(text)`, SECURITY
   DEFINER, `grant execute … to anon, authenticated`. The security advisor flags it
@@ -130,9 +132,9 @@ gates) are SECURITY DEFINER granted to `authenticated`.
   unknown ≡ all-private ≡ NULL. No anon table policies exist and none should be added.
 - `private.can_view_*` accept `('friends','public')` since 0037 — if a future migration recreates
   them from an older template, friends of public-crate owners lose access (the 0037 F1 lesson).
-- **Routing:** `/c` + `/c/*` rewrite to the shell in `public/_redirects` (S1). S2's Pages
-  Function will claim `/c/*` + `/og/*` via `_routes.json` `include`, at which point those
-  `_redirects` rules go inert for those paths (they stay as a Functions-outage fallback).
+- **Routing:** `/c` + `/c/*` rewrite to the shell in `public/_redirects` (S1). S2 (v1.30.0) claimed
+  `/c/*` + `/og/*` in `_routes.json` `include`; those `_redirects` rules are now inert for those paths
+  (they remain only as a config-rollback fallback — Pages does NOT re-dispatch a throwing Function to them).
 - Applied 2026-09-10 via break-glass: 0037_public_tier, 0038_public_relation_first,
   0039_friend_redirect_gate, and (v1.31.0) 0040_ledger_master_year — all four amend/replace
   `get_public_crate`; **0040 is the live body** (0039 + `master_year` in the row projections),
@@ -142,7 +144,7 @@ gates) are SECURITY DEFINER granted to `authenticated`.
   main). `package.json` pins `workers-og` for `functions/og/[slug].js`; the compressed function
   bundle is ~690KB (fits every Workers plan). Card fonts are static assets under
   `public/fonts-og/` (see its README for regeneration). The OG PNG cache TTL (300s,
-  `caches.default`, canonical pathname key — never the query string) is the revocation window —
+  `caches.default`, content-keyed since #114 — pathname + a hash of `count|topStyle|palette`, the same formula `/c/` uses for its `?v` buster; keep the two in lockstep. The 404 key stays bare-pathname) is the revocation window —
   do not raise it without re-arguing revocation. **Branch rehearsal checklist (before main):**
   (1) build succeeds + `/api/release/<id>` still answers; (2) `curl -s -D - -o /dev/null <preview>/c/lanes-crate` (a real GET — a HEAD can bypass the
   Function and show the static path's headers) → 200, the FULL security-header set, and a
