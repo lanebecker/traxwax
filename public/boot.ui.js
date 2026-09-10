@@ -182,6 +182,60 @@ export function stateCard(o) {
 
 export const signOutLink = '<a href="#" id="tw-signout" style="color:var(--faint)">Sign out</a>';
 
+/* Wave 5b T6 (plan docs/wave-5b-plan.md): the /c/ 404 and owner-only CLOSED pages — full public
+   chrome (strip → red band with wordmark only → state body → attribution footer), frame 1e.
+   Strangers ALWAYS get the notfound variant: the server returns NULL for unknown AND all-private
+   slugs alike (spec §6/§10), so the client could not tell even if it wanted to. The closed variant
+   renders only for the signed-in OWNER of a dead slug (boot.js probes their own profile). */
+export function publicNotFoundHtml(variant) {
+  const closed = variant === 'closed';
+  const strip =
+    '<div class="tw-strip" style="display:flex; align-items:center; justify-content:flex-end; gap:14px; ' +
+      'padding:6px 24px; background:#16171a; color:rgba(255,255,255,.62); ' + MONO + '; font-size:10px; ' +
+      'letter-spacing:.16em; text-transform:uppercase; min-height:30px">' +
+      '<a href="/app" style="color:#fff; text-decoration:underline; text-underline-offset:2px; white-space:nowrap">SIGN IN</a>' +
+      '<a href="/app?mode=signup" style="background:#fff; color:#16171a; font-weight:700; padding:6px 10px; ' +
+        'text-decoration:none; white-space:nowrap">START YOUR OWN<span class="tw-strip-crate">&nbsp;CRATE</span></a>' +
+    '</div>';
+  const band =
+    '<header style="display:flex; align-items:center; padding:16px 24px; background:var(--accent); ' +
+      'border-bottom:3px solid var(--line)">' +
+      '<a href="' + (closed ? '/app' : '/') + '" title="TraxWax" style="text-decoration:none; display:inline-block; ' +
+        'background:#16171a; color:#fff; font-family:Anton,sans-serif; font-size:44px; line-height:1; ' +
+        'text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</a>' +
+    '</header>';
+  const kicker  = closed ? '/C/ · CLOSED' : '/C/ · NOT FOUND';
+  const head    = closed ? 'This crate is private now.' : 'No crate here.';
+  const bodyTxt = closed
+    ? 'Only you can see this page. Your link stopped working the moment you went private — ' +
+      'flip a shelf back to PUBLIC to reopen it.'
+    : 'The link may be mistyped, or whoever shared it has closed the shelf. ' +
+      'Crates open and close at their owner\u2019s whim — that\u2019s the point.';
+  const actions = closed
+    ? btnLink('SHARING SETTINGS', '/account/sharing', { variant: 'primary' })
+    : btnLink('START YOUR OWN CRATE', '/app?mode=signup', { variant: 'primary' }) +
+      btnLink('SIGN IN', '/app', { variant: 'secondary' });
+  const body =
+    '<div style="flex:1; display:flex; align-items:flex-start; justify-content:center; padding:84px 20px 60px; background:var(--bg)">' +
+      '<div style="display:flex; flex-direction:column; gap:16px; max-width:560px">' +
+        '<span style="' + MONO + '; font-size:10px; font-weight:700; letter-spacing:.18em; color:var(--accent)">' + kicker + '</span>' +
+        '<h1 style="font-family:Anton,sans-serif; font-size:64px; line-height:.95; margin:0; text-transform:uppercase; color:var(--ink)">' + head + '</h1>' +
+        '<p style="' + BODY + '; font-size:14px; line-height:1.65; color:var(--muted); margin:0; max-width:44ch">' + bodyTxt + '</p>' +
+        '<div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px">' + actions + '</div>' +
+      '</div>' +
+    '</div>';
+  const footer =
+    '<footer style="display:flex; align-items:center; gap:18px; flex-wrap:wrap; padding:16px 24px; ' +
+      'border-top:1px solid var(--hair); background:var(--panel); ' + MONO + '; font-size:10px; color:var(--faint)">' +
+      '<a href="https://www.discogs.com/" target="_blank" rel="noopener" style="color:var(--accent); ' +
+        'text-transform:uppercase; letter-spacing:.09em; white-space:nowrap">Data provided by Discogs ↗</a>' +
+      '<span style="flex:1; min-width:240px; text-align:right">This application uses Discogs\u2019 API but is not ' +
+        'affiliated with, sponsored or endorsed by Discogs. \u201CDiscogs\u201D is a trademark of Zink Media, LLC.</span>' +
+    '</footer>';
+  return '<div style="min-height:100vh; display:flex; flex-direction:column; background:var(--bg)">' +
+    strip + band + body + footer + '</div>';
+}
+
 /* ── The empty-state block (S17) ───────────────────────────────────────────────
    NOT a one-off. Wave 1's "no friends yet", Wave 2's "no matches", Wave 3's empty overlap
    all reuse this verbatim. Build against this signature, do not re-author the markup. */
@@ -498,14 +552,21 @@ function friendsSection(o) {
 /* v1.15.0: one PRIVATE ▸ FRIENDS segment for the 1c visibility control. Same idiom as segBtn (the MATCHING
    control), keyed on data-vis (the value 'private'|'friends'). padding:8px 12px = pixel-identical to segBtn
    so the two segmented controls on the SHARING tab read as one language. The wire re-styles on click. */
+/* Wave 5b T9: PUBLIC is the weighty rung — accent-filled when on, accent-inked when off (it's
+   the one that exposes to signed-out strangers). One style function, shared with wireVisSeg's
+   post-save restyle so the treatment can't drift between render and click. */
+function visSegSty(v, on) {
+  return (v === 'public')
+    ? (on ? 'background:var(--accent); color:#fff' : 'background:var(--panel); color:var(--accent)')
+    : (on ? 'background:var(--ink); color:var(--panel)' : 'background:var(--panel); color:var(--muted)');
+}
 function visSegBtn(group, v, label, cur) {
   const on = cur === v;
   // C6 (#83): a deterministic id per group×value so renderAccount's re-entry focus restore
   // can find "the control the user was on" in the fresh DOM (an id-less button made the
   // restore dead code — remediation-audit F2).
   return '<button id="tw-vis-' + group + '-' + v + '" data-vis="' + v + '" aria-pressed="' + on + '" style="' + MONO + '; font-size:10.5px; ' +
-    'letter-spacing:.06em; padding:8px 12px; border:0; cursor:pointer; ' +
-    (on ? 'background:var(--ink); color:var(--panel)' : 'background:var(--panel); color:var(--muted)') + '">' + label + '</button>';
+    'letter-spacing:.06em; padding:8px 12px; border:0; cursor:pointer; ' + visSegSty(v, on) + '">' + label + '</button>';
 }
 
 /* v1.15.0 (the SPLIT): crate + wantlist visibility (1c segmented box) + the matching control, moved out of
@@ -515,7 +576,7 @@ function sharingSection(o) {
   const crateVis = ((o.profile && o.profile.crate_visibility) || 'private');   // 'friends' | 'private'
   const wlVis    = ((o.profile && o.profile.wantlist_visibility) || 'private');
   const fsVis    = ((o.profile && o.profile.forsale_visibility) || 'private'); // Wave 4 Stage 2: for-sale consent
-  const crateFriends = crateVis === 'friends';                                 // E1 gate: for-sale row locked unless crate is friends-visible
+  const crateShared = crateVis !== 'private';                                  // E1 ladder (5b): for-sale row locked unless the crate is shared at all
   const mm       = (o.profile && o.profile.match_mode) || 'exact';             // #28: matching preference
   const rowTitle = (t) => '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; color:var(--ink)">' + t + '</span>';
   const rowSub   = (t) => '<span style="' + MONO + '; font-size:10px; color:var(--muted)">' + t + '</span>';
@@ -529,7 +590,8 @@ function sharingSection(o) {
         'color:var(--ink)">Who sees what, and how matches read</h2>' +
       '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
         'Your shelves are private by default. Open them to the friends you’ve added — including what you’ve ' +
-        'listed for sale. Prices always live on Discogs, never here.</span>' +
+        'listed for sale. PUBLIC opens a shelf to anyone with your link — no account needed. ' +
+        'Prices always live on Discogs, never here.</span>' +
     '</div>' +
     // Shared status line (visibility changes announce here — moved from FRIENDS).
     '<div id="tw-share-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
@@ -547,7 +609,7 @@ function sharingSection(o) {
         '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My crate') + rowSub('The records you own') + '</div>' +
         '<div id="tw-vis-crate-seg" role="group" aria-label="Crate visibility" style="display:flex; ' +
           'border:1.5px solid var(--line); flex:none">' +
-          visSegBtn('crate', 'private', 'PRIVATE', crateVis) + visSegBtn('crate', 'friends', 'FRIENDS', crateVis) +
+          visSegBtn('crate', 'private', 'PRIVATE', crateVis) + visSegBtn('crate', 'friends', 'FRIENDS', crateVis) + visSegBtn('crate', 'public', 'PUBLIC', crateVis) +
         '</div>' +
       '</div>' +
       // wantlist row (hairline between)
@@ -556,7 +618,7 @@ function sharingSection(o) {
         '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My wantlist') + rowSub('The records you’re hunting') + '</div>' +
         '<div id="tw-vis-wl-seg" role="group" aria-label="Wantlist visibility" style="display:flex; ' +
           'border:1.5px solid var(--line); flex:none">' +
-          visSegBtn('wantlist', 'private', 'PRIVATE', wlVis) + visSegBtn('wantlist', 'friends', 'FRIENDS', wlVis) +
+          visSegBtn('wantlist', 'private', 'PRIVATE', wlVis) + visSegBtn('wantlist', 'friends', 'FRIENDS', wlVis) + visSegBtn('wantlist', 'public', 'PUBLIC', wlVis) +
         '</div>' +
       '</div>' +
       // Wave 4 Stage 2 (E): for-sale row, gated UNDER crate visibility. Live segmented control when the crate is
@@ -566,13 +628,19 @@ function sharingSection(o) {
         'border-top:1px solid var(--hair)">' +
         '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My records for sale') +
           rowSub('The records you’ve listed on Discogs') +
-          ((crateFriends && o.inventoryCount === 0)
+          ((crateShared && o.inventoryCount === 0)
             ? '<span style="' + MONO + '; font-size:10px; color:var(--faint)">Nothing listed yet</span>' : '') +
         '</div>' +
-        (crateFriends
-          ? '<div id="tw-vis-forsale-seg" role="group" aria-label="For-sale visibility" style="display:flex; ' +
-              'border:1.5px solid var(--line); flex:none">' +
-              visSegBtn('forsale', 'private', 'PRIVATE', fsVis) + visSegBtn('forsale', 'friends', 'FRIENDS', fsVis) +
+        (crateShared
+          ? '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex:none">' +
+              '<div id="tw-vis-forsale-seg" role="group" aria-label="For-sale visibility" style="display:flex; ' +
+                'border:1.5px solid var(--line)">' +
+                visSegBtn('forsale', 'private', 'PRIVATE', fsVis) + visSegBtn('forsale', 'friends', 'FRIENDS', fsVis) +
+                ((crateVis === 'public' || fsVis === 'public') ? visSegBtn('forsale', 'public', 'PUBLIC', fsVis) : '') +
+              '</div>' +
+              (crateVis === 'friends'
+                ? '<span style="' + MONO + '; font-size:9.5px; color:var(--faint); text-align:right; line-height:1.4">' +
+                  'Make your crate public to offer THE GOODS publicly.</span>' : '') +
             '</div>'
           : '<div role="group" aria-label="For-sale visibility" aria-disabled="true" style="display:flex; ' +
               'flex-direction:column; align-items:flex-end; gap:5px; flex:none; max-width:236px">' +
@@ -587,6 +655,35 @@ function sharingSection(o) {
             '</div>') +
       '</div>' +
     '</div>' +
+
+    // ── Wave 5b T9: PUBLIC LINK — renders once ANY shelf is public. The slug is the public
+    //    identity (Discogs usernames are Restricted); DB CHECK + unique index are the real
+    //    validators, the UI mirrors them. /* PALETTE-ROW-SLOT: THE CARD picker lands here after
+    //    CHECK-IN 1 (plan §1). */
+    (((o.profile && o.profile.crate_visibility) === 'public' ||
+      (o.profile && o.profile.wantlist_visibility) === 'public' ||
+      (o.profile && o.profile.forsale_visibility) === 'public')
+      ? sectionLabel('PUBLIC LINK') +
+        '<div style="border:1.5px solid var(--line)">' +
+          '<div style="padding:11px 18px; border-bottom:1px solid var(--hair)">' +
+            '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.16em; ' +
+              'color:var(--muted)">WHERE THE WORLD FINDS YOUR SHELVES</span>' +
+          '</div>' +
+          '<div style="display:flex; align-items:center; gap:10px; padding:16px 18px; flex-wrap:wrap">' +
+            '<span style="' + MONO + '; font-size:12px; color:var(--muted)">traxwax.com/c/</span>' +
+            '<input id="tw-slug-input" maxlength="18" spellcheck="false" autocapitalize="off" disabled ' +
+              'value="' + esc((o.profile && o.profile.public_slug) || '') + '" aria-label="Your public link name" ' +
+              'style="' + MONO + '; font-size:12px; font-weight:700; color:var(--ink); background:transparent; ' +
+              'border:1.5px solid var(--hair); padding:7px 10px; width:150px">' +
+            '<button id="tw-slug-edit" style="' + MONO + '; font-size:10.5px; font-weight:700; letter-spacing:.06em; ' +
+              'padding:8px 12px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer">EDIT</button>' +
+            '<button id="tw-slug-copy" style="' + MONO + '; font-size:10.5px; font-weight:700; letter-spacing:.06em; ' +
+              'padding:8px 12px; border:1.5px solid var(--line); background:var(--ink); color:var(--panel); cursor:pointer">COPY LINK</button>' +
+          '</div>' +
+          '<div style="padding:0 18px 14px; ' + MONO + '; font-size:9.5px; color:var(--faint)">' +
+            'Lowercase letters, numbers, hyphens. 18 characters max. Changing it breaks the old link.</div>' +
+        '</div>'
+      : '') +
 
     // ── MATCHING — moved verbatim from friends (#28). Same segmented idiom → the tab reads as one language.
     sectionLabel('MATCHING') +
@@ -871,26 +968,29 @@ export function bindAccountPage(root, deps) {
     });
   }
 
-  // v1.15.0 (1c): the per-shelf PRIVATE ▸ FRIENDS segmented control — click-delegated on its container.
-  // `setter` is the visibility dep for that shelf; `label` names it in the status line. Same restyle idiom
-  // as wireMatchSeg. Writes 'private'|'friends' — the exact values the old toggles set.
+  // v1.15.0 (1c) + Wave 5b T9: the per-shelf PRIVATE ▸ FRIENDS ▸ PUBLIC segmented control —
+  // click-delegated on its container. `setter` is the visibility dep for that shelf; `label` names
+  // it in the status line. Restyle goes through visSegSty so PUBLIC keeps its accent treatment.
+  // (The setters re-render the SHARING page anyway — the restyle covers the pre-render frame and
+  // any row that skips the re-render.)
   function wireVisSeg(segId, setter, label) {
     const seg = root.querySelector('#' + segId);
     if (!seg) return;
     seg.addEventListener('click', async (e) => {
       const b = e.target.closest('[data-vis]');
       if (!b) return;
-      const next = b.getAttribute('data-vis');   // 'private' | 'friends'
+      const next = b.getAttribute('data-vis');   // 'private' | 'friends' | 'public'
       const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
       try {
         await setter(next);
         seg.querySelectorAll('[data-vis]').forEach((x) => {
           const isOn = x.getAttribute('data-vis') === next;
           x.setAttribute('aria-pressed', isOn);
-          x.style.background = isOn ? 'var(--ink)' : 'var(--panel)';
-          x.style.color = isOn ? 'var(--panel)' : 'var(--muted)';
+          x.style.cssText += ';' + visSegSty(x.getAttribute('data-vis'), isOn);
         });
-        smsg(next === 'friends' ? ('Friends can now see your ' + label + '.') : ('Your ' + label + ' is private again.'));
+        smsg(next === 'public' ? ('Anyone with your link can now see your ' + label + '.')
+          : next === 'friends' ? ('Friends can now see your ' + label + '.')
+          : ('Your ' + label + ' is private again.'));
       } catch (e) { smsg('Couldn’t change that: ' + ((e && e.message) || e)); }
     });
   }
@@ -920,6 +1020,47 @@ export function bindAccountPage(root, deps) {
   wireVisSeg('tw-vis-wl-seg', deps.onSetWantlistVisibility, 'wantlist');
   wireVisSeg('tw-vis-forsale-seg', deps.onSetForsaleVisibility, 'records for sale');   // Wave 4 Stage 2 (no-op when the row is locked)
   wireMatchSeg();
+
+  // Wave 5b T9: the PUBLIC LINK box — EDIT toggles the input live and becomes SAVE; Enter saves
+  // too; COPY copies the full URL. deps.onSetSlug persists (the DB CHECK + unique index are the
+  // real validators; a collision surfaces as its message).
+  const slugInput = $('tw-slug-input');
+  const slugEdit = $('tw-slug-edit');
+  const slugCopy = $('tw-slug-copy');
+  if (slugInput && slugEdit && slugCopy) {
+    const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
+    const saveSlug = async () => {
+      const v = (slugInput.value || '').trim().toLowerCase();
+      if (!/^[a-z0-9](?:[a-z0-9-]{0,16}[a-z0-9])?$/.test(v)) {
+        smsg('Lowercase letters, numbers, hyphens — 18 characters max, no edge hyphens.'); return;
+      }
+      slugEdit.disabled = true;
+      try { await deps.onSetSlug(v); }
+      catch (err) { smsg((err && err.message) || 'Couldn’t save that link.'); slugEdit.disabled = false; return; }
+      slugEdit.disabled = false;
+      slugInput.value = v; slugInput.disabled = true; slugEdit.textContent = 'EDIT';
+      smsg('Your link is traxwax.com/c/' + v + ' now. The old one stopped working.');
+    };
+    slugEdit.addEventListener('click', () => {
+      if (slugInput.disabled) { slugInput.disabled = false; slugEdit.textContent = 'SAVE'; slugInput.focus(); }
+      else saveSlug();
+    });
+    slugInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !slugInput.disabled) saveSlug(); });
+    slugCopy.addEventListener('click', async () => {
+      if (!(slugInput.value || '').trim()) {   // pass-2 F6: a public shelf can exist with no slug (ensure failed)
+        const el = $('tw-share-msg'); if (el) el.textContent = 'Pick a link name first — hit EDIT.'; return;
+      }
+      const url = location.origin + '/c/' + (slugInput.value || '');   // preview copies preview links (audit F7)
+      const done = () => smsg('Link copied.');
+      try { await navigator.clipboard.writeText(url); done(); }
+      catch (err) {
+        try {
+          const ta = document.createElement('textarea'); ta.value = url;
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+        } catch (err2) { smsg(url); }
+      }
+    });
+  }
 
   // ── Wave 1: FRIENDS ── invite-link button + friend list.
   const inviteBtn = $('tw-invite-btn');

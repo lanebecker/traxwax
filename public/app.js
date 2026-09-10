@@ -64,26 +64,28 @@ const ICO = {
    the owner's own crate (also baked/local-dev mode). */
 const IS_OWN = () => !window.TraxWaxViewer || window.TraxWaxViewer.isOwn !== false;
 
-// Header spec §1: today, signed-in ⇔ boot.js installed a viewer (own OR friend). §0.5 wordmark href depends on it.
-// ⚠️ WAVE 5b TODO (tracked: issue #60 — read its trigger comment first): this proxy breaks for the PUBLIC tier. Two things must change together when /c/ ships,
-// or the 'public-out' branch below is unreachable AND an anonymous viewer renders the OWNER header (leaking the gear/
-// account/EST./FILED BY to a stranger, wordmark → /app):
-//   1. IS_SIGNED_IN must read an explicit flag (e.g. window.TraxWaxViewer.signedIn), NOT mere object presence —
-//      because the anonymous /c/ viewer will ALSO be a viewer object.
-//   2. That anonymous viewer MUST carry isOwn:false (so IS_OWN() doesn't swallow it into 'own') and isPublic:true.
-const IS_SIGNED_IN = () => !!window.TraxWaxViewer;
-// Header spec §1: which of the four header modes we're in. 'public-out'/'public-in' arrive with Wave 5b's /c/ route
-// (a viewer flagged isPublic); until then a non-owner is always a friend. Modes A/B ship live; C/D are written but
-// DORMANT and NOT yet reachable — see the Wave 5b TODO above before wiring the public viewer shape.
+// #60 (Wave 5b): signedIn is an EXPLICIT flag — a viewer object's mere presence stopped meaning
+// "signed in" the day the anonymous /c/ viewer became a viewer object too. Installed by boot.js:
+//   own crate            { isOwn:true,  signedIn:true }
+//   friend crate         { isOwn:false, signedIn:true,  canView* }
+//   /c/ signed-out       { isOwn:false, signedIn:false, isPublic:true, canView* }
+//   /c/ signed-in        { isOwn:false, signedIn:true,  isPublic:true, canView* }
+const IS_SIGNED_IN = () => !!(window.TraxWaxViewer && window.TraxWaxViewer.signedIn === true);
+// Header spec §1: which of the four header modes we're in.
 const VIEWER_MODE = () => IS_OWN() ? 'own'
   : (window.TraxWaxViewer && window.TraxWaxViewer.isPublic) ? (IS_SIGNED_IN() ? 'public-in' : 'public-out')
   : 'friend';
 
-// #43: friend-crate section visibility. Own crate → both true. Friend → the get_crate_owner flags.
+// #43 + #109 (header spec §3.3): section visibility. Own crate → all true. Friend → the
+// get_crate_owner flags; public viewer → the get_public_crate section flags (same names).
 const CAN_VIEW_CRATE    = () => IS_OWN() || !window.TraxWaxViewer || window.TraxWaxViewer.canViewCrate === true;
 const CAN_VIEW_WANTLIST = () => IS_OWN() || !window.TraxWaxViewer || window.TraxWaxViewer.canViewWantlist === true;
-// Which section a view belongs to for locking: crate/timeline/ledger ride the crate; wantlist is its own.
-const _viewLocked = (view) => (view === 'wantlist') ? !CAN_VIEW_WANTLIST() : !CAN_VIEW_CRATE();
+const CAN_VIEW_FORSALE  = () => IS_OWN() || !window.TraxWaxViewer || window.TraxWaxViewer.canViewForSale === true;
+// Which section a view belongs to for locking: crate/timeline/ledger ride the crate; wantlist and
+// THE GOODS are their own (#109 — THE GOODS locks, never hides).
+const _viewLocked = (view) => (view === 'wantlist') ? !CAN_VIEW_WANTLIST()
+  : (view === 'forsale') ? !CAN_VIEW_FORSALE()
+  : !CAN_VIEW_CRATE();
 
 // #28: the viewer's own reading preference (default 'exact'). In 'any' mode a match also counts when the
 // records share a master_id (the album), not just the exact release_id.
@@ -391,10 +393,14 @@ const chipOff = 'background:var(--panel); color:var(--ink)';
 const LOCK_SVG = '<svg width="10" height="12" viewBox="0 0 24 24" aria-hidden="true" style="margin-right:6px; vertical-align:-1px"><rect x="4" y="10" width="16" height="11" rx="1.5" fill="currentColor"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.6"></path></svg>';
 function tab(id,label){
   const on = state.view===id;
+  // Wave 5b spec §5: 'THE ' drops at ≤640 (CSS hides .tw-tab-the) so five tabs fit 390px.
+  // aria-label/title keep the FULL label (F9e — "GOODS (private)" is a worse screen-reader name).
+  // Labels are our own static strings; the inline span is safe.
+  const vis = label.replace(/^THE /, '<span class="tw-tab-the">THE&nbsp;</span>');
   if (_viewLocked(id)){   // #43: greyed + lock glyph, still clickable → the locked panel (kit Decision 1, 1b)
-    return `<button data-act="view" data-arg="${id}" aria-label="${esc(label)} (private)" title="Private" style="display:inline-flex; align-items:center; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:var(--lockbg); border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--lock)':'transparent'}; color:var(--lock); cursor:pointer">${LOCK_SVG}${label}</button>`;
+    return `<button data-act="view" data-arg="${id}" aria-label="${esc(label)} (private)" title="Private" style="display:inline-flex; align-items:center; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:var(--lockbg); border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--lock)':'transparent'}; color:var(--lock); cursor:pointer">${LOCK_SVG}${vis}</button>`;
   }
-  return `<button data-act="view" data-arg="${id}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:transparent; border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--accent)':'transparent'}; color:${on?'var(--ink)':'var(--muted)'}">${label}</button>`;
+  return `<button data-act="view" data-arg="${id}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:transparent; border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--accent)':'transparent'}; color:${on?'var(--ink)':'var(--muted)'}">${vis}</button>`;
 }
 function sortBtn(id,label){
   const on=state.sort===id;
@@ -484,7 +490,8 @@ function card(r){
       <button data-act="open" data-arg="${esc(r.id)}" class="tw-cell" tabindex="-1" aria-haspopup="dialog" aria-label="Open ${esc(r.artist)} — ${esc(r.title)}${_badgeAria}" title="Open detail" style="display:block; width:100%; padding:0; border:0; background:transparent">
         <div role="img" aria-label="${esc(r.coverAlt)}" style="width:100%; aspect-ratio:1; background:var(--skel); background-image:${r.coverBg}; background-size:cover; background-position:center">${r.coverPlaceholder}</div>
       </button>
-      ${(r.isNew && state.view!=='wantlist')?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
+      ${(r.isNew && state.view!=='wantlist' && !(state.view==='forsale' && !IS_OWN()))?`<span style="position:absolute; top:12px; left:0; background:var(--accent); color:var(--on-accent); font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">JUST IN</span>`:''}
+      ${(state.view==='forsale' && !IS_OWN())?`<span style="position:absolute; top:12px; left:0; background:#16171a; color:#fff; font-family:'Archivo',sans-serif; font-size:9px; font-weight:800; letter-spacing:.14em; padding:3px 7px; transform:rotate(-2.5deg)">FOR SALE</span>`:''}
       ${badgesHtml(_badges, r.title)}
     </div>
     <div style="min-width:0; flex:1; padding:8px 9px 10px; display:flex; flex-direction:column; gap:5px">
@@ -495,8 +502,9 @@ function card(r){
         <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(r.vinylShort)}</span>
       </button>
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:6px; border-top:1.5px solid var(--line); padding-top:6px; margin-top:auto">
-        <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0">${esc(r.year)}<span class="tw-card-style"> · ${esc(r.style1)}</span></span>
-        ${metaCellHtml(r)}
+        ${(state.view==='forsale' && !IS_OWN())
+          ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase; white-space:nowrap; min-width:0">${esc(r.year)}</span><a href="${esc(forSaleHref(r.id)||'#')}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.04em; color:var(--accent); text-decoration:none; white-space:nowrap">BUY ON DISCOGS ↗</a>`
+          : `<span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1.35; color:var(--faint); text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0">${esc(r.year)}<span class="tw-card-style"> · ${esc(r.style1)}</span></span>${metaCellHtml(r)}`}
       </div>
     </div>
   </div>`;
@@ -527,12 +535,14 @@ function emptyCrateHtml(){
   const who = (window.TraxWaxOwner && window.TraxWaxOwner.displayName) || 'This collector';
   const isForSale = own && state.view === 'forsale';   // Wave 5c: own FOR SALE tab with nothing listed
   const friendForSale = !own && state.view === 'forsale';   // Wave 5c: a friend's for-sale view, empty (only reachable by a stale/crafted URL — the tab hides at 0)
+  const pub = VIEWER_MODE().startsWith('public');   // Wave 5b spec §6: third person, no name, on public shelves
   const eyebrow = (isForSale||friendForSale) ? 'THE GOODS · 0' : friendWant ? 'THEIR WANTLIST · 0' : isWant ? 'WANTLIST · 0' : 'AN EMPTY CRATE';
   const heading = isForSale ? 'Nothing listed for sale yet'
-    : friendForSale ? esc(who) + ' isn’t selling anything.'
+    : friendForSale ? (pub ? 'Nothing for sale right now.' : esc(who) + ' isn’t selling anything.')
     : wantCleared ? 'The wantlist is clear.'
-    : friendWant ? esc(who) + ' isn’t hunting anything.'
+    : friendWant ? (pub ? 'Nothing on the wantlist. Yet.' : esc(who) + ' isn’t hunting anything.')
     : isWant ? 'Nothing on the wantlist yet'
+    : (pub && !own) ? 'Nothing filed. Yet.'
     : 'Nothing on the shelf yet';
   const body = isForSale
     ? 'List records for sale over on Discogs, then re-sync — everything you’ve listed shows up here, each linked straight to its sale.'
@@ -616,6 +626,15 @@ function lockedPanelHtml(section){
     headline = who + ' keeps their crate closed.';
     bodyHtml = 'Their wantlist is open, though — <a href="#" data-act="view" data-arg="wantlist" style="color:var(--accent); text-decoration:underline; text-underline-offset:3px">browse their wants here →</a>';
     cta = '';   // the CTA link is inline in the body
+  } else if (section === 'forsale'){
+    eyebrow = 'THE GOODS · PRIVATE';
+    headline = who + ' isn\u2019t sharing what\u2019s for sale.';
+    bodyHtml = CAN_VIEW_CRATE()
+      ? 'What\u2019s for sale stays between them and their friends. The crate\u2019s still open.'
+      : 'What\u2019s for sale stays between them and their friends. The wantlist\u2019s still open.';
+    cta = CAN_VIEW_CRATE()
+      ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center"><button data-act="view" data-arg="crate" class="tw-btn tw-btn-secondary tw-btn-lg">BACK TO THE CRATE →</button></div>'
+      : '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center"><button data-act="view" data-arg="wantlist" class="tw-btn tw-btn-secondary tw-btn-lg">TO THE WANTLIST →</button></div>';
   } else {
     eyebrow = 'THE WANTLIST · PRIVATE';
     headline = who + '’s wantlist is private.';
@@ -715,7 +734,7 @@ function badgesFor(rec, ctx){
   else if (any && m && ctx.viewerWantsMasters && ctx.viewerWantsMasters.has(m)) out.push({ kind: 'you-outline',  label: 'A PRESSING YOU WANT' });
   else if (ctx.viewerHas && ctx.viewerHas.has(rec.id))                          out.push({ kind: 'both',         label: 'YOU OWN THIS' });
   else if (any && m && ctx.viewerHasMasters && ctx.viewerHasMasters.has(m))     out.push({ kind: 'both-outline', label: 'YOU OWN A PRESSING' });
-  if (ctx.forSale && ctx.forSale.has(rec.id))                                   out.push({ kind: 'else',         label: 'FOR SALE ↗', href: forSaleHref(rec.id) });
+  if (ctx.forSale && ctx.forSale.has(rec.id) && state.view!=='forsale')         out.push({ kind: 'else',         label: 'FOR SALE ↗', href: forSaleHref(rec.id) });   // #109: on the GOODS grid the ribbon + BUY link own it
   return out;
 }
 
@@ -808,11 +827,16 @@ function computeVals(){
       {label:'Added this month', value:newCount+'', note:'A restrained month, relatively.', color:'var(--ink)'},
       // Wave 4 (F2): only when you actually have listings — hidden at 0. Count + a manage link, never a value.
       ...(_fs>0 ? [{label:'Listed for sale', value:_fs.toLocaleString('en-US'), note:'Managed on Discogs.', color:'var(--ink)', manage:true}] : []),
-    ]; })() : (()=>{ const _mc=_matchCounts(); const _ic=(_mc.youWant||0)+(_mc.theyWant||0); return [
+    ]; })() : (VIEWER_MODE()==='friend') ? (()=>{ const _mc=_matchCounts(); const _ic=(_mc.youWant||0)+(_mc.theyWant||0); return [
       {label:'Records', value:all.length.toLocaleString('en-US'), note:'In their crate.', color:'var(--ink)'},
       {label:'In common', value:_ic.toLocaleString('en-US'), note:'Where your shelves meet.', color:'var(--accent)'},
       {label:'On colored wax', value:coloredCount+'', note:Math.round((coloredCount/all.length)*100)+'% of their shelf.', color:'var(--ink)'},
       {label:'Added this month', value:newCount+'', note:'Their latest finds.', color:'var(--ink)'},
+    ]; })() : (()=>{ const _pk=decadeStats && decadeStats.peak; return [   // Wave 5b spec §4: the public set — catalog aggregates only
+      {label:'Records', value:all.length.toLocaleString('en-US'), note:'In their crate.', color:'var(--ink)'},
+      {label:'On colored wax', value:coloredCount+'', note:Math.round((coloredCount/Math.max(1,all.length))*100)+'% of the shelf.', color:'var(--accent)'},
+      {label:'Styles filed', value:allStyles.length.toLocaleString('en-US'), note:'Across '+all.length.toLocaleString('en-US')+' records.', color:'var(--ink)'},
+      {label:'Peak decade', value:_pk?_pk.decade+'s':'—', note:'By original release.', color:'var(--ink)'},
     ]; })(),
   };
 }
@@ -1105,7 +1129,7 @@ function stripHtml(){
   } else if(mode==='public-out'){
     deskLeft = `${_sS('A PUBLIC CRATE ON TRAXWAX')} · A VISUAL WAY TO SHARE ANY DISCOGS COLLECTION`;
     mobileRows = `<div class="tw-fs-row">${deskLeft}</div>`;
-    right = `<a href="/app" class="tw-fs-back" style="color:#fff; text-decoration:underline; text-underline-offset:2px; white-space:nowrap">SIGN IN</a><a href="/" style="background:#fff; color:#16171a; font-weight:700; padding:6px 10px; text-decoration:none; white-space:nowrap">START YOUR OWN CRATE</a>${lights}`;
+    right = `<a href="/app" class="tw-fs-back" style="color:#fff; text-decoration:underline; text-underline-offset:2px; white-space:nowrap">SIGN IN</a><a href="/app?mode=signup" style="background:#fff; color:#16171a; font-weight:700; padding:6px 10px; text-decoration:none; white-space:nowrap">START YOUR OWN<span class="tw-strip-crate">&nbsp;CRATE</span></a>${lights}`;
   } else {   // friend | public-in — the match sentence
     const {c1,c2,c3}=_friendMatchClauses();
     deskLeft = [c1,c2,c3].filter(Boolean).join(' · ');
@@ -1140,7 +1164,9 @@ function identityHtml(){
     if(mode==='own') parts.push('FILED BY '+esc(FILED_BY_WORD));
     meta=parts.join(' · ');
   } else {   // public (dormant): top-3 styles by count, shrink to fit ~44 chars, never ellipsize
-    const vv=computeVals(); let top=(vv.allStyles||[]).slice(0,3);
+    // Spec §5: mobile shows top-2 (computed at render time; a rotation showing 3 until the next
+    // repaint is accepted). Desktop top-3; both then shrink to fit ~44 chars.
+    const vv=computeVals(); let top=(vv.allStyles||[]).slice(0, (window.matchMedia && window.matchMedia('(max-width:640px)').matches) ? 2 : 3);
     while(top.length>1 && top.join(', ').length>44) top.pop();
     meta = `${esc(top.join(', ').toUpperCase())}${o.collectingSince?' · SINCE '+esc(String(o.collectingSince)):''}`;
   }
@@ -1155,10 +1181,10 @@ function render(){
   const v=computeVals(); const s=state;
   const hasFilters=v.active.length>0;
   // Wave 5c: FOR SALE is a tab now — always on your own DB-mode crate (empty state when nothing's listed); on a
-  // friend crate only when they've shared listings. _fsCount = crate ∩ __twInventory (own listings or friend's consented for-sale).
-  const _fsCount = window.__twInventory ? (Array.isArray(RECORDS)?RECORDS:[]).filter(r=>window.__twInventory.has(r.id)).length : 0;
-  const _showForSaleTab = DB_MODE() && (IS_OWN() || _fsCount>0);
-  const lockedSection = !IS_OWN() && _viewLocked(s.view) ? (s.view==='wantlist' ? 'wantlist' : 'crate') : null;  // #43
+  // #109 (header spec §3.3): THE GOODS locks, never hides — the tab renders for every DB-mode
+  // viewer; _viewLocked('forsale') paints the lock treatment when the section isn't shared.
+  const lockedSection = !IS_OWN() && _viewLocked(s.view)
+    ? (s.view==='wantlist' ? 'wantlist' : s.view==='forsale' ? 'forsale' : 'crate') : null;  // #43 + #109
   const showGrid=!lockedSection && (s.view==='crate' || s.view==='wantlist' || s.view==='forsale') && v.filtered.length>0;   // Wave 2 B1: the wantlist reuses the card grid; Wave 5c: FOR SALE reuses it too
   const showTimeline=!lockedSection && s.view==='timeline' && v.filtered.length>0;
   const showStats=!lockedSection && s.view==='ledger' && v.filtered.length>0;
@@ -1224,13 +1250,13 @@ function render(){
       <div class="tw-ledger-panels" style="display:grid; grid-template-columns:1fr 1fr; gap:0">
         <div style="padding:22px 24px; border-right:1px solid var(--hair); display:flex; flex-direction:column">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Most-filed styles</span>
-          <div style="display:flex; flex-direction:column; gap:9px; margin-top:16px;${IS_OWN()?' min-height:170px':''}">${v.styleBars.map(b=>`
+          <div style="display:flex; flex-direction:column; gap:9px; margin-top:16px;${(IS_OWN()||VIEWER_MODE().startsWith('public'))?' min-height:170px':''}">${v.styleBars.map(b=>`
             <div style="display:flex; align-items:center; gap:12px">
               <span style="width:150px; flex:none; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(b.label)}</span>
               <span style="flex:1; height:12px; background:var(--bar); position:relative"><span style="position:absolute; inset:0 auto 0 0; width:${b.width}; background:var(--accent)"></span></span>
               <span style="width:26px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${b.count}</span>
             </div>`).join('')}</div>
-          ${IS_OWN() ? `<div class="tw-ledger-strip" style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
+          ${(IS_OWN()||VIEWER_MODE().startsWith('public')) ? `<div class="tw-ledger-strip" style="display:flex; margin-top:18px; border-top:1px solid var(--hair); padding-top:14px">
             <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; padding-right:14px">
               <span style="font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)">Top artist</span>
               <span title="${v.topArtist?esc(v.topArtist.name):''}" style="font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:700; line-height:1.05; color:var(--ink); overflow-wrap:anywhere">${v.topArtist?esc(v.topArtist.name):'—'}</span>
@@ -1243,7 +1269,7 @@ function render(){
             </div>
           </div>` : ''}
         </div>
-        ${IS_OWN() ? (()=>{ const ds=v.decadeStats; const mx=ds.maxCount||1; return `<div style="padding:22px 24px; display:flex; flex-direction:column">
+        ${(IS_OWN()||VIEWER_MODE().startsWith('public')) ? (()=>{ const ds=v.decadeStats; const mx=ds.maxCount||1; return `<div style="padding:22px 24px; display:flex; flex-direction:column">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">By decade</span>
           <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:6px; height:170px; margin-top:16px">${v.decades.map(d=>{ const pk=ds.peak && d.decade===ds.peak.decade; const h=Math.max(3,Math.round(d.count/mx*120)); return `
             <div style="flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%">
@@ -1327,6 +1353,7 @@ function render(){
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
           <span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.all.length.toLocaleString('en-US')} ${s.view==='wantlist'?'ON WANTLIST':s.view==='forsale'?'FOR SALE':'IN CRATE'}</span>
           ${(IS_OWN() && s.view!=='wantlist' && s.view!=='forsale')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${esc(s.headerValue || valueLabel(v.total))} EST.</span>`:''}
+          ${(VIEWER_MODE()==='public-out'||VIEWER_MODE()==='public-in')?`<span style="padding:6px 10px; border-right:1.5px solid #16171a">${v.coloredCount.toLocaleString('en-US')} COLORED</span>`:''}
           <span class="tw-hide-mobile" style="padding:6px 10px; background:#16171a; color:#fff; font-weight:700">+${v.newCount} THIS MONTH</span>
         </div>
       </div>
@@ -1344,8 +1371,10 @@ function render(){
     </div>
     ${styleTray}
     <div class="tw-tabsrow" style="display:flex; align-items:stretch; border-bottom:1px solid var(--hair); background:var(--panel)">
-      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}${_showForSaleTab?tab('forsale','THE GOODS'):''}
+      ${tab('crate','THE CRATE')}${tab('timeline','THE TIMELINE')}${tab('ledger','THE LEDGER')}${DB_MODE()?tab('wantlist','THE WANTLIST'):''}${DB_MODE()?tab('forsale','THE GOODS'):''}
       <div class="tw-sortwrap" style="margin-left:auto; display:flex; align-items:center; gap:14px; padding:0 20px">
+        ${VIEWER_MODE().startsWith('public')?(()=>{ const _vw=window.TraxWaxViewer||{}; const _n=[_vw.canViewCrate,_vw.canViewWantlist,_vw.canViewForSale].filter(Boolean).length; return `<span class="tw-hide-mobile" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:var(--faint)">${_n} OF 3 SHELVES SHARED</span>`; })():''}
+        ${(VIEWER_MODE().startsWith('public') && s.view==='forsale')?`<span class="tw-hide-mobile" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--faint)">${esc((window.TraxWaxOwner&&window.TraxWaxOwner.displayName||'').split(' ')[0]||'Their')}\u2019s listings, as filed here. Prices and condition notes live on Discogs \u2014 each card opens the listing.</span>`:''}
         <span role="status" aria-live="polite" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
           ${sortBtn('added','ADDED')}${sortBtn('artist','ARTIST')}${sortBtn('year','YEAR')}${DB_MODE()?'':sortBtn('price','PRICE')}
@@ -1358,7 +1387,7 @@ function render(){
       <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.14em; color:var(--muted)">SHOWING</span>
       ${activeChips}
       <button data-act="clearAll" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; padding:4px 8px; background:transparent; border:1px solid var(--line); color:var(--ink)">CLEAR ALL</button>
-      ${IS_OWN() ? `<button data-act="copyLink" title="Copy a link to this filtered view" style="margin-left:auto; display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; padding:4px 8px; background:transparent; border:1px solid var(--accent); color:var(--accent)"><span style="font-weight:700">SHARE THIS VIEW</span><span style="opacity:.75">${v.active.length} ${v.active.length===1?'FILTER':'FILTERS'}</span></button>` : ''}
+      ${(IS_OWN() || VIEWER_MODE().startsWith('public')) ? `<button data-act="copyLink" title="Copy a link to this filtered view" style="margin-left:auto; display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; padding:4px 8px; background:transparent; border:1px solid var(--accent); color:var(--accent)"><span style="font-weight:700">SHARE THIS VIEW</span><span style="opacity:.75">${v.active.length} ${v.active.length===1?'FILTER':'FILTERS'}</span></button>` : ''}
     </div>`:''}
 
     ${content}
@@ -2182,14 +2211,18 @@ async function bootCrate(){
       // Wave 2 B1: reset first (defensive) so a stale friend ctx never renders badges on the own crate.
       window.__twMatchCtx = null; window.__twOwnerWants = null;   // #28: __twOwnerWants is an array of {id, master}
       window.__twInventory = null;   // Wave 4: own-crate for-sale map (release_id → listing_id); null on friend crate
-      if (!IS_OWN() && window.TraxWaxMatchCtx) {
+      if (!IS_OWN()) {
+        // Wave 5b T2e (#60/#109): gate on the VIEWER, not one provider — the anonymous /c/
+        // viewer installs no TraxWaxMatchCtx but still needs the owner-side loads (its GOODS
+        // tab rendered empty otherwise). Each provider is guarded for absence; all four
+        // non-owner viewer shapes pass through this branch.
         const [rRows, rCtx, rWants, rFfs] = await Promise.allSettled([
           window.TraxWaxData(),
           // #43: the owner-wantlist entries must be ready at first paint — never a transient
           // null that _matchCounts would misread as PRIVATE. Failure → [] (best-effort real 0
           // on a shared list; self-heals on reload), never "PRIVATE" (that's flag-driven).
-          window.TraxWaxMatchCtx(),
-          window.TraxWaxOwnerWantIds(),
+          window.TraxWaxMatchCtx ? window.TraxWaxMatchCtx() : Promise.resolve(null),
+          window.TraxWaxOwnerWantIds ? window.TraxWaxOwnerWantIds() : Promise.resolve([]),
           // Wave 4 Stage 2: the FRIEND's consented for-sale (empty Map unless consented).
           // Wired as ctx.forSale below so badgesFor lights the FOR SALE badge; also drives
           // forSaleHref + the FOR SALE facet — the Stage 1 own-crate surfaces, reused.

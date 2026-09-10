@@ -13,6 +13,51 @@ _Nothing yet._
 
 ---
 
+## [1.29.0] — 2026-09-10
+
+### Added — Wave 5b S1: the public crate tier
+- **Public shelves.** Each of crate / wantlist / for-sale can now be set **PUBLIC** on the account
+  SHARING tab (private → friends → public, per shelf; for-sale's PUBLIC rung requires a public
+  crate, E1). Public shelves render for **anyone with the link, signed out included**, at
+  `/c/<slug>` — in the full TraxWax interface: card grid, FILED UNDER tray, facet filters, THE
+  TIMELINE, THE LEDGER (catalog aggregates: Records · On colored wax · Styles filed · Peak decade,
+  both panels, both stat strips), and 5a's shareable filter URLs (`/c/<slug>?g=…&wax=1`
+  pre-filters). No prices, no EST., no community stats, no Discogs username — the anonymous
+  surface is one SECURITY DEFINER RPC (`get_public_crate`, migrations 0037–0039) returning
+  catalog data only, with the owner reduced server-side to "First L.".
+- **Vanity slugs.** `traxwax.com/c/<slug>` — user-chosen, ≤18 chars, editable on the SHARING tab's
+  new PUBLIC LINK box (first flip to public seeds one from the display name); COPY LINK included.
+- **Header modes C/D go live.** The signed-out public header (strip: A PUBLIC CRATE ON TRAXWAX ·
+  SIGN IN · START YOUR OWN CRATE) and the signed-in stranger header (match sentence vs. the
+  viewer's own shelves, +WANT works). Friends who open a `/c/` link are redirected to the richer
+  friend view; the owner to their own crate. Tape shows `N IN CRATE · N COLORED · +N THIS MONTH`.
+- **Public GOODS cards**: black FOR SALE ribbon + `{year}` · `BUY ON DISCOGS ↗` footer; rail copy
+  points condition/prices at Discogs.
+- **404 / CLOSED pages** in the public idiom: unknown, malformed, and fully-private slugs are
+  indistinguishable for strangers; the owner of a dead link gets a CLOSED courtesy page.
+
+### Changed
+- **THE GOODS locks, never hides (#109, header spec §3.3).** All five tabs render for every
+  DB-mode viewer; a section the viewer can't see wears the #43 lock treatment (clickable → its
+  locked panel). Previously the tab vanished on friend crates without shared listings.
+- Non-owner GOODS grids (friend crates included) now use the ribbon + BUY ON DISCOGS footer.
+- Five tabs fit 390px: tighter mobile pads, the THE- prefix drops at ≤640 (aria keeps full names).
+
+### Fixed
+- **#60**: `IS_SIGNED_IN` now reads an explicit `signedIn` flag — `public-out` is reachable and an
+  anonymous viewer can never render the owner header (four-mode truth table verified).
+- **#110**: SHARING visibility changes no longer wipe their own status announcement (the
+  re-render is awaited; a render hiccup can't masquerade as a failed save).
+
+### Backend
+- Migrations **0037–0039**: `'public'` on the three visibility CHECKs; `public_slug`
+  (unique, `^[a-z0-9](?:[a-z0-9-]{0,16}[a-z0-9])?$`) + `og_palette` (white|red|black, default red,
+  for S2's OG cards); `get_public_crate` (anon-executable, the entire new anon surface;
+  relation-first so friends/owners always get their redirect); `private.can_view_*` widened to
+  `in ('friends','public')` so the friend tier survives an owner going public.
+
+---
+
 ## [1.28.1] — 2026-09-09
 
 ### Fixed
