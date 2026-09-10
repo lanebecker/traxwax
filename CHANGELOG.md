@@ -13,6 +13,27 @@ _Nothing yet._
 
 ---
 
+## [1.30.0] — 2026-09-10
+
+### Added — Wave 5b S2 + S3: the unfurl and the landing
+- **Per-crate OG cards.** A `/c/<slug>` link pasted into Slack/iMessage/Discord unfurls with a
+  server-rendered 1200×630 card: the owner's name and shelf, record count, top-3 styles, six
+  most-recent covers, TraxWax mark + Discogs attribution — in the owner's choice of three
+  palettes (white / red / black), picked on the SHARING tab's new **THE CARD** row. Rendered by
+  a Cloudflare Pages Function (`/og/<slug>`, workers-og/satori) against the same anonymous RPC
+  as the page; geometry per the locked Wave 5b spec §7, compact variant for long names/styles.
+  Private crates never render a card (404; 300s cache TTL is the revocation window).
+- **Crawler-ready `/c/` pages.** A Pages Function now serves `/c/<slug>` with per-crate
+  `og:*`/title/description meta (crawlers run no JS), cache-busted when count/styles/palette
+  change. `_routes.json` routes `/c/*` + `/og/*` to Functions; the `_redirects` rules stay as
+  a fallback. First npm dependency (`workers-og`) + Pages build command arrive with this.
+- **Landing: the Wave 5 slot, filled.** The three-up grows a fourth cell (FILE BY FRIEND ·
+  "Show your work") and the position slab becomes **PUBLIC CRATES** — "Your records, for all
+  the world to see (but only if you want them to.)" — with the red OG card as the unfurl
+  example. Card faces ship as TTFs under `public/fonts-og/`.
+
+---
+
 ## [1.29.1] — 2026-09-10
 
 ### Changed

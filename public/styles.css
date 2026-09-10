@@ -271,7 +271,7 @@ input::placeholder { color:var(--faint); }
    light, near-white in dark) and the text below uses --bg for the same reason, so it reads
    correctly in both without a theme-specific rule — the slab's trick, moved up here. */
 .tw-land-three {
-  display:grid; grid-template-columns:repeat(3,1fr);
+  display:grid; grid-template-columns:repeat(4,1fr);   /* Wave 5b S3: + FILE BY FRIEND */
   background:var(--ink); border-bottom:3px solid var(--line);
 }
 .tw-land-three > div {
@@ -331,6 +331,31 @@ input::placeholder { color:var(--faint); }
   font-family:'IBM Plex Mono',monospace; font-size:10.5px; line-height:2;
   letter-spacing:.1em; color:var(--muted);
 }
+/* Wave 5b S3 (spec §8): the PUBLIC CRATES fill. Left column: kicker, 44px headline with the
+   muted parenthetical, 44ch subline, the standard primary button. Right: the chat-bubble +
+   red OG card group at 560px, rotated 1.2°, no caption box. */
+.tw-slab-left { display:flex; flex-direction:column; gap:14px; align-items:flex-start; max-width:560px; }
+.tw-slab-h {
+  font-family:'Barlow Condensed',sans-serif; font-size:44px; font-weight:700;
+  line-height:1.08; color:var(--ink); margin:0; text-wrap:pretty;
+}
+.tw-slab-paren { color:var(--muted); font-weight:600; }
+.tw-slab-sub {
+  font-family:Archivo,Helvetica,sans-serif; font-size:14px; line-height:1.6;
+  color:var(--muted); max-width:44ch; margin:0;
+}
+.tw-slab-unfurl {
+  display:flex; flex-direction:column; gap:10px; transform:rotate(1.2deg); flex:none;
+}
+.tw-slab-bubble {
+  align-self:flex-start; background:var(--panel); border:1.5px solid var(--line);
+  box-shadow:3px 3px 0 var(--shadow); padding:10px 14px;
+  font-family:Archivo,Helvetica,sans-serif; font-size:13px; color:var(--ink);
+}
+.tw-slab-card {
+  width:560px; max-width:100%; height:auto; display:block;
+  border:1.5px solid var(--line); box-shadow:6px 6px 0 var(--shadow);
+}
 /* Grey band: --bar background with --ink heading. Both flip with the theme, so it reads
    in light and dark without a theme-specific rule; --muted clears on --bar in both. */
 
@@ -347,13 +372,23 @@ input::placeholder { color:var(--faint); }
 @media (max-width:900px) {
   .tw-land-hero-grid { grid-template-columns:1fr; gap:34px; }
   .tw-land-mosaic { max-width:340px; margin:0 auto; }   /* center + cap the cover graphic when stacked */
-  .tw-land-three { grid-template-columns:1fr; }
-  .tw-land-three > div { border-right:0; border-bottom:1.5px solid var(--faint); }
-  .tw-land-three > div:last-child { border-bottom:0; }
+  /* Wave 5b S3: four cells go 2×2 here (single column below 640) — right border only on the
+     odd (left) cells, bottom hairline only on the first row. */
+  .tw-land-three { grid-template-columns:repeat(2,1fr); }
+  .tw-land-three > div { border-right:0; border-bottom:0; }
+  .tw-land-three > div:nth-child(odd) { border-right:1.5px solid var(--faint); }
+  .tw-land-three > div:nth-child(-n+2) { border-bottom:1.5px solid var(--faint); }
 }
 @media (max-width:640px) {
   .tw-land { padding:8px; }
   .tw-land-hero { padding:44px 20px 36px; }
+  /* Wave 5b S3: the four-up stacks fully on phones. */
+  .tw-land-three { grid-template-columns:1fr; }
+  .tw-land-three > div,
+  .tw-land-three > div:nth-child(odd) { border-right:0; border-bottom:1.5px solid var(--faint); }
+  .tw-land-three > div:last-child { border-bottom:0; }
+  .tw-slab-unfurl { transform:rotate(0); max-width:100%; }
+  .tw-slab-card { width:100%; }
   .tw-land-proof, .tw-land-slab, .tw-land-foot { padding-left:20px; padding-right:20px; }
   .tw-land-bar { padding:12px 20px; }
   /* Frame-break wordmark: smaller on phones, aligned to the 20px mobile hero inset. */

@@ -26,9 +26,11 @@ then commit the matching files.
 | **Build command / preset** | *(none)* — output directory `public` |
 | **Deploy trigger** | Every push to `main`. Branches get previews at `https://<branch>.traxwax.pages.dev`. |
 
-Pages auto-detects `functions/` (the legacy proxy — now only `/api/release/:id`).
-`public/_routes.json` pins Functions to `/api/*` so `_redirects` and `_headers` govern
-everything else.
+Pages auto-detects `functions/` — `/api/release/:id` (the CC0 proxy) plus, since v1.30.0,
+`/c/:slug` (crawler meta) and `/og/:slug` (the unfurl card). `public/_routes.json` includes
+exactly `/api/*`, `/c/*`, `/og/*`; `_redirects` and `_headers` govern everything else — and do
+NOT apply to those three routes (the functions carry their own headers; `_redirects`' `/c`
+rules are the Functions-outage fallback).
 
 **Cache policy** (`public/_headers`, v1.0.1): `no-cache` on HTML, `/app.js`, `/boot.js`,
 `/styles.css`, `/collection.json` — browsers revalidate every load (cheap 304s) and pick up
@@ -133,6 +135,21 @@ gates) are SECURITY DEFINER granted to `authenticated`.
   `_redirects` rules go inert for those paths (they stay as a Functions-outage fallback).
 - Applied 2026-09-10 via break-glass: 0037_public_tier, 0038_public_relation_first,
   0039_friend_redirect_gate (all three amend/replace `get_public_crate`; 0039 is the live body).
+- **S2 (v1.30.0): the Pages project has a BUILD STEP now** — build command `npm install`, build
+  output directory `public` (set in the Pages dashboard, rehearsed on a branch preview before
+  main). `package.json` pins `workers-og` for `functions/og/[slug].js`; the compressed function
+  bundle is ~690KB (fits every Workers plan). Card fonts are static assets under
+  `public/fonts-og/` (see its README for regeneration). The OG PNG cache TTL (300s,
+  `caches.default`, canonical pathname key — never the query string) is the revocation window —
+  do not raise it without re-arguing revocation. **Branch rehearsal checklist (before main):**
+  (1) build succeeds + `/api/release/<id>` still answers; (2) `curl -s -D - -o /dev/null <preview>/c/lanes-crate` (a real GET — a HEAD can bypass the
+  Function and show the static path's headers) → 200, the FULL security-header set, and a
+  per-crate `og:title` in the body; keep `SEC_HEADERS` in `functions/c/[slug].js` in lockstep with
+  `public/_headers`); (3) `curl <preview>/og/lanes-crate` → 1200×630 PNG, cold render — and check
+  the Pages Functions log for CPU-time errors (satori costs real CPU; if the plan's budget trips,
+  the fallback is the plan's client-side pre-render, docs/wave-5b-plan.md T7-pre 4); (4) the
+  preview's og:image points at traxwax.com (hardcoded), where /og/ 404s until this deploy reaches
+  prod — hit the preview's own /og/ path directly instead.
 
 ## Auth (Clerk)
 
