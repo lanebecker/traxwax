@@ -162,7 +162,7 @@ async function ensureProfile(userId) {
     .from('profiles')
     .upsert(row, { onConflict: 'user_id', ignoreDuplicates: false })
     .select('user_id, discogs_username, import_status, last_import_at, ' +
-      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility, wantlist_visibility, match_mode, forsale_visibility')
+      'display_name, avatar_url, bio, location, collecting_since, link1, link2, crate_visibility, wantlist_visibility, match_mode, forsale_visibility, public_slug, og_palette')
     .single();
   if (error) throw new Error('profile upsert failed: ' + error.message);
   return data;
@@ -320,6 +320,54 @@ function ownerInfo(profile) {
   };
 }
 
+/* Wave 5b T2c: the VIEWER's own match context (their wants/haves/sells, exact + any-pressing
+   sets) — used by the friend path since Wave 2 B1 and by /c/ public-in since 5b. Scoped to
+   the signed-in CALLER; owner-side data never enters here. Body unchanged in the extraction. */
+function installViewerMatchCtx() {
+// Wave 2 B1: the VIEWER's own wants + haves as id Sets — the badges match these against the friend's
+// displayed records (own data, no consent gate). MUST scope to the viewer; owner.user_id is the FRIEND.
+// #28: adds master_id sets (join releases) for any-pressing matching. ALSO fixes a pre-existing bug —
+// the old body had no .range(), so PostgREST silently capped the viewer's own collection/wantlist at
+// 1,000 rows (Lane owns ~1,861 → viewerHas was truncated, undercounting YOU-OWN badges + IN COMMON on
+// every friend's crate). Paginate like the sibling providers. `if (m)` excludes Discogs' no-master 0.
+window.TraxWaxMatchCtx = async () => {
+  const me = window.Clerk.user.id;
+  const pull = async (table) => {
+    const ids = new Set(), masters = new Set();
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from(table)
+        .select('release_id, releases(master_id)').eq('user_id', me)
+        .order('id', { ascending: true }).range(from, from + 999);
+      if (error) throw new Error('match ctx failed (' + table + '): ' + error.message);
+      for (const r of data ?? []) { ids.add(r.release_id); const m = r.releases && r.releases.master_id; if (m) masters.add(m); }
+      if (!data || data.length < 1000) break;
+    }
+    return { ids, masters };
+  };
+  // #59 #3/#4 split: also pull the CALLER's OWN for-sale inventory (release_ids), so the friend-wantlist can split into
+  // "they want that you're SELLING" vs "they want that you HAVE (unlisted)". This is the viewer's own data (no consent gate),
+  // scoped to `me` — NOT window.__twInventory, which on a friend crate is the FRIEND's for-sale.
+  const pullInv = async () => {
+    const ids = new Set(), masters = new Set();
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('inventory_items')
+        .select('release_id, releases(master_id)').eq('user_id', me).eq('status', 'for_sale')
+        .order('id', { ascending: true }).range(from, from + 999);
+      if (error) throw new Error('match ctx failed (inventory_items): ' + error.message);
+      for (const r of data ?? []) { ids.add(r.release_id); const m = r.releases && r.releases.master_id; if (m) masters.add(m); }
+      if (!data || data.length < 1000) break;
+    }
+    return { ids, masters };
+  };
+  const [w, c, iv] = await Promise.all([pull('wantlist_items'), pull('collection_items'), pullInv()]);
+  return {
+    viewerWants: w.ids, viewerWantsMasters: w.masters,
+    viewerHas:   c.ids, viewerHasMasters:   c.masters,
+    viewerSells: iv.ids, viewerSellsMasters: iv.masters,
+  };
+};
+}
+
 /* Wave 1: providers for a READ-ONLY friend crate. `owner` is the display projection from
    get_crate_owner. Reads the friend's collection via the get_friend_crate projection RPC (#42 — keeps
    rating, omits folder/instance_id; the old table-wide collection_select_friends policy is dropped).
@@ -329,7 +377,7 @@ function installFriendCrateProviders(owner) {
   // E2 (#100): same thin alias as the own-crate installer — the duplicated body is gone.
   const fnCall = (path, payload) => edgeCall(path, payload, { throwOnError: false });
 
-  window.TraxWaxViewer = { isOwn: false, ownerUserId: owner.user_id, ownerProfile: owner,
+  window.TraxWaxViewer = { isOwn: false, signedIn: true, ownerUserId: owner.user_id, ownerProfile: owner,   // #60: explicit flag
     canViewCrate: owner._canViewCrate === true, canViewWantlist: owner._canViewWantlist === true,
     canViewForSale: owner._canViewForSale === true };  // #43 (all fail-closed); D2 deep-link reads canViewForSale
 
@@ -410,48 +458,9 @@ function installFriendCrateProviders(owner) {
     }));
   };
 
-  // Wave 2 B1: the VIEWER's own wants + haves as id Sets — the badges match these against the friend's
-  // displayed records (own data, no consent gate). MUST scope to the viewer; owner.user_id is the FRIEND.
-  // #28: adds master_id sets (join releases) for any-pressing matching. ALSO fixes a pre-existing bug —
-  // the old body had no .range(), so PostgREST silently capped the viewer's own collection/wantlist at
-  // 1,000 rows (Lane owns ~1,861 → viewerHas was truncated, undercounting YOU-OWN badges + IN COMMON on
-  // every friend's crate). Paginate like the sibling providers. `if (m)` excludes Discogs' no-master 0.
-  window.TraxWaxMatchCtx = async () => {
-    const me = window.Clerk.user.id;
-    const pull = async (table) => {
-      const ids = new Set(), masters = new Set();
-      for (let from = 0; ; from += 1000) {
-        const { data, error } = await supabase.from(table)
-          .select('release_id, releases(master_id)').eq('user_id', me)
-          .order('id', { ascending: true }).range(from, from + 999);
-        if (error) throw new Error('match ctx failed (' + table + '): ' + error.message);
-        for (const r of data ?? []) { ids.add(r.release_id); const m = r.releases && r.releases.master_id; if (m) masters.add(m); }
-        if (!data || data.length < 1000) break;
-      }
-      return { ids, masters };
-    };
-    // #59 #3/#4 split: also pull the CALLER's OWN for-sale inventory (release_ids), so the friend-wantlist can split into
-    // "they want that you're SELLING" vs "they want that you HAVE (unlisted)". This is the viewer's own data (no consent gate),
-    // scoped to `me` — NOT window.__twInventory, which on a friend crate is the FRIEND's for-sale.
-    const pullInv = async () => {
-      const ids = new Set(), masters = new Set();
-      for (let from = 0; ; from += 1000) {
-        const { data, error } = await supabase.from('inventory_items')
-          .select('release_id, releases(master_id)').eq('user_id', me).eq('status', 'for_sale')
-          .order('id', { ascending: true }).range(from, from + 999);
-        if (error) throw new Error('match ctx failed (inventory_items): ' + error.message);
-        for (const r of data ?? []) { ids.add(r.release_id); const m = r.releases && r.releases.master_id; if (m) masters.add(m); }
-        if (!data || data.length < 1000) break;
-      }
-      return { ids, masters };
-    };
-    const [w, c, iv] = await Promise.all([pull('wantlist_items'), pull('collection_items'), pullInv()]);
-    return {
-      viewerWants: w.ids, viewerWantsMasters: w.masters,
-      viewerHas:   c.ids, viewerHasMasters:   c.masters,
-      viewerSells: iv.ids, viewerSellsMasters: iv.masters,
-    };
-  };
+  // Wave 2 B1 / Wave 5b T2c: the viewer's own match context — shared with the /c/ public-in
+  // path; body extracted verbatim to installViewerMatchCtx() (module level, above the installers).
+  installViewerMatchCtx();
 
   window.TraxWaxReleaseData = async (id) => {
     const { data, error } = await supabase
@@ -836,17 +845,49 @@ async function renderAccount(profile, section) {
       // the SHARING page so the for-sale control's locked/unlocked state tracks the new crate value without a
       // manual reload. (The DB gate protects either way; this keeps the consent UI honest.)
       profile.crate_visibility = v;
-      renderAccount(profile, 'sharing');
+      if (v === 'public') await _ensurePublicSlug(profile);   // Wave 5b: first flip seeds the slug
+      // Audit F5: for-sale's PUBLIC rung rides under a public crate (E1) — leaving 'public'
+      // downgrades an orphaned forsale='public' to 'friends' so the control never renders stateless.
+      if (v !== 'public' && profile.forsale_visibility === 'public') {
+        let ok = false;
+        for (let i = 0; i < 2 && !ok; i++) {   // pass-2 F3: one retry; a silent miss re-renders a stateless control
+          const r2 = await supabase.from('profiles')
+            .update({ forsale_visibility: 'friends' }).eq('user_id', window.Clerk.user.id);
+          ok = !r2.error;
+        }
+        if (ok) profile.forsale_visibility = 'friends';
+        else console.error('forsale downgrade failed; control renders its stored public value');
+      }
+      try { await renderAccount(profile, 'sharing'); }   // #110: awaited → status lands in the NEW dom
+      catch (e2) { console.error(e2); }                    // pass-2 F2: the save SUCCEEDED — a render hiccup must not read as failure
     },
     onSetWantlistVisibility: async (v) => {   // Wave 2 B1: independent wantlist consent
       const { error } = await supabase.from('profiles')
         .update({ wantlist_visibility: v }).eq('user_id', window.Clerk.user.id);
       if (error) throw new Error(error.message);
+      // Wave 5b: the PUBLIC LINK box tracks any-public — sync + re-render like the crate setter.
+      profile.wantlist_visibility = v;
+      if (v === 'public') await _ensurePublicSlug(profile);
+      try { await renderAccount(profile, 'sharing'); } catch (e2) { console.error(e2); }   // #110 + pass-2 F2
     },
     onSetForsaleVisibility: async (v) => {   // Wave 4 Stage 2: for-sale consent (rides under crate visibility)
       const { error } = await supabase.from('profiles')
         .update({ forsale_visibility: v }).eq('user_id', window.Clerk.user.id);
       if (error) throw new Error(error.message);
+      profile.forsale_visibility = v;   // Wave 5b: see above
+      if (v === 'public') await _ensurePublicSlug(profile);
+      try { await renderAccount(profile, 'sharing'); } catch (e2) { console.error(e2); }   // #110 + pass-2 F2
+    },
+    // Wave 5b T9: the vanity slug (PUBLIC LINK box). The DB CHECK + unique index validate;
+    // a collision gets its own human message.
+    onSetSlug: async (v) => {
+      const { error } = await supabase.from('profiles')
+        .update({ public_slug: v }).eq('user_id', window.Clerk.user.id);
+      if (error) {
+        throw new Error(/duplicate|unique/i.test(error.message || '')
+          ? 'That link is taken — try another.' : error.message);
+      }
+      profile.public_slug = v;
     },
     onSetMatchMode: async (mode) => {   // #28: viewer's own reading preference; direct update under profiles_update_own RLS
       const { error } = await supabase.from('profiles')
@@ -1399,7 +1440,7 @@ async function render() {
     .finally(() => { if (window.TraxWaxFeedCompute) window.TraxWaxFeedCompute(); if (window.TraxWaxRerender) window.TraxWaxRerender(); });
 
   // ── Stage D: inject the data providers, then boot the crate from Supabase. ──
-  window.TraxWaxViewer = { isOwn: true, ownerUserId: null, ownerProfile: null };
+  window.TraxWaxViewer = { isOwn: true, signedIn: true, ownerUserId: null, ownerProfile: null };   // #60: explicit flag
   installCrateProviders(profile);
   await import('/app.js');
   window.TraxWaxBootCrate();
@@ -1419,8 +1460,215 @@ async function route() {
   }
 }
 
+/* Wave 5b T9: the default vanity slug — slugified display name, capped 18, no edge hyphens;
+   an all-symbol name falls back to a random handle. The DB CHECK is the real validator. */
+function generateSlug(name) {
+  let v = (name || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 18).replace(/-+$/, '');
+  if (!v) v = 'crate-' + Math.random().toString(36).slice(2, 8);
+  return v;
+}
+
+/* First flip to PUBLIC with no slug yet: write one alongside the visibility change so the
+   PUBLIC LINK box never renders empty. Collisions retry with a short random suffix; any other
+   failure leaves the box empty for the user to EDIT (never blocks the visibility change). */
+async function _ensurePublicSlug(profile) {
+  if (profile.public_slug) return;
+  const base = generateSlug(profile.display_name || profile.discogs_username || '');
+  for (let i = 0; i < 3; i++) {
+    const cand = i === 0 ? base : (base.slice(0, 15).replace(/-+$/, '') + '-' + Math.random().toString(36).slice(2, 4));
+    const { error } = await supabase.from('profiles')
+      .update({ public_slug: cand }).eq('user_id', window.Clerk.user.id);
+    if (!error) { profile.public_slug = cand; return; }
+    if (!/duplicate|unique/i.test(error.message || '')) return;
+  }
+}
+
+/* ── Wave 5b: the /c/<slug> public tier (plan docs/wave-5b-plan.md T2b) ─────────────────────
+   One RPC (get_public_crate, anon-callable) returns owner identity ("First L.", server-derived),
+   per-section public flags, and the records for every public section. Unknown and all-private
+   slugs are both NULL (spec §6/§10) → the 404 page. The page paints with NO Clerk load (B3);
+   Clerk loads afterward only to redirect the owner/a friend, or to upgrade a signed-in stranger
+   to mode D. Providers mirror installFriendCrateProviders' shapes; bootCrate's non-owner branch
+   tolerates the ones a public viewer lacks (T2e). */
+async function bootPublicCrate(slug) {
+  let payload = null;
+  try {
+    const { data, error } = await supabase.rpc('get_public_crate', { p_slug: slug });
+    if (error) throw new Error('public crate query failed: ' + error.message);
+    payload = data;
+  } catch (err) { showError(err); return; }
+
+  if (!payload) { renderPublicNotFound(); _publicClerkPass(slug, null); return; }
+
+  // First call runs anonymous (Clerk not loaded → accessToken null), so relation can only be
+  // 'stranger' here; the authenticated re-check happens in _publicClerkPass.
+  _installPublicCrate(payload);
+  await import('/app.js');
+  window.TraxWaxBootCrate();
+  _publicClerkPass(slug, payload);
+}
+
+function renderPublicNotFound(variant) {
+  clearAuthMount();
+  const el = app();
+  if (!el) return;
+  // Pass-2 F1: this can render OVER a booted crate (the owner's CLOSED page) — clear app.js's
+  // body-level roots and the inert flag so no modal/toast haunts the page, and reset the title.
+  for (const id of ['tw-modal-root', 'tw-dna-root']) {
+    const n = document.getElementById(id); if (n) n.innerHTML = '';
+  }
+  try { el.inert = false; el.removeAttribute('aria-hidden'); } catch (e) {}
+  try { document.title = 'TraxWax'; } catch (e) {}
+  el.className = '';
+  el.innerHTML = UI.publicNotFoundHtml(variant || 'notfound');
+}
+
+function _installPublicCrate(d) {
+  const rows = (arr) => (Array.isArray(arr) ? arr : []).map((it) => ({
+    id: it.release_id,
+    artist: it.artist || '', title: it.title || '', year: it.year || 0,
+    label: it.label || '', styles: it.styles || [], genres: it.genres || [],
+    vinyl: it.vinyl || '', thumb: it.thumb || '', cover_image: it.cover_image || '',
+    added: it.added || '', rating: 0, master_id: it.master_id || null,
+    price: null, crating: null, crcount: null, have: null, want: null,
+  }));
+  window.TraxWaxViewer = {
+    isOwn: false, signedIn: false, isPublic: true,   // #60: the shape the truth table demands
+    canViewCrate: d.sections.crate === true,
+    canViewWantlist: d.sections.wantlist === true,
+    canViewForSale: d.sections.forsale === true,
+  };
+  window.TraxWaxOwner = {
+    ownerLine: (d.owner.display_name || 'A Collector') + '\u2019s shelf',
+    lastSyncedAt: null,
+    displayName: d.owner.display_name || '',
+    avatarUrl: d.owner.avatar_url || '',
+    ownerUsername: '',                       // NEVER a handle on a public surface (spec §10)
+    collectingSince: d.owner.collecting_since || null,
+    isOwn: false,
+  };
+  window.TraxWaxData         = async () => rows(d.crate);
+  window.TraxWaxWantlistData = async () => rows(d.wantlist);
+  window.TraxWaxFriendForSale = async () => {
+    const m = new Map();
+    for (const it of (Array.isArray(d.forsale) ? d.forsale : [])) m.set(it.release_id, it.listing_id);
+    return m;
+  };
+  // The owner's public wantlist entries for the "they want / you have" count (mode D) — same
+  // {id, master} shape the friend path returns, derived from the payload. Not public → []
+  // (unknown, not zero — matches the friend semantics).
+  window.TraxWaxOwnerWantIds = async () =>
+    (d.sections.wantlist === true ? (Array.isArray(d.wantlist) ? d.wantlist : []) : [])
+      .map((it) => ({ id: it.release_id, master: it.master_id || null }));
+  // No token → no live stats, ever, on a public surface (spec C4). Header EST. is IS_OWN-gated
+  // anyway; this keeps any per-release path a silent no-op.
+  window.TraxWaxStats = async () => ({});
+}
+
+/* Mode D bits: a signed-in stranger on /c/ gets the same viewer-side match context a friend
+   viewer gets — the owner-side data is already public — plus their own wantlist writes. */
+function installPublicViewerMatchCtx() {
+  installViewerMatchCtx();
+  window.TraxWaxSetWant = async (releaseId, action) =>
+    _pipeCall('wantlist-write', { release_id: releaseId, action });
+}
+
+/* The deferred Clerk pass: load Clerk quietly; if the visitor is signed in, re-run the RPC under
+   their JWT — the server answers 'redirect' for the owner (→ /app) or a friend (→ /app/{handle},
+   mode B), and full data for a signed-in stranger (mode D: signedIn flips true, the viewer's own
+   match context installs, and the crate re-boots so the provider loads run). */
+async function _publicClerkPass(slug, firstPayload) {
+  try {
+    await clerkReady();
+    await window.Clerk.load({
+      ui: { ClerkUI: window.__internal_ClerkUICtor },
+      appearance: clerkAppearance(document.body.dataset.theme === 'dark'),
+      signInUrl: '/app', signUpUrl: '/app?mode=signup',
+      signInFallbackRedirectUrl: '/app', signUpFallbackRedirectUrl: '/app',
+      afterSignOutUrl: '/',
+    });
+  } catch (e) { return; }   // Clerk down → the anonymous page stands; nothing to upgrade
+  // House idiom (plan F3): signed-in state is !!window.Clerk.user, exactly as route()/boot() read it.
+  if (!window.Clerk.user) return;
+
+  // Audit F2: the moment Clerk resolves signed-in, _uid() flips and the still-in-flight
+  // ANONYMOUS boot goes stale and silently aborts — so every signed-in path below MUST end in a
+  // redirect, a re-boot, or an explicit page, or the visitor is stranded on "Loading the crate…".
+  // Pass-3 F1: supabase-js v2 does NOT throw — failures come back as {data:null, error}. An
+  // error must NEVER take the reload branch (a persistent auth-only failure would reload-loop);
+  // it takes the keep-the-page recovery instead. Reload only on a genuine SQL NULL (revoked).
+  let d = null, derr = null;
+  try {
+    const { data, error } = await supabase.rpc('get_public_crate', { p_slug: slug });
+    d = data; derr = error;
+  } catch (e) { derr = e; }
+  if (derr) {
+    if (firstPayload !== null) {
+      // Recover the aborted anon boot AS the signed-in viewer we now know they are (pass-2 F4):
+      // the data is public either way; the flag only shapes the chrome.
+      window.TraxWaxViewer.signedIn = true;
+      installPublicViewerMatchCtx();
+      window.TraxWaxBootCrate();
+    }
+    return;
+  }
+  if (!d) {
+    if (firstPayload !== null) {
+      // Revoked mid-visit. A soft 404 render would leave app.js's module state haunting the
+      // page (open modal, Escape repainting the dead crate — pass-2 F1); reload instead: the
+      // fresh boot fetches NULL and renders the 404 with zero leftover state.
+      window.location.reload();
+      return;
+    }
+    return;   // the 404 card is already up
+  }
+  if (d.status === 'redirect') {
+    if (d.relation === 'owner') {
+      // 0038: 'open' distinguishes a live slug (→ the app) from the owner's own dead link
+      // (→ the CLOSED courtesy page; no profile probe needed).
+      if (d.open === false) { renderPublicNotFound('closed'); return; }
+      window.location.replace('/app'); return;
+    }
+    if (d.relation === 'friend') {
+      if (d.handle) { window.location.replace('/app/' + encodeURIComponent(d.handle)); return; }
+      // Friend of an owner with no discogs_username: no /app/{handle} exists (an unlinked account
+      // has no records anyway) — render mode D, the only view there is.
+      if (firstPayload === null) { renderPublicNotFound(); return; }
+      window.TraxWaxViewer.signedIn = true;
+      installPublicViewerMatchCtx();
+      window.TraxWaxBootCrate();
+      return;
+    }
+  }
+  // Mode D (plan F2 + pass-2 F7): install the FRESH authenticated payload (sections may have
+  // moved between the two calls), flip the flag, install the viewer's own context, then boot —
+  // bootCrate's non-owner branch is what consumes TraxWaxOwnerWantIds/TraxWaxFriendForSale and
+  // populates __twMatchCtx/__twInventory; a bare re-render would leave every match count at zero.
+  // This also covers a crate OPENED mid-visit while the 404 was up (firstPayload null, d ok).
+  if (d.status === 'ok') {
+    _installPublicCrate(d);
+    window.TraxWaxViewer.signedIn = true;
+    installPublicViewerMatchCtx();
+    if (firstPayload === null) await import('/app.js');   // the 404 path never loaded the renderer
+    window.TraxWaxBootCrate();
+  }
+}
+
 async function boot() {
   initThemeEarly();
+
+  // Wave 5b: /c/<slug> — the public tier. Renders for a signed-out visitor with no Clerk load
+  // (plan T2b / spec B3); bootPublicCrate runs its own deferred Clerk pass to upgrade/redirect.
+  // Everything below (finalize codes, invite stash, full Clerk boot) is the signed-in app's
+  // business — return early.
+  const _pubPath = window.location.pathname.replace(/\/+$/, '');
+  if (_pubPath === '/c' || _pubPath.startsWith('/c/')) {
+    const _slug = _pubPath.slice(3);
+    if (/^[a-z0-9](?:[a-z0-9-]{0,16}[a-z0-9])?$/.test(_slug)) { await bootPublicCrate(_slug); }
+    else { renderPublicNotFound(); }   // bare /c, oversize, uppercase, nested — all the 404 page
+    return;
+  }
 
   // Phase 2 (#8): the OAuth callback delivers a one-time finalize code in the URL
   // FRAGMENT (never sent to a server, never logged). Clerk's components use hash routing

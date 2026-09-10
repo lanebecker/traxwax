@@ -475,3 +475,12 @@ a.tw-badge-else:hover, a.tw-badge-else:focus-visible { background:var(--ink); co
 .cl-formButtonPrimary:active { box-shadow:0 0 0 var(--line) !important; transform:translate(3px,3px); }
 /* The "you signed in with X last time" badge floats oddly inside our frame. */
 .cl-lastAuthenticationStrategyBadge { display:none !important; }
+
+/* ── Wave 5b (plan T6): mobile fit for the five-tab row + public strip. !important beats tab()'s
+   inline padding — the same convention every rule in the ≤640 block above already uses. The
+   .tw-tab-the / .tw-strip-crate spans carry the droppable words (spec §5). */
+@media (max-width:640px){
+  .tw-tabsrow button{ padding:12px 12px !important; }
+  .tw-tab-the{ display:none; }
+  .tw-strip-crate{ display:none; }
+}

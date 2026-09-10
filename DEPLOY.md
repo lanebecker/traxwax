@@ -110,7 +110,7 @@ verification runs).
 ## Surface 3 — Database
 
 Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids; RLS policies use the
-`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0036` applied; the migration
+`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0039` applied; the migration
 map lives in `CLAUDE.md`. Apply via the **break-glass** MCP `apply_migration` (or
 `supabase db push`), verify with the checks each migration's plan documents, then commit the
 file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
@@ -118,6 +118,21 @@ file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
 are SECURITY DEFINER and `service_role`-only; the friend-read RPCs (`get_friend_crate` 0021,
 `get_crate_owner` 0023, `get_friend_forsale` 0028, `list_friends` 0031, and the `private.can_view_*`
 gates) are SECURITY DEFINER granted to `authenticated`.
+
+### Wave 5b — the public tier (v1.29.0, migrations 0037–0039)
+
+- **The anonymous surface is exactly one function**: `public.get_public_crate(text)`, SECURITY
+  DEFINER, `grant execute … to anon, authenticated`. The security advisor flags it
+  (`anon_security_definer_function_executable`, WARN) — **that WARN is by design**; do not "fix"
+  it. It returns catalog data only (no username/price/rating; owner reduced to "First L.");
+  unknown ≡ all-private ≡ NULL. No anon table policies exist and none should be added.
+- `private.can_view_*` accept `('friends','public')` since 0037 — if a future migration recreates
+  them from an older template, friends of public-crate owners lose access (the 0037 F1 lesson).
+- **Routing:** `/c` + `/c/*` rewrite to the shell in `public/_redirects` (S1). S2's Pages
+  Function will claim `/c/*` + `/og/*` via `_routes.json` `include`, at which point those
+  `_redirects` rules go inert for those paths (they stay as a Functions-outage fallback).
+- Applied 2026-09-10 via break-glass: 0037_public_tier, 0038_public_relation_first,
+  0039_friend_redirect_gate (all three amend/replace `get_public_crate`; 0039 is the live body).
 
 ## Auth (Clerk)
 

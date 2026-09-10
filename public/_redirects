@@ -42,3 +42,11 @@
 /i         /app/  200
 /i/*       /app/  200
 
+# Wave 5b S1 (audit F1): the public-crate route /c/<slug>. Same rewrite mechanics as /account —
+# serve the SPA shell with the URL preserved; boot.js reads /c/<slug> and runs bootPublicCrate()
+# with NO Clerk load. S2's Pages Function will claim /c/* via _routes.json "include", at which
+# point these two rules become inert for those requests (rules don't apply to Functions-routed
+# paths) — leave them as the fallback for a Functions outage.
+/c         /app/  200
+/c/*       /app/  200
+
