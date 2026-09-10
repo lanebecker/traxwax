@@ -560,6 +560,24 @@ function visSegSty(v, on) {
     ? (on ? 'background:var(--accent); color:#fff' : 'background:var(--panel); color:var(--accent)')
     : (on ? 'background:var(--ink); color:var(--panel)' : 'background:var(--panel); color:var(--muted)');
 }
+/* Wave 5b (CHECK-IN 1, approved 2026-09-10): the OG-card palette swatch — a 46×26 three-strip
+   chip per palette (ground/type/accent), accent-outlined when active. Values mirror the
+   renderer's PALETTES table (functions/og/[slug].js). */
+function palSwatch(v, cur) {
+  const STRIPS = {
+    white: ['#ffffff', '#16171a', '#e8194b'],
+    red:   ['#e8194b', '#ffffff', '#16171a'],
+    black: ['#0e0f11', '#f0efed', '#e8194b'],
+  };
+  const on = cur === v;
+  const label = v.charAt(0).toUpperCase() + v.slice(1);
+  return '<button id="tw-og-pal-' + v + '" data-pal="' + v + '" aria-pressed="' + on + '" title="' + label + '" ' +
+    'aria-label="' + label + ' card" style="display:flex; width:46px; height:26px; padding:0; cursor:pointer; ' +
+    'border:1.5px solid var(--line); ' + (on ? 'outline:2.5px solid var(--accent); outline-offset:2px' : 'outline:none') + '">' +
+    STRIPS[v].map(function (c) { return '<span style="flex:1; background:' + c + '"></span>'; }).join('') +
+    '</button>';
+}
+
 function visSegBtn(group, v, label, cur) {
   const on = cur === v;
   // C6 (#83): a deterministic id per group×value so renderAccount's re-entry focus restore
@@ -682,6 +700,17 @@ function sharingSection(o) {
           '</div>' +
           '<div style="padding:0 18px 14px; ' + MONO + '; font-size:9.5px; color:var(--faint)">' +
             'Lowercase letters, numbers, hyphens. 18 characters max. Changing it breaks the old link.</div>' +
+          // PALETTE-ROW-SLOT filled (CHECK-IN 1 approved): THE CARD — which OG palette the link unfurls with.
+          '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
+            'border-top:1px solid var(--hair)">' +
+            '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('The card') +
+              rowSub('What your link shows when it unfurls') + '</div>' +
+            '<div id="tw-og-pal" role="group" aria-label="Unfurl card palette" style="display:flex; gap:10px; flex:none">' +
+              palSwatch('white', (o.profile && o.profile.og_palette) || 'red') +
+              palSwatch('red',   (o.profile && o.profile.og_palette) || 'red') +
+              palSwatch('black', (o.profile && o.profile.og_palette) || 'red') +
+            '</div>' +
+          '</div>' +
         '</div>'
       : '') +
 
@@ -1059,6 +1088,28 @@ export function bindAccountPage(root, deps) {
           document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
         } catch (err2) { smsg(url); }
       }
+    });
+  }
+
+  // Wave 5b: THE CARD palette picker — click-delegated on the swatch group; writes og_palette
+  // and restyles the outlines in place (no re-render needed; the row is self-contained).
+  const palGroup = $('tw-og-pal');
+  if (palGroup) {
+    palGroup.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-pal]');
+      if (!b) return;
+      const v = b.getAttribute('data-pal');
+      const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
+      try {
+        await deps.onSetPalette(v);
+        palGroup.querySelectorAll('[data-pal]').forEach((x) => {
+          const isOn = x.getAttribute('data-pal') === v;
+          x.setAttribute('aria-pressed', isOn);
+          x.style.outline = isOn ? '2.5px solid var(--accent)' : 'none';
+          x.style.outlineOffset = isOn ? '2px' : '';
+        });
+        smsg('Your link unfurls with the ' + v + ' card now.');
+      } catch (err) { smsg('Couldn’t change that: ' + ((err && err.message) || err)); }
     });
   }
 

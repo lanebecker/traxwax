@@ -1,0 +1,7 @@
+{
+  "name": "traxwax",
+  "private": true,
+  "dependencies": {
+    "workers-og": "0.0.25"
+  }
+}

@@ -878,6 +878,14 @@ async function renderAccount(profile, section) {
       if (v === 'public') await _ensurePublicSlug(profile);
       try { await renderAccount(profile, 'sharing'); } catch (e2) { console.error(e2); }   // #110 + pass-2 F2
     },
+    // Wave 5b: THE CARD palette (og_palette — the OG renderer reads it server-side; a shared
+    // link can never force someone else's card off-palette).
+    onSetPalette: async (v) => {
+      const { error } = await supabase.from('profiles')
+        .update({ og_palette: v }).eq('user_id', window.Clerk.user.id);
+      if (error) throw new Error(error.message);
+      profile.og_palette = v;
+    },
     // Wave 5b T9: the vanity slug (PUBLIC LINK box). The DB CHECK + unique index validate;
     // a collision gets its own human message.
     onSetSlug: async (v) => {
