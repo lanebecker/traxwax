@@ -1112,6 +1112,7 @@ async function render() {
   }
 
   clearAuthMount();
+  try { localStorage.setItem('tw_has_session', '1'); } catch (e) {}   // #113: the identify-first hint
   const profile = await ensureProfile(window.Clerk.user.id);
 
   // #28: the VIEWER's any-pressing reading preference, read once per load before routing — it applies
@@ -1500,6 +1501,19 @@ async function _ensurePublicSlug(profile) {
    to mode D. Providers mirror installFriendCrateProviders' shapes; bootCrate's non-owner branch
    tolerates the ones a public viewer lacks (T2e). */
 async function bootPublicCrate(slug) {
+  // #113: a returning user is identified BEFORE the anonymous paint (placeholder instead of
+  // the flash); strangers — the unfurl-traffic majority — keep the fast no-Clerk paint.
+  let _hint = false;
+  try { _hint = localStorage.getItem('tw_has_session') === '1'; } catch (e) {}
+  if (_hint) {
+    const el = app();
+    if (el) {
+      el.className = '';
+      el.innerHTML = `<div style="padding:120px 24px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted)">Loading the crate…</div>`;
+    }
+    if (await _publicIdentifyFirst(slug)) return;
+  }
+
   let payload = null;
   try {
     const { data, error } = await supabase.rpc('get_public_crate', { p_slug: slug });
@@ -1580,6 +1594,65 @@ function installPublicViewerMatchCtx() {
   installViewerMatchCtx();
   window.TraxWaxSetWant = async (releaseId, action) =>
     _pipeCall('wantlist-write', { release_id: releaseId, action });
+  try { localStorage.setItem('tw_has_session', '1'); } catch (e) {}   // #113: the identify-first hint
+}
+
+/* #113: load Clerk exactly once, whoever asks first — identify-first and the deferred pass can
+   both reach here; clerk-js throws on a second load(). */
+async function _loadClerkQuiet() {
+  await clerkReady();
+  if (window.Clerk.loaded) return;
+  await window.Clerk.load({
+    ui: { ClerkUI: window.__internal_ClerkUICtor },
+    appearance: clerkAppearance(document.body.dataset.theme === 'dark'),
+    signInUrl: '/app', signUpUrl: '/app?mode=signup',
+    signInFallbackRedirectUrl: '/app', signUpFallbackRedirectUrl: '/app',
+    afterSignOutUrl: '/',
+  });
+}
+
+/* #113: a RETURNING user (the tw_has_session hint) is identified BEFORE anything paints — the
+   owner/friend paint→vanish→reload flash dies here. One authenticated RPC decides: owner →
+   /app (or the CLOSED page for their own dead slug), friend → /app/{handle}, signed-in
+   stranger → mode D booted directly from this payload. Returns true when fully handled;
+   false falls back to the anonymous flow (Clerk down, signed out — hint cleared — or the
+   rare friend-without-handle, which the deferred pass already handles). */
+async function _publicIdentifyFirst(slug) {
+  try { await _loadClerkQuiet(); } catch (e) { return false; }
+  if (!window.Clerk.user) {
+    try { localStorage.removeItem('tw_has_session'); } catch (e) {}   // stale hint self-heals
+    return false;
+  }
+  let d = null;
+  try {
+    const { data, error } = await supabase.rpc('get_public_crate', { p_slug: slug });
+    if (error) return false;
+    d = data;
+  } catch (e) { return false; }
+  if (!d) {
+    // Signed in and nothing visible: the owner of a dead slug can't land here (relation-first
+    // returns their redirect), so this is a genuine unknown/private slug — the 404.
+    renderPublicNotFound();
+    return true;
+  }
+  if (d.status === 'redirect') {
+    if (d.relation === 'owner') {
+      if (d.open === false) { renderPublicNotFound('closed'); return true; }
+      window.location.replace('/app'); return true;
+    }
+    if (d.relation === 'friend' && d.handle) {
+      window.location.replace('/app/' + encodeURIComponent(d.handle)); return true;
+    }
+    return false;   // friend without a handle: rare — anon paint + the deferred pass's mode D
+  }
+  if (d.status !== 'ok') return false;   // parity with the deferred pass: only 'ok' installs
+  // Signed-in stranger: boot mode D straight from the authenticated payload — no double fetch.
+  _installPublicCrate(d);
+  window.TraxWaxViewer.signedIn = true;
+  installPublicViewerMatchCtx();
+  await import('/app.js');
+  window.TraxWaxBootCrate();
+  return true;
 }
 
 /* The deferred Clerk pass: load Clerk quietly; if the visitor is signed in, re-run the RPC under
@@ -1587,16 +1660,7 @@ function installPublicViewerMatchCtx() {
    mode B), and full data for a signed-in stranger (mode D: signedIn flips true, the viewer's own
    match context installs, and the crate re-boots so the provider loads run). */
 async function _publicClerkPass(slug, firstPayload) {
-  try {
-    await clerkReady();
-    await window.Clerk.load({
-      ui: { ClerkUI: window.__internal_ClerkUICtor },
-      appearance: clerkAppearance(document.body.dataset.theme === 'dark'),
-      signInUrl: '/app', signUpUrl: '/app?mode=signup',
-      signInFallbackRedirectUrl: '/app', signUpFallbackRedirectUrl: '/app',
-      afterSignOutUrl: '/',
-    });
-  } catch (e) { return; }   // Clerk down → the anonymous page stands; nothing to upgrade
+  try { await _loadClerkQuiet(); } catch (e) { return; }   // Clerk down → the anonymous page stands
   // House idiom (plan F3): signed-in state is !!window.Clerk.user, exactly as route()/boot() read it.
   if (!window.Clerk.user) return;
 

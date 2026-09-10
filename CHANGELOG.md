@@ -13,6 +13,26 @@ _Nothing yet._
 
 ---
 
+## [1.30.1] — 2026-09-10
+
+### Fixed
+- **Owners no longer flash their own public page (#113).** Landing on your own `/c/<slug>`
+  painted the anonymous crate, tore it down, and reloaded `/app`. A returning-user hint
+  (`tw_has_session`) now holds the paint behind a loading placeholder and identifies you FIRST —
+  owner → `/app` (or the CLOSED page for a dead slug), friend → the friend view, signed-in
+  stranger → mode D booted from one authenticated fetch. Strangers keep the fast no-auth paint.
+- **THE CARD picker takes effect immediately (#114).** The OG card's edge cache keyed on the
+  bare URL, so a palette change served the stale color for up to 5 minutes (and read as "the
+  picker is broken" — it wasn't; the choice was saved all along). The cache now keys on the
+  card's content (count·style·palette), so a change renders fresh on the next fetch. Messengers'
+  own preview caches remain theirs.
+- **Blank first unfurls (#112, reproduced).** A cold `/og/` render could return an empty 200
+  (streamed body abort). The PNG is now buffered — client and cache serve the same bytes.
+- **Palette confirmation reads where you clicked (#115).** "Your link unfurls with the black
+  card now." lands directly under THE CARD's label instead of the section-top status line.
+
+---
+
 ## [1.30.0] — 2026-09-10
 
 ### Added — Wave 5b S2 + S3: the unfurl and the landing

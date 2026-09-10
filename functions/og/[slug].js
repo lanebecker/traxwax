@@ -181,15 +181,18 @@ export async function onRequestGet(context) {
     return notFound();   // malformed: no cache entry needed (regex is cheaper than the cache)
   }
 
-  // Edge cache — explicit, not header-wished (audit F6): Pages Functions don't cache on
-  // Cache-Control alone; mirror functions/api/release/[id].js's caches.default idiom.
-  // Audit S2-F4: the key is CANONICAL (pathname, query stripped) — ?v is a crawler-side buster
-  // only; keying on it would make ?v=<random> an unlimited cache-miss render generator. Content
-  // staleness converges within the 300s TTL, same window as revocation.
+  // Edge cache — explicit, not header-wished (audit F6); mirror [id].js's caches.default idiom.
+  // #114: the POSITIVE key is CONTENT-keyed (pathname + a hash of count|topStyle|palette — the
+  // same formula /c/ uses for its ?v buster; keep in lockstep) so a palette/count/style change
+  // renders fresh immediately, while client-supplied query strings stay ignored (the S2-F4
+  // amplification defense holds — an attacker's ?v never varies the key). The lookup therefore
+  // happens AFTER the RPC: every request pays the RPC round-trip; the expensive part (satori
+  // render + cover fetches) stays cached. The 404 keeps the bare-pathname key (no content
+  // states to hash); a slug going live inside a cached 404's 300s is the accepted window.
   const _u = new URL(request.url);
-  const cacheKey = new Request(_u.origin + _u.pathname, { method: 'GET' });
-  const cached = await caches.default.match(cacheKey);
-  if (cached) return cached;
+  const nfKey = new Request(_u.origin + _u.pathname, { method: 'GET' });
+  const nfCached = await caches.default.match(nfKey);
+  if (nfCached && nfCached.status === 404) return nfCached;   // status-gated: v1.30.0-era 200s under this key must not short-circuit
 
   let d = null;
   try {
@@ -205,22 +208,36 @@ export async function onRequestGet(context) {
     // Audit S2-F6: negative-cache the miss ([id].js B2 precedent) — a scrape/poll of an unknown
     // or revoked slug must not buy an RPC per request. 300s keeps revocation semantics.
     const nf = notFound();
-    context.waitUntil(caches.default.put(cacheKey, nf.clone()).catch(() => {}));   // degrade uncached, keep the log clean
+    context.waitUntil(caches.default.put(nfKey, nf.clone()).catch(() => {}));   // degrade uncached, keep the log clean
     return nf;
   }
 
   const rows = d.sections.crate === true ? d.crate : d.wantlist;
-  d._covers = await coverUris(Array.isArray(rows) ? rows : []);
+  const rowsArr = Array.isArray(rows) ? rows : [];
+
+  // #114: the content hash — count|topStyle|palette, identical to /c/'s ?v formula.
+  const _sc = {};
+  for (const rec of rowsArr) for (const st of (rec.styles || [])) _sc[st] = (_sc[st] || 0) + 1;
+  const _top = Object.keys(_sc).sort((a, b) => _sc[b] - _sc[a])[0] || '';
+  const _v = [rowsArr.length, _top, d.owner.og_palette || 'red'].join('|');
+  let _vh = 0; for (let i = 0; i < _v.length; i++) _vh = (_vh * 31 + _v.charCodeAt(i)) >>> 0;
+  const cacheKey = new Request(_u.origin + _u.pathname + '?v=' + _vh.toString(36), { method: 'GET' });
+  const cached = await caches.default.match(cacheKey);
+  if (cached) return cached;
+
+  d._covers = await coverUris(rowsArr);
 
   const resp = new ImageResponse(buildCardHtml(d, slug), {
     width: 1200,
     height: 630,
     fonts: await loadFonts(env, request),
   });
-  const out = new Response(resp.body, {
-    headers: { 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff',
-               'Cache-Control': 'public, max-age=300' },
-  });
-  context.waitUntil(caches.default.put(cacheKey, out.clone()).catch(() => {}));   // ditto
-  return out;
+  // #112 (REPRODUCED): the streamed body produced empty 200s on cold isolates — buffer once;
+  // client and cache are served from the same bytes and can never diverge.
+  const png = await resp.arrayBuffer();
+  const headers = { 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff',
+                    'Cache-Control': 'public, max-age=300' };
+  context.waitUntil(caches.default.put(cacheKey,
+    new Response(png.slice(0), { headers })).catch(() => {}));
+  return new Response(png, { headers });
 }
