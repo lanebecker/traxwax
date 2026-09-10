@@ -13,6 +13,15 @@ _Nothing yet._
 
 ---
 
+## [1.29.1] — 2026-09-10
+
+### Changed
+- **Public header tape drops the COLORED cell (#111).** Lane's live review of v1.29.0: the `/c/`
+  tape is `N IN CRATE · +N THIS MONTH`, matching the friend tape (amends header spec §3.2's
+  three-cell public variant). Colored-wax counts still live in the LEDGER and the COLORED WAX facet.
+
+---
+
 ## [1.29.0] — 2026-09-10
 
 ### Added — Wave 5b S1: the public crate tier
