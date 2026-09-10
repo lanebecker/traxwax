@@ -50,6 +50,21 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 });
 
 const app = () => document.getElementById('app');
+
+/* T2.8 (#130): every full-screen STATE CARD (sign-in, notice, error, first-run onboarding, 404)
+   replaces #app's children — but the detail modal / DNA sheet live in body-level roots
+   (tw-modal-root / tw-dna-root) and #app may be inert + aria-hidden beneath an open modal
+   (renderModal / renderDna in app.js). Replacing #app's innerHTML clears NEITHER, so a state card
+   can render inside an inert, aria-hidden #app with a stale modal still painted above it — e.g. a
+   cross-tab sign-out (Clerk's listener → route() → mountAuth()) while a record modal is open leaves
+   the sign-in card unclickable beneath the previous session's modal, still showing that user's data.
+   Reset both, on every state-card path. renderPublicNotFound already did this inline; the rest didn't. */
+function resetShellChrome(el) {
+  for (const id of ['tw-modal-root', 'tw-dna-root']) {
+    const n = document.getElementById(id); if (n) n.innerHTML = '';
+  }
+  if (el) { try { el.inert = false; el.removeAttribute('aria-hidden'); } catch (e) {} }
+}
 let mountedAuthNode = null;   // so we can unmount Clerk cleanly before re-rendering
 let routing = false;
 let lastSignedIn = null;
@@ -87,6 +102,7 @@ function clearAuthMount() {
 function notice(title, bodyHtml, withSignOut = false, opts = {}) {
   clearAuthMount();
   const el = app();
+  resetShellChrome(el);   // T2.8 (#130): drop any open modal + inert left by app.js before this card takes over #app
   // A state card owns its own full-screen layout; drop any lingering page class (the
   // account page's tw-acct-wrap) so a card rendered over it — e.g. RE-SYNC → runImport —
   // isn't double-wrapped. showError() does the same for the error path.
@@ -111,6 +127,7 @@ function showError(err) {
   const el = app();
   if (!el) return;
   clearAuthMount();
+  resetShellChrome(el);   // T2.8 (#130): same reset as the other state cards
   el.className = '';   // in case we're erroring out of the account page (tw-acct-wrap)
   el.innerHTML = UI.stateCard({
     kicker: UI.COPY.unexpected.kicker,
@@ -1071,6 +1088,7 @@ async function confirmInvite(code) {
    names the three doors up front, which is why people don't abandon at "connect". */
 function mountAuth() {
   clearAuthMount();
+  resetShellChrome(app());   // T2.8 (#130): the cross-tab sign-out path — clear any open modal + inert before the sign-in card
   const wantSignUp = new URLSearchParams(window.location.search).get('mode') === 'signup';
 
   app().innerHTML = UI.stateCard({
@@ -1180,6 +1198,7 @@ async function render() {
   if (!window.Clerk.user.firstName && !profileSkip && !inVerifyLeg) {
     // S4: real avatar affordance + labelled fields, in the state card. Vertical stack
     // because Wave 1's first-run sharing question belongs here as a fourth row.
+    resetShellChrome(app());   // T2.8 (#130): reset shell chrome before the first-run onboarding card
     app().innerHTML = UI.stateCard({
       kicker: UI.COPY.onboarding.kicker,
       headline: UI.COPY.onboarding.headline,
@@ -1556,10 +1575,7 @@ function renderPublicNotFound(variant) {
   if (!el) return;
   // Pass-2 F1: this can render OVER a booted crate (the owner's CLOSED page) — clear app.js's
   // body-level roots and the inert flag so no modal/toast haunts the page, and reset the title.
-  for (const id of ['tw-modal-root', 'tw-dna-root']) {
-    const n = document.getElementById(id); if (n) n.innerHTML = '';
-  }
-  try { el.inert = false; el.removeAttribute('aria-hidden'); } catch (e) {}
+  resetShellChrome(el);   // T2.8 (#130): shared with the other state-card paths now
   try { document.title = 'TraxWax'; } catch (e) {}
   el.className = '';
   el.innerHTML = UI.publicNotFoundHtml(variant || 'notfound');

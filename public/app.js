@@ -272,8 +272,15 @@ let _removedThisSession = false;   // wantlist-remove redesign: set the moment y
 // Wave 2 B1: resolve a record by id from whichever dataset the current view renders — the WANTLIST tab
 // draws from WANTLIST_RECORDS, so the detail modal must look there too (else a wantlist card is a dead click).
 function recordById(id){
-  const src=(state.view==='wantlist' && Array.isArray(WANTLIST_RECORDS)) ? WANTLIST_RECORDS : RECORDS;
-  return src.find(r=>r.id===id);
+  const primary=(state.view==='wantlist' && Array.isArray(WANTLIST_RECORDS)) ? WANTLIST_RECORDS : RECORDS;
+  let rec=primary.find(r=>r.id===id);
+  // T2.5 (#127): the friend LEDGER's overlap band draws rows from BOTH datasets — a "YOU OWN THIS"
+  // row is a friend's WANTLIST record, absent from RECORDS — so a single-source lookup (keyed on
+  // state.view, which is 'ledger' here) returns undefined and wedges detailId. Fall back to the other
+  // loaded dataset before giving up.
+  if(!rec && primary!==WANTLIST_RECORDS && Array.isArray(WANTLIST_RECORDS)) rec=WANTLIST_RECORDS.find(r=>r.id===id);
+  if(!rec && primary!==RECORDS) rec=RECORDS.find(r=>r.id===id);
+  return rec;
 }
 const state = {
   theme:'light', view:'crate', query:'', genres:[], coloredOnly:false,   // Wave 5c: FOR SALE is a view now, not a filter
@@ -371,6 +378,7 @@ function deco(r){
     ? rawCover.replace(/["'()\\<>]/g, (c) => COVER_ENC[c])
     : '';
   return { ...r,
+    year:(r.year||'—'),   // T2.17b (#140): a missing year is the sentinel 0 from every provider; card() interpolates esc(r.year) raw, so without this a no-year record renders a literal "0". Display-only — decade math reads RAW records (all.map(r=>r.releaseYear ?? r.year)), never deco'd — matching the modal's rec.year||'—'.
     swatch:swatchFor(r.vinyl), vinylShort:shortVinyl(r.vinyl),
     style1:(r.styles||[])[0]||(r.genres||[])[0]||'—',   // guard: a provider omitting styles must not throw + blank the whole grid
     isNew:(r.added||'').slice(0,7)===THIS_MONTH,
@@ -454,7 +462,8 @@ function metaCellHtml(r){
     // control. #28: _viewerOwns also covers any-pressing ("you own a pressing" → no inline want).
     // Close-audit fix: EXACT want first (✕ REMOVE, matches the badge), THEN own-suppression, else + WANT.
     const ctx = window.__twMatchCtx;
-    if (ctx && ctx.viewerWants && ctx.viewerWants.has(r.id))
+    if (!ctx) return '';   // T2.6 (#128): a public-out visitor (no match ctx) gets NO want control — the button is a dead no-op (friendAdd bails without ctx/TraxWaxSetWant). Mirrors wantControlHtml.
+    if (ctx.viewerWants && ctx.viewerWants.has(r.id))
       return `<button data-act="want" data-want="remove" data-arg="${esc(r.id)}" title="Remove from wantlist" class="tw-wl-remove">✕ REMOVE</button>`;
     if (_viewerOwns(r)) return '';
     return `<button data-act="want" data-want="add" data-arg="${esc(r.id)}" title="Add to wantlist" class="tw-want-add">+ WANT</button>`;
@@ -464,7 +473,8 @@ function metaCellHtml(r){
       ? `<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; flex:none; line-height:1.35">${r.priceLabel}</span>`
       : '';
   const ctx = window.__twMatchCtx;
-  const wanted = ctx && ctx.viewerWants && ctx.viewerWants.has(r.id);
+  if (!ctx) return '';   // T2.6 (#128): public-out (no match ctx) → no dead + WANT button on the crate face (mirrors wantControlHtml)
+  const wanted = ctx.viewerWants && ctx.viewerWants.has(r.id);
   // #28 (close-audit fix): EXACT want wins first — a record you want-exactly shows ✕ REMOVE, matching its
   // "ON YOUR WANTLIST" badge (the prior order suppressed it via _viewerOwns when you also owned a pressing).
   // Then a record you own (exact OR, any-mode, a pressing) hides the inline + WANT (kit §1.4). Else + WANT.
@@ -696,9 +706,22 @@ function overlapBandHtml(){
             </button>`; });
   const half = Math.ceil(rendered.length/2);
   const col = (items)=>`<div style="display:flex; flex-direction:column; min-width:0">${items.join('')}</div>`;
-  const body = rendered.length
-    ? `<div class="tw-overlap-grid" style="display:grid; grid-template-columns:${rendered.length>1?'1fr 1fr':'1fr'}; column-gap:48px; margin-top:14px">${col(rendered.slice(0,half))}${rendered.length>1?col(rendered.slice(half)):''}</div>`
-    : `<div style="margin-top:14px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">No shared records yet.</span></div>`;
+  // T2.17e (#143): the 'both' half (THEIR wantlist ∩ YOUR haves) needs WANTLIST_RECORDS loaded. While that
+  // load is pending, and permanently after it FAILS, those rows are silently absent — and with no 'you' rows
+  // either the band read "No shared records yet" beside a nonzero IN COMMON (which counts from __twOwnerWants,
+  // not the display rows). Say the true thing, and offer RETRY on failure (data-act="wlRetry", #79).
+  const _mc = (typeof _matchCounts==='function') ? _matchCounts() : {};
+  const _bothMissing = ((_mc.theyWant||0) > 0) && !Array.isArray(WANTLIST_RECORDS);   // null = still loading OR failed
+  const _noteWrap = (msg, retry) => `<div style="margin-top:${rendered.length?'12':'14'}px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">${msg}</span>${retry?` <button data-act="wlRetry" style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.06em; padding:3px 9px; margin-left:6px; border:1.5px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer">RETRY</button>`:''}</div>`;
+  let body;
+  if (rendered.length){
+    body = `<div class="tw-overlap-grid" style="display:grid; grid-template-columns:${rendered.length>1?'1fr 1fr':'1fr'}; column-gap:48px; margin-top:14px">${col(rendered.slice(0,half))}${rendered.length>1?col(rendered.slice(half)):''}</div>`;
+    if (_bothMissing) body += _noteWrap(_wlError ? 'Some shared records couldn’t load.' : 'Finding more shared records…', _wlError);
+  } else if (_bothMissing){
+    body = _noteWrap(_wlError ? 'Couldn’t load your shared records.' : 'Finding your shared records…', _wlError);
+  } else {
+    body = `<div style="margin-top:14px"><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); line-height:1.6">No shared records yet.</span></div>`;
+  }
   return `<div class="tw-overlap-band" style="border-top:1px solid var(--hair); padding:22px 24px 26px">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)">Where you overlap</span>
           ${body}
@@ -869,6 +892,7 @@ function renderModal(){
   const app = document.getElementById('app');
   if (app){
     if (_modalOpen){ app.inert = true; app.setAttribute('aria-hidden', 'true'); }
+    else if (state.dnaOpen){ app.inert = true; }   // T2.7 (#129): the DNA sheet owns the shell's inert too — a stray render() (a pending FIND debounce, TraxWaxRerender, a wantlist/resync handler) must not clear it and let focus escape to #tw-stylefind behind the overlay. aria-hidden stays the detail modal's (renderDna uses inert only), so nothing lingers after the sheet closes.
     else { app.inert = false; app.removeAttribute('aria-hidden'); }
   }
   // Pass-1 fix: the standalone modal paths (open/close/Escape/loaders) must also re-point the grid's roving
@@ -1208,10 +1232,13 @@ function render(){
   // The tray: full style list as a wrapping chip grid (top 20 when the find box is empty; full filtered list while typing; selected always shown first).
   const TRAY_CAP=20;
   const _sq=s.styleFind.trim().toLowerCase();
-  let _trayList = _sq ? v.allStyles.filter(g=>g.toLowerCase().includes(_sq)) : v.allStyles.slice(0,TRAY_CAP);
-  _trayList = s.genres.concat(_trayList.filter(g=>!s.genres.includes(g)));
+  const _matches = _sq ? v.allStyles.filter(g=>g.toLowerCase().includes(_sq)) : v.allStyles.slice(0,TRAY_CAP);
+  let _trayList = s.genres.concat(_matches.filter(g=>!s.genres.includes(g)));   // selected always shown first, then matching-unselected (composition unchanged)
   const _hidden = _sq ? 0 : Math.max(0, v.allStyles.length - _trayList.length);
-  const _matchN = _trayList.length - s.genres.length;   // matching UNSELECTED styles
+  // T2.17d (#142): count styles matching the QUERY (selected or not). The old `_trayList.length - s.genres.length`
+  // subtracted the FULL selected count, so selecting "Techno" then typing "techno" read "NO MATCH" beside the
+  // visible, highlighted Techno chip. When not typing, keep the old value (the label uses the "+N MORE" path there).
+  const _matchN = _sq ? _matches.length : (_trayList.length - s.genres.length);
   const trayNote = _sq ? (_matchN>0 ? _matchN+' MATCH' : 'NO MATCH') : '+'+_hidden+' MORE · TYPE TO NARROW';
   const trayChips=_trayList.map(g=>`<button data-act="genre" data-arg="${esc(g)}" aria-pressed="${s.genres.includes(g)}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:4px 8px; border:1px solid var(--line); ${s.genres.includes(g)?chipOn:chipOff}">${esc(g.toUpperCase())} ${v.counts[g]||0}</button>`).join('');
   const styleTray = s.stylesOpen ? `<div id="tw-styletray" role="group" aria-label="Filter by style" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:10px 24px 12px; background:var(--bar); border-top:1px dashed var(--line); border-bottom:2px solid var(--line)">
@@ -1663,18 +1690,21 @@ function onKeydown(e){
 }
 
 async function openDetail(id){
+  // T2.5 (#127): resolve the record BEFORE committing detailId. An id absent from every loaded
+  // dataset (e.g. an overlap-band row whose wantlist hasn't loaded yet) would otherwise set
+  // detailId, paint nothing (modalHtml→''), and never clear it — killing the debounced search
+  // box's focus restore. If it can't resolve, the click is an inert no-op, not a wedge.
+  const rec=recordById(id);
+  if(!rec) return;
   state.detailId=id;
   _modalInvokerId=id;   // focus returns to this card's cover cell when the modal closes (W0.4)
   _gridFocusId=id;      // keep the roving grid's active cell in step with what was opened
-  const rec=recordById(id);
-  if(rec){
-    const c=_relCache[id];
-    if(c && (Date.now()-(c.ts||0))<REL_TTL_MS){ rec._rel=c.d; rec._relErr=false; }   // instant from cache
-    else { rec._rel=null; rec._relErr=false; }                                        // show loading, then fetch
-  }
+  const c=_relCache[id];
+  if(c && (Date.now()-(c.ts||0))<REL_TTL_MS){ rec._rel=c.d; rec._relErr=false; }   // instant from cache
+  else { rec._rel=null; rec._relErr=false; }                                        // show loading, then fetch
   renderModal();
-  if(rec) _loadStats(rec);
-  if(rec && !rec._rel) await _loadRelease(rec);
+  _loadStats(rec);
+  if(!rec._rel) await _loadRelease(rec);
 }
 async function _loadRelease(rec){
   let d = null;
@@ -1995,6 +2025,10 @@ function onClick(e){
   // this click renders (state.query is already current); letting the stale timer fire
   // would rebuild the app a second time for nothing.
   clearTimeout(_searchDebounce);
+  // T2.7 (#129): same for the FIND-a-style debounce. Without this, a click that opens the DNA
+  // sheet can be followed ~100ms later by the pending FIND render() → renderModal(), which used to
+  // clobber the sheet's inert; clearing it here (alongside the inert guard in renderModal) closes both.
+  clearTimeout(_findDebounce);
   const act=t.dataset.act, arg=t.dataset.arg;
   switch(act){
     case 'theme': setTheme(state.theme==='dark'?'light':'dark'); render(); break;
@@ -2030,7 +2064,7 @@ function onClick(e){
     case 'color': track('filter_used', { kind: 'color' }); state.color=arg; state.detailId=null; _filterToCrate(); render(); break;
     case 'open': track('record_opened', { source: state.view }); openDetail(Number(arg)); break;
     case 'retryDetail': { const r=recordById(state.detailId); if(r){ r._relErr=false; renderModal(); _loadRelease(r); } break; }
-    case 'detailGenre': state.detailId=null; state.genres=[arg]; render(); break;
+    case 'detailGenre': state.detailId=null; state.genres=[arg]; _filterToCrate(); render(); break;   // T2.17a (#139): switch to THE CRATE so the filter is visible — a style chip clicked from a friend's ledger otherwise sets an invisible filter (the four sibling additive cases all do this, #57)
     case 'rm': removeFacet(t.dataset.kind, arg); render(); break;
     case 'wlRetry': _loadWantlist(); render(); break;   // C2 (#79)
     case 'clearAll': state.genres=[]; state.coloredOnly=false; state.artist=null; state.color=null; state.query=''; state.matchFilter=null; _clearSellingHash(); render(); break;   // C5 (#82)
