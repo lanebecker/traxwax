@@ -704,7 +704,9 @@ function sharingSection(o) {
           '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
             'border-top:1px solid var(--hair)">' +
             '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('The card') +
-              rowSub('What your link shows when it unfurls') + '</div>' +
+              rowSub('What your link shows when it unfurls') +
+              '<span id="tw-og-pal-msg" role="status" aria-live="polite" style="' + MONO +
+                '; font-size:9.5px; color:var(--accent); min-height:0"></span>' + '</div>' +
             '<div id="tw-og-pal" role="group" aria-label="Unfurl card palette" style="display:flex; gap:10px; flex:none">' +
               palSwatch('white', (o.profile && o.profile.og_palette) || 'red') +
               palSwatch('red',   (o.profile && o.profile.og_palette) || 'red') +
@@ -1099,7 +1101,9 @@ export function bindAccountPage(root, deps) {
       const b = e.target.closest('[data-pal]');
       if (!b) return;
       const v = b.getAttribute('data-pal');
-      const smsg = (t) => { const el = $('tw-share-msg'); if (el) el.textContent = t || ''; };
+      // #115: the confirmation lives IN the row (under "What your link shows…"), not the
+      // section-top status line nobody connects to this control.
+      const smsg = (t) => { const el = $('tw-og-pal-msg') || $('tw-share-msg'); if (el) el.textContent = t || ''; };
       try {
         await deps.onSetPalette(v);
         palGroup.querySelectorAll('[data-pal]').forEach((x) => {
