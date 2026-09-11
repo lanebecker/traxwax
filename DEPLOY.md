@@ -23,7 +23,7 @@ then commit the matching files.
 |---|---|
 | **Host** | Cloudflare Pages, project `traxwax` |
 | **Source** | `github.com/lanebecker/traxwax`, branch `main` |
-| **Build command** | `npm install` — output directory `public` (since v1.30.0; `workers-og` is required by `functions/og/[slug].js`) |
+| **Build command** | `npm ci && node build/write-version.mjs` — output directory `public` (since v1.30.0; `workers-og` for `functions/og/[slug].js`; the second step writes `public/version.json` from `VERSION` — #144, gitignored) |
 | **Deploy trigger** | Every push to `main`. Branches get previews at `https://<branch>.traxwax.pages.dev`. |
 
 Pages auto-detects `functions/` — `/api/release/:id` (the CC0 proxy) plus, since v1.30.0,
@@ -161,7 +161,7 @@ per-listing import; surfacing "N copies for sale" is tracked as #197. `0043_publ
   before their cache lookup, to derive a count and a top style. That per-request CPU exceeds the
   Workers limit on ~10% of requests, returning `503 error code: 1102`. 0043 shipped #158's summary RPC — `/c`+`/og` now call `get_public_crate_summary` (~1.6 KB;
   verified 1,567 B vs 1,465,392 B, gating parity on every branch). Do not raise the OG TTL — the 300s TTL is the revocation window.
-- **S2 (v1.30.0): the Pages project has a BUILD STEP now** — build command `npm install`, build
+- **S2 (v1.30.0): the Pages project has a BUILD STEP now** — build command `npm ci && node build/write-version.mjs`, build
   output directory `public` (set in the Pages dashboard, rehearsed on a branch preview before
   main). `package.json` pins `workers-og` for `functions/og/[slug].js`; the compressed function
   bundle is ~690KB (fits every Workers plan). Card fonts are static assets under

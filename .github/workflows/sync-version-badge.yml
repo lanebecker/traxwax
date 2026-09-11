@@ -23,6 +23,13 @@ on:
     paths:
       - VERSION
 
+# Audit (Wave A #145/#146): serialize badge runs so two rapid VERSION pushes can't race — the
+# loser's rebase would conflict and (worse) its release tag would never be created, since this
+# workflow only triggers on a VERSION push and nothing retries it.
+concurrency:
+  group: sync-version-badge
+  cancel-in-progress: false
+
 jobs:
   sync-badge:
     runs-on: ubuntu-latest
@@ -32,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 2          # need parent commit to diff against
+          fetch-depth: 0          # full history: the CHANGELOG diff needs the parent, AND the rebase below needs a real merge base (E5/#103)
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read and validate version
@@ -75,14 +82,59 @@ jobs:
             "s|(https://img\.shields\.io/badge/version-)[^\"<)]*(-blueviolet)|\1${VERSION}\2|g" \
             README.md
 
-      - name: Commit if README changed
+      - name: Assert badge substitution landed
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        # A2 (#145): if the badge markup ever drifts (renamed / recolored / removed) the sed above
+        # matches NOTHING, and the old "commit only if changed" logic then went GREEN with a stale
+        # badge. Fail RED instead — the target literal MUST be present.
+        run: |
+          if ! grep -q "version-${VERSION}-blueviolet" README.md; then
+            echo "::error file=README.md::badge literal 'version-${VERSION}-blueviolet' absent after sed — the badge markup drifted; fix the sed pattern above."
+            exit 1
+          fi
+
+      - name: Commit badge, then tag the release
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet README.md || (
-            git add README.md &&
-            git commit -m "chore: sync version badge to ${VERSION}" &&
-            git push
-          )
+          # --- Badge sync (cosmetic): best-effort, decoupled from tagging (audit #5). ---
+          badge_ok=1
+          git add README.md
+          if git diff --cached --quiet; then
+            echo "Badge already current — nothing to commit."
+          else
+            git commit -m "chore: sync version badge to ${VERSION}"
+            badge_ok=0
+            # A2 (#145) + audit #7: rebase+push with a bounded retry, so a concurrent push from ANY
+            # workflow landing mid-window doesn't fail non-fast-forward. `git rebase --abort` at the
+            # top clears any half-finished rebase a prior attempt's CONFLICT left behind (audit #5),
+            # so one bad attempt can't poison the rest.
+            for attempt in 1 2 3; do
+              git rebase --abort >/dev/null 2>&1 || true
+              if ! git pull --rebase origin main; then echo "rebase failed/conflict (attempt $attempt)"; sleep 3; continue; fi
+              if git push origin HEAD:main; then badge_ok=1; break; fi
+              echo "push rejected (attempt $attempt) — retrying"; sleep 3
+            done
+            [ "$badge_ok" = "1" ] || echo "::warning::badge sync could not be pushed after 3 attempts (a concurrent README edit?) — the release TAG below is unaffected; re-run this workflow to retry the badge."
+          fi
+          # --- Release tag (#146): decoupled from the badge push (audit #5) so a badge conflict
+          # never leaves a release untagged. Tag ORIGIN/main after a fetch, ONLY if it carries THIS
+          # VERSION (a newer release racing ahead -> skip; the newer run tags its own commit -
+          # audit #3). Idempotent against ORIGIN so a re-run without local tags never recreates a
+          # published tag (audit #7). ---
+          git fetch origin main --quiet
+          origin_version="$(git show origin/main:VERSION | tr -d '[:space:]')"
+          if [ "$origin_version" != "${VERSION}" ]; then
+            echo "::warning::origin/main carries VERSION ${origin_version}, not ${VERSION} (a newer release raced ahead) — skipping the v${VERSION} tag; the ${origin_version} run tags its own commit."
+          elif git ls-remote --exit-code origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists on origin — leaving it untouched."
+          else
+            git tag -a "v${VERSION}" origin/main -m "Release v${VERSION}"
+            git push origin "v${VERSION}"
+          fi
+          # Surface a failed badge sync AFTER the tag is safely handled, so the run goes RED (Lane
+          # re-runs for the badge) without ever having blocked the tag.
+          [ "$badge_ok" = "1" ] || { echo "::error::badge sync failed (see warning above); the v${VERSION} tag was handled independently."; exit 1; }

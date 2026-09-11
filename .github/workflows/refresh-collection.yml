@@ -44,28 +44,51 @@ jobs:
           # RELEASE_LIMIT: '700'   # uncomment to cap get_release calls per run
         run: python3 build/refresh_collection.py     # stdlib only — no pip install needed
 
-      - name: "Verify no Restricted fields in output (audit A2, #63)"
+      - name: "Assert the ownership export was NOT regenerated (T1 / #147 i-b)"
         run: |
+          # T1 replaced public/collection.json (the real ownership export) with a synthetic dev
+          # fixture; #147 (i-b) neutered this workflow's export write. Belt-and-suspenders: if
+          # anything changed collection.json, FAIL before committing — the real listing must never
+          # be re-published to the public repo. `git status --porcelain` catches an UNTRACKED
+          # regenerated file too (audit #11); the real protection is the scoped `git add` below.
+          if [ -n "$(git status --porcelain -- public/collection.json)" ]; then
+            echo "::error file=public/collection.json::collection.json changed during refresh — the ownership export must NOT be regenerated/committed (T1/#147 i-b). Refusing to commit."
+            exit 1
+          fi
+          # The refreshed release-detail files are CC0 catalog data only; assert none carry a
+          # Restricted key (defense in depth — release_detail() never emits them).
           python3 - <<'EOF'
-          import json, sys
-          data = json.load(open('public/collection.json'))
-          bad = sorted({k for r in data for k in ('price','crating','crcount','have','want') if k in r})
+          import json, glob, sys
+          bad = []
+          for f in glob.glob('public/releases/*.json'):
+              try:
+                  d = json.load(open(f))
+              except Exception as e:
+                  sys.exit(f'{f}: unreadable ({e})')
+              bad += [f'{f}:{k}' for k in ('price','crating','crcount','have','want') if k in d]
           if bad:
-              sys.exit(f'Restricted key(s) {bad} present in public/collection.json — refusing to commit.')
-          print(f'OK: {len(data)} records, CC0 fields only.')
+              sys.exit(f'Restricted key(s) present in release files: {bad[:10]} — refusing to commit.')
+          print('OK: release files carry CC0 fields only; collection.json untouched.')
           EOF
 
-      - name: Commit if data changed
+      - name: Commit refreshed release files if changed
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/collection.json public/releases
+          git add public/releases
           if git diff --cached --quiet; then
-            echo "No changes — nothing to commit."
+            echo "No new release files — nothing to commit."
           else
-            git commit -m "chore: weekly data refresh ($(date -u +%Y-%m-%d))"
-            # E5 (#103): rebase first — the badge bot (or anything else) landing on main during
-            # this ~40-min run used to make the final push fail non-fast-forward.
-            git pull --rebase origin main
-            git push
+            git commit -m "chore: refresh CC0 release-detail files ($(date -u +%Y-%m-%d))"
+            pushed=0
+            for attempt in 1 2 3; do
+              git rebase --abort >/dev/null 2>&1 || true
+              if ! git pull --rebase origin main; then echo "rebase failed/conflict (attempt $attempt)"; sleep 3; continue; fi
+              if git push origin HEAD:main; then pushed=1; break; fi
+              echo "push rejected (attempt $attempt) — retrying"; sleep 3
+            done
+            if [ "$pushed" != "1" ]; then
+              echo "::error::could not push refreshed release files after 3 attempts."
+              exit 1
+            fi
           fi

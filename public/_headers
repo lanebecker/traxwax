@@ -36,6 +36,8 @@
   Cache-Control: no-cache
 /collection.json
   Cache-Control: no-cache
+/version.json
+  Cache-Control: no-cache
 /app.js
   Cache-Control: no-cache
 /dna.js
