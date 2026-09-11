@@ -103,12 +103,14 @@ closed** (throws at boot) if either is unset — there are no dev/preview fallba
 **Deploying:** via the **break-glass** Supabase MCP connector — the standing `Supabase — TraxWax` connector
 is read-only; Lane arms `Supabase — TraxWax — Break-Glass` for a deploy, then disarms it (see `CLAUDE.md`).
 Then `deploy_edge_function` (file layout
-`{<fn>/index.ts, _shared/discogs.ts, _shared/auth.ts}` since E1/#99, entrypoint
+`{<fn>/index.ts, _shared/discogs.ts, _shared/auth.ts, _shared/http.ts}` (http.ts added T3.6d/#152), entrypoint
 `<fn>/index.ts`, `verify_jwt: false`) or
 `supabase functions deploy <fn>` with the CLI. Supabase keeps every version — rollback is
 redeploying the previous one. **After any deploy, verify the 401 gate:** POST with a forged
 Bearer token must return `{"error":"invalid_token"}` (proves the bundle booted AND JWKS
-verification runs).
+verification runs). The per-function `verify_jwt: false` MUST be passed on each `deploy_edge_function`
+CALL — `supabase/config.toml` binds only the CLI path and is NOT consulted by the MCP deploy (T3.10
+#162); the forged-Bearer probe is the real assertion the gate is off.
 
 ## Surface 3 — Database
 

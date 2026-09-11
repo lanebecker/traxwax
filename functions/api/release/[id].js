@@ -1,3 +1,6 @@
+import { SEC_HEADERS } from '../../_shared/headers.js';
+import { fetchWithTimeout } from '../../_shared/http.js';
+
 /* GET /api/release/:id — CC0 release detail (tracklist/country/released/videos) for the
    modal's LAST-RESORT fallback tier. Holds the token server-side.
 
@@ -26,14 +29,22 @@
    3. The 429 retry is gone; a rate-limited response is itself briefly cached. */
 
 function json(o, status = 200, extra = {}) {
+  // T3.6b (#150): every response — incl. the cached replay and the early bad-id/forbidden returns —
+  // carries the shared security set (nosniff is the one that matters for a JSON endpoint). A
+  // per-response Cache-Control in `extra` still wins.
   return new Response(JSON.stringify(o), {
-    status, headers: { 'Content-Type': 'application/json', ...extra },
+    status, headers: { ...SEC_HEADERS, 'Content-Type': 'application/json', ...extra },
   });
 }
 
 export async function onRequestGet({ params, request, env }) {
-  const id = String(params.id || '');
-  if (!/^\d+$/.test(id)) return json({ error: 'bad id' }, 400);   // no SSRF / path abuse
+  const _raw = String(params.id || '');
+  // T3.6c (#151): length-cap + canonicalize — strip leading zeros so 0000249504 and 249504 map to
+  // ONE cache key + ONE upstream call (a padded-id scan can't multiply the key space / burn the
+  // shared token); <=9 significant digits (Discogs ids are well under that). See #70 cost-gate note.
+  const _m = _raw.length <= 12 ? /^0*([1-9]\d{0,8})$/.exec(_raw) : null;
+  if (!_m) return json({ error: 'bad id' }, 400);   // no SSRF / path abuse / unbounded key space
+  const id = _m[1];
 
   // B2 (#70) same-origin cost gate. Browsers send Sec-Fetch-Site on every fetch; a
   // same-origin page fetch is 'same-origin'. If the header is absent (old client, curl),
@@ -57,7 +68,16 @@ export async function onRequestGet({ params, request, env }) {
     'Authorization': 'Discogs token=' + env.DISCOGS_TOKEN,
     'User-Agent': 'TraxWax/1.0 +https://traxwax.com',   // Discogs 403s without a UA
   };
-  const upstream = await fetch('https://api.discogs.com/releases/' + id, { headers });
+  let upstream;
+  try {
+    upstream = await fetchWithTimeout('https://api.discogs.com/releases/' + id, { headers }, 10000);
+  } catch (e) {
+    // T3.6d (#152): a hung/aborted upstream is a controlled 502 (briefly cached like other upstream
+    // failures), never a hung isolate.
+    const resp = json({ error: 'upstream' }, 502, { 'Cache-Control': 'public, max-age=60' });
+    try { await cache.put(key, resp.clone()); } catch (e2) { /* degrade to uncached */ }
+    return resp;
+  }
 
   // B2 (#70) negative caching, honest statuses (see header note 2). The Workers Cache API
   // stores non-2xx responses that carry an explicit Cache-Control; if an edge case refuses

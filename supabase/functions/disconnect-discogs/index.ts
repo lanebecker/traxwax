@@ -4,8 +4,8 @@
  * The RPC is one transaction. Discogs offers no token-revocation API: full revocation is
  * the user removing TraxWax under Discogs Settings → Applications (the UI says so). */
 
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
 import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 
 

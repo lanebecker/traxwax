@@ -11,6 +11,8 @@
    uppercasing happens in JS. */
 
 import { ImageResponse } from 'workers-og';
+import { SEC_HEADERS } from '../_shared/headers.js';
+import { fetchWithTimeout } from '../_shared/http.js';
 
 const SUPABASE_URL = 'https://sfipqknrbvamwwahwxnl.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_RLxgLYBzZoh5YCkYJ3NJZw_8BLFMIWg';
@@ -169,7 +171,7 @@ export async function onRequestGet(context) {
   const { params, request, env } = context;
   const slug = String(params.slug || '');
   const notFound = () => new Response(null, { status: 404,
-    headers: { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } });
+    headers: { ...SEC_HEADERS, 'Cache-Control': 'public, max-age=300' } });
   if (!/^[a-z0-9](?:[a-z0-9-]{0,16}[a-z0-9])?$/.test(slug)) {
     return notFound();   // malformed: no cache entry needed (regex is cheaper than the cache)
   }
@@ -189,7 +191,7 @@ export async function onRequestGet(context) {
 
   let d = null;
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate_summary`, {
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate_summary`, {
       method: 'POST',
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
                  'Content-Type': 'application/json' },
@@ -224,7 +226,7 @@ export async function onRequestGet(context) {
   // #112 (REPRODUCED): the streamed body produced empty 200s on cold isolates — buffer once;
   // client and cache are served from the same bytes and can never diverge.
   const png = await resp.arrayBuffer();
-  const headers = { 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff',
+  const headers = { ...SEC_HEADERS, 'Content-Type': 'image/png',
                     'Cache-Control': 'public, max-age=300' };
   context.waitUntil(caches.default.put(cacheKey,
     new Response(png.slice(0), { headers })).catch(() => {}));

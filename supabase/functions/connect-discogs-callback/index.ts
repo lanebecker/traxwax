@@ -5,8 +5,9 @@
  * unguessable oauth_token, never from anything in the request. The row is consumed with an
  * atomic DELETE ... RETURNING, so exactly one caller can ever proceed. */
 
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
+import { fetchWithTimeout } from '../_shared/http.ts';
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, decrypt, selfTest, sha256hex }
   from '../_shared/discogs.ts';
 
@@ -86,7 +87,7 @@ async function handle(req: Request): Promise<Response> {
 
   // Spec-correct PLAINTEXT signature: consumer_secret & token_secret. See "The one
   // remaining unknown" in docs/phase-1-stage-b-plan.md for why there is no fallback here.
-  const accessRes = await fetch('https://api.discogs.com/oauth/access_token', {
+  const accessRes = await fetchWithTimeout('https://api.discogs.com/oauth/access_token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -115,7 +116,7 @@ async function handle(req: Request): Promise<Response> {
   }
   console.log('access_token OK (spec signature form)');
 
-  const idRes = await fetch('https://api.discogs.com/oauth/identity', {
+  const idRes = await fetchWithTimeout('https://api.discogs.com/oauth/identity', {
     headers: {
       'User-Agent': DISCOGS_UA,
       Authorization: oauthHeader({

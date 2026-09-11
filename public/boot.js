@@ -24,7 +24,7 @@
    finish in place without a page load. Routing ran once at module load, saw a signed-out
    user, and never re-evaluated — leaving a signed-in user staring at a sign-in form. */
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/+esm';
 import * as UI from '/boot.ui.js';          // the shell system + every non-crate surface
 import { clerkAppearance } from '/boot.clerk.js';   // S2/S3 auth chrome
 

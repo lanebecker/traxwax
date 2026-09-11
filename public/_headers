@@ -59,6 +59,13 @@
 /i/*
   Cache-Control: no-cache
 
+# Wave 5b (T3.6a #149): bare /c and /c/<slug> served as the static SPA shell (the config-rollback
+# fallback when the Function isn't routing) must revalidate like /app — same stale-shell class as #9.
+/c
+  Cache-Control: no-cache
+/c/*
+  Cache-Control: no-cache
+
 # The baked per-release files are write-once immutable (Stage C enriches the DB, not
 # these) — a week of browser cache is safe and spares the modal's fallback tier a fetch.
 /releases/*

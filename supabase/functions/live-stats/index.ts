@@ -10,8 +10,9 @@
  *
  * Identity: the Stage B JWKS pattern. verify_jwt false; the shared verifyClerk is the only identity. */
 
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
+import { fetchWithTimeout } from '../_shared/http.ts';
 import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, decrypt }
   from '../_shared/discogs.ts';
@@ -67,8 +68,14 @@ async function handle(req: Request): Promise<Response> {
   try { body = await req.json(); } catch { return json({ error: 'bad_request' }, 400); }
   const kind = body.kind;
   if (kind !== 'value' && kind !== 'release') return json({ error: 'bad_request' }, 400);
-  const releaseId = Number(body.id);
-  if (kind === 'release' && (!Number.isInteger(releaseId) || releaseId < 1)) {
+  // T2.14 (#136): body.id is `unknown`. Number() coerced true->1 / [7]->7 past Number.isInteger.
+  // Accept a number OR a canonical numeric string; reject booleans/arrays/floats/1e21/junk.
+  const rid = body.id;
+  const releaseId =
+    typeof rid === 'number' && Number.isSafeInteger(rid) && rid >= 1 ? rid
+    : (typeof rid === 'string' && /^[1-9]\d{0,8}$/.test(rid)) ? Number(rid)
+    : null;
+  if (kind === 'release' && releaseId === null) {
     return json({ error: 'bad_request' }, 400);
   }
   // Wave 1: the Discogs username of the crate being viewed (empty => own crate). The SERVER
@@ -117,7 +124,7 @@ async function handle(req: Request): Promise<Response> {
     if (!prof?.discogs_username) return json({ error: 'not_connected' }, 409);
     valueUsername = prof.discogs_username;
   }
-  const cacheKey = kind === 'value' ? `value:${userId}:${valueUsername}` : `release:${releaseId}`;
+  const cacheKey = kind === 'value' ? `value:${userId}:${valueUsername}` : `release:${userId}:${releaseId}`;
   const cached = cacheGet(cacheKey);
   if (cached) return json(suppressPrice ? { ...(cached as Record<string, unknown>), price: null } : cached);
 
@@ -142,7 +149,7 @@ async function handle(req: Request): Promise<Response> {
 
   if (kind === 'value') {
     // Username already resolved above (A5 #66) — it is part of the cache key.
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://api.discogs.com/users/${encodeURIComponent(valueUsername)}/collection/value`,
       { headers: { 'User-Agent': DISCOGS_UA, Authorization: auth() } });
     if (!res.ok) {
@@ -160,7 +167,7 @@ async function handle(req: Request): Promise<Response> {
   }
 
   // kind === 'release'
-  const res = await fetch(`https://api.discogs.com/releases/${releaseId}?curr_abbr=USD`, {
+  const res = await fetchWithTimeout(`https://api.discogs.com/releases/${releaseId}?curr_abbr=USD`, {
     headers: { 'User-Agent': DISCOGS_UA, Authorization: auth() } });
   if (res.status === 404) {
     const out = { price: null, crating: null, crcount: null, have: null, want: null };

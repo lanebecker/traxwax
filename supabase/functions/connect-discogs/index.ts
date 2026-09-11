@@ -6,8 +6,9 @@
  * expiry. NOTHING else in this function may derive a user id: decoding the payload without
  * verifying would let anyone forge {"sub": "<someone else>"}. */
 
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
+import { fetchWithTimeout } from '../_shared/http.ts';
 import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest }
   from '../_shared/discogs.ts';
@@ -122,7 +123,7 @@ async function handle(req: Request): Promise<Response> {
   }
 
   // ── Leg 1: ask Discogs for a request token. NOTE: GET, not POST. ───────────
-  const res = await fetch('https://api.discogs.com/oauth/request_token', {
+  const res = await fetchWithTimeout('https://api.discogs.com/oauth/request_token', {
     method: 'GET',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
