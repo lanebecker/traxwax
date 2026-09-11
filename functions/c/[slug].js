@@ -47,7 +47,7 @@ export async function onRequestGet({ params, request, env }) {
 
   let d = null;
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate_summary`, {
       method: 'POST',
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
                  'Content-Type': 'application/json' },
@@ -64,16 +64,11 @@ export async function onRequestGet({ params, request, env }) {
   }
 
   const name = d.owner.display_name || 'A Collector';
-  const crate = Array.isArray(d.crate) ? d.crate : [];
-  const wantlist = Array.isArray(d.wantlist) ? d.wantlist : [];
   const crateIsPublic = d.sections.crate === true;
-  const rows = crateIsPublic ? crate : wantlist;
-  const n = rows.length;
+  const n = Number(d.count) || 0;                         // leading-section count, from Postgres
   const noun = crateIsPublic ? 'Crate' : 'Wantlist';
-  // Top style by record count from the leading public section (matches identityHtml's source).
-  const styleCounts = {};
-  for (const rec of rows) for (const st of (rec.styles || [])) styleCounts[st] = (styleCounts[st] || 0) + 1;
-  const topStyle = Object.keys(styleCounts).sort((a, b) => styleCounts[b] - styleCounts[a])[0] || null;
+  // Top style derived server-side (get_public_crate_summary top_styles); /c uses [0].
+  const topStyle = (Array.isArray(d.top_styles) && d.top_styles[0]) || null;
 
   const title = `${name}'s ${noun} on TraxWax`;
   const desc = `${n.toLocaleString('en-US')} records${topStyle ? ` · mostly ${topStyle}` : ''}. Filed properly.`;

@@ -33,16 +33,11 @@ const PALETTES = {
    misread, with lookalike glyphs (never dropped — a style named "<Fake>" still reads). */
 const txt = (s) => String(s ?? '').replace(/</g, '\u2039').replace(/>/g, '\u203a');
 
-/* Six most-recent covers by added desc → data URIs (3s timeout each; a failed fetch drops the
-   tile — spec's few-covers degradation covers it). */
-async function coverUris(rows) {
-  // Audit S2-F8: `added` is a date (whole import days tie); tie-break by array position DESC
-  // (the RPC orders by insert id ASC, so a later position is a later insert).
-  const recent = rows.map((r, i) => [r, i])
-    .sort((a, b) => String(b[0].added).localeCompare(String(a[0].added)) || (b[1] - a[1]))
-    .slice(0, 6).map((x) => x[0]);
-  const one = async (rec) => {
-    const url = rec.thumb || rec.cover_image;
+/* The six cover URLs come pre-selected and pre-ordered from get_public_crate_summary (recency:
+   added desc, then insert id desc). Fetch each (3s timeout) → data URI; a failed or non-https
+   entry drops out (spec's few-covers degradation), and the array collapses left. */
+async function coverUris(urls) {
+  const one = async (url) => {
     if (!url || !/^https:\/\//.test(url)) return null;
     try {
       const ctrl = new AbortController();
@@ -61,7 +56,7 @@ async function coverUris(rows) {
       return `data:${mime};base64,${btoa(bin)}`;
     } catch (e) { return null; }
   };
-  return (await Promise.all(recent.map(one))).filter(Boolean);
+  return (await Promise.all((urls || []).map(one))).filter(Boolean);
 }
 
 /* Anton advance width ≈ 0.5em; the text column is ~692px (1200 − 64·2 − 340 − 40 col-gap +
@@ -78,16 +73,14 @@ function headlineFits(nameWithS, noun) {
 export function buildCardHtml(d, slug) {
   const P = PALETTES[d.owner.og_palette] || PALETTES.red;
   const crateIsPublic = d.sections.crate === true;
-  const rows = crateIsPublic ? d.crate : d.wantlist;
   const name = (d.owner.display_name || 'A Collector').toUpperCase();
   const noun = crateIsPublic ? 'CRATE' : 'WANTLIST';
   const kicker = crateIsPublic ? 'A CRATE ON TRAXWAX' : 'A WANTLIST ON TRAXWAX';
   const countLabel = crateIsPublic ? 'RECORDS' : 'WANTED';
-  const count = rows.length.toLocaleString('en-US');
+  const count = (Number(d.count) || 0).toLocaleString('en-US');
 
-  const styleCounts = {};
-  for (const rec of rows) for (const st of (rec.styles || [])) styleCounts[st] = (styleCounts[st] || 0) + 1;
-  const styles = Object.keys(styleCounts).sort((a, b) => styleCounts[b] - styleCounts[a]).slice(0, 3);
+  // Top-3 styles derived server-side (get_public_crate_summary), already count-ordered.
+  const styles = Array.isArray(d.top_styles) ? d.top_styles.slice(0, 3) : [];
 
   const oneLine = headlineFits(name + '’S', noun);
   const compact = !oneLine || styles.some((s) => s.length > 15);   // spec §7: ellipsis is never acceptable
@@ -196,7 +189,7 @@ export async function onRequestGet(context) {
 
   let d = null;
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate_summary`, {
       method: 'POST',
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
                  'Content-Type': 'application/json' },
@@ -212,20 +205,16 @@ export async function onRequestGet(context) {
     return nf;
   }
 
-  const rows = d.sections.crate === true ? d.crate : d.wantlist;
-  const rowsArr = Array.isArray(rows) ? rows : [];
-
   // #114: the content hash — count|topStyle|palette, identical to /c/'s ?v formula.
-  const _sc = {};
-  for (const rec of rowsArr) for (const st of (rec.styles || [])) _sc[st] = (_sc[st] || 0) + 1;
-  const _top = Object.keys(_sc).sort((a, b) => _sc[b] - _sc[a])[0] || '';
-  const _v = [rowsArr.length, _top, d.owner.og_palette || 'red'].join('|');
+  // count/top style now come from get_public_crate_summary (same values → same hash → cache stable).
+  const _top = (Array.isArray(d.top_styles) && d.top_styles[0]) || '';
+  const _v = [Number(d.count) || 0, _top, d.owner.og_palette || 'red'].join('|');
   let _vh = 0; for (let i = 0; i < _v.length; i++) _vh = (_vh * 31 + _v.charCodeAt(i)) >>> 0;
   const cacheKey = new Request(_u.origin + _u.pathname + '?v=' + _vh.toString(36), { method: 'GET' });
   const cached = await caches.default.match(cacheKey);
   if (cached) return cached;
 
-  d._covers = await coverUris(rowsArr);
+  d._covers = await coverUris(d.covers);
 
   const resp = new ImageResponse(buildCardHtml(d, slug), {
     width: 1200,

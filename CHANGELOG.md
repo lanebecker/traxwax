@@ -13,6 +13,22 @@ _Nothing yet._
 
 ---
 
+## [1.31.1] — 2026-09-10
+
+### Fixed
+- **Shared public crates and unfurl cards stop erroring ~10% of the time (#200, absorbs #158).**
+  `/c/<slug>` and `/og/<slug>` called `get_public_crate` — a 1.4 MB payload for a 1,876-row crate —
+  on every anonymous request, then parsed the whole thing just to derive a record count, a top
+  style, and six cover URLs. That per-request CPU tripped Cloudflare's Worker limit
+  (`503 error code: 1102`) on roughly one request in ten, so ~1 in 10 shared links unfurled no card
+  and ~1 in 10 public-crate visits hit a Cloudflare error page. Migration `0043_public_crate_summary`
+  adds `get_public_crate_summary` — a projection of `get_public_crate` with byte-identical gating
+  (owner / friend / stranger / all-private / unknown / malformed all match) returning only the hot
+  path's needs (~1.6 KB, computed in Postgres). `/c` and `/og` now call the summary;
+  `get_public_crate` is unchanged for the browser crate render.
+
+---
+
 ## [1.31.0] — 2026-09-10
 
 ### Added
