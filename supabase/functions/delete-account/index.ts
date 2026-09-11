@@ -4,8 +4,8 @@
  * is re-checked server-side so a scripted or accidental call cannot destroy data with a
  * bare POST. */
 
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
 import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 
 

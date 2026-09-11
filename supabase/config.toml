@@ -10,6 +10,12 @@
 # project_id is required for the CLI to parse this file at all -- a bare [functions.*] file
 # would make `supabase functions deploy` error out, defeating the guard's purpose.
 
+# SCOPE (T3.10 #162): these verify_jwt settings are read ONLY by the Supabase CLI
+# (`supabase functions deploy`). The break-glass MCP `deploy_edge_function` path does NOT consult
+# this file — verify_jwt is a per-CALL argument there, so each MCP deploy must pass verify_jwt:false
+# explicitly. This file stays the source of truth for the CLI path and for human review; the
+# post-deploy forged-Bearer 401 probe in DEPLOY.md is what actually proves the gate is off.
+
 project_id = "traxwax"
 
 [functions.connect-discogs]

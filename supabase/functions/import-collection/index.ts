@@ -10,8 +10,9 @@
  * The final page sets import_status='idle' but NOT last_import_at -- enrich-release owns
  * that, so an interruption anywhere in the two-phase pipeline resumes on next load. */
 
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
+import { fetchWithTimeout } from '../_shared/http.ts';
 import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, decrypt }
   from '../_shared/discogs.ts';
@@ -84,12 +85,18 @@ async function handle(req: Request): Promise<Response> {
   // ── Input: { page, started_at?, kind? } ──────────────────────────────────────
   let body: { page?: unknown; started_at?: unknown; kind?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'bad_request' }, 400); }
-  const page = Number(body.page);
+  // T2.14 (#136): accept a number OR a canonical numeric string for page; reject booleans/arrays/
+  // floats/junk Number() would coerce (the 500-page cap below still bounds a valid integer).
+  const _p = body.page;
+  const page =
+    typeof _p === 'number' && Number.isSafeInteger(_p) && _p >= 1 ? _p
+    : (typeof _p === 'string' && /^[1-9]\d{0,6}$/.test(_p)) ? Number(_p)
+    : null;
   // 500-page cap = 50,000 items. A collection beyond it cannot finish; D7 (#96) makes that
   // failure LOUD — a named error the client surfaces — instead of a generic bad_request
   // (the DB-side import_status reset happens at the pages>500 check further down, where the
   // admin client exists; a raw page>500 REQUEST can only follow that response anyway).
-  if (!Number.isInteger(page) || page < 1) {
+  if (page === null) {
     return json({ error: 'bad_request' }, 400);
   }
   if (page > 500) {
@@ -147,7 +154,13 @@ async function handle(req: Request): Promise<Response> {
           const imgs = (rel.images ?? []) as Array<{ uri?: string }>;
           return {
             release_id: Number(rel.id),
-            artist: cleanName(String(rel.artist ?? '')),
+            // T2.16 (#138): the inventory listing.release carries only a PRE-JOINED artist string
+            // (confirmed against the live API - no structured artists[]), so cleanName's end-anchored
+            // (N)-strip can't match biSeedRow's per-artist fidelity and, worse, would overwrite the
+            // shared catalog's better value (seed_releases merges last-writer-wins on non-empty). Leave
+            // artist to the collection/wantlist seed (biSeedRow); '' is empty-guarded by seed_releases,
+            // so it never stomps an existing value. (For-sale-ONLY releases keep '' - a rare, tracked gap.)
+            artist: '',
             title: String(rel.title ?? '').trim(),
             year: (rel.year as number) ?? 0,
             label: '',
@@ -256,7 +269,7 @@ async function handle(req: Request): Promise<Response> {
   const statusParam = kind === 'inventory' ? '&status=For+Sale' : '';
   const pageUrl = `${KIND.path(prof.discogs_username)}` +
     `?page=${page}&per_page=100&sort=${sortParam}&sort_order=desc${statusParam}`;
-  const res = await fetch(pageUrl, {
+  const res = await fetchWithTimeout(pageUrl, {
     headers: {
       'User-Agent': DISCOGS_UA,
       Authorization: oauthHeader({

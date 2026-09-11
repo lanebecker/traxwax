@@ -13,8 +13,9 @@
  * Writes ONLY CC0 catalog fields. community/have/want/lowest_price are Restricted Data and
  * are deliberately never requested nor stored (spec section 8). */
 
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
+import { fetchWithTimeout } from '../_shared/http.ts';
 import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, decrypt }
   from '../_shared/discogs.ts';
@@ -127,7 +128,7 @@ async function handle(req: Request): Promise<Response> {
     // Pace EVERY request after the first -- including after failures. Pacing only
     // successes (rev 1's M-2) let an all-404 batch fire 5 requests back-to-back.
     if (i > 0) await sleep(GAP_MS);
-    const res = await fetch(`https://api.discogs.com/releases/${rid}`, {
+    const res = await fetchWithTimeout(`https://api.discogs.com/releases/${rid}`, {
       headers: {
         'User-Agent': DISCOGS_UA,
         Authorization: oauthHeader({
@@ -210,7 +211,7 @@ async function handle(req: Request): Promise<Response> {
     for (let j = 0; j < distinct.length && j < leftover; j++) {
       const mid = distinct[j];
       await sleep(GAP_MS);   // pace EVERY master GET — they count toward the 60/min budget
-      const mres = await fetch(`https://api.discogs.com/masters/${mid}`, {
+      const mres = await fetchWithTimeout(`https://api.discogs.com/masters/${mid}`, {
         headers: {
           'User-Agent': DISCOGS_UA,
           Authorization: oauthHeader({

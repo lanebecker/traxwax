@@ -6,8 +6,9 @@
  * scoped to that verified user. Discogs is the source of truth: we write there first and mirror only
  * on success. PLAINTEXT OAuth 1.0a does not sign the method or URL, so the same header signs PUT/DELETE. */
 
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
+import { fetchWithTimeout } from '../_shared/http.ts';
 import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
 import { DISCOGS_UA, oauthHeader, nonce, timestamp, decrypt }
   from '../_shared/discogs.ts';
@@ -39,9 +40,16 @@ async function handle(req: Request): Promise<Response> {
   //    seeds server-authoritatively (see below). ──
   let body: { release_id?: unknown; action?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'bad_request' }, 400); }
-  const releaseId = Number(body.release_id);
+  // T2.14 (#136): body.release_id is `unknown`. Number() coerced true->1 / [7]->7 past
+  // Number.isInteger, letting a hand-crafted request PUT to the caller's real wantlist. Accept a
+  // number OR a canonical numeric string; reject booleans/arrays/floats/1e21/junk.
+  const rid = body.release_id;
+  const releaseId =
+    typeof rid === 'number' && Number.isSafeInteger(rid) && rid >= 1 ? rid
+    : (typeof rid === 'string' && /^[1-9]\d{0,8}$/.test(rid)) ? Number(rid)
+    : null;
   const action = body.action === 'add' ? 'add' : body.action === 'remove' ? 'remove' : null;
-  if (!Number.isInteger(releaseId) || releaseId < 1 || !action) {
+  if (releaseId === null || !action) {
     return json({ error: 'bad_request' }, 400);
   }
 
@@ -95,7 +103,7 @@ async function handle(req: Request): Promise<Response> {
     if (!existing) {
       // Rare in B2 (every displayed card is already in the catalog); future-proofs add-from-search.
       // Fresh nonce for a distinct request; PLAINTEXT doesn't require it but it's tidy.
-      const relRes = await fetch(`https://api.discogs.com/releases/${releaseId}`, {
+      const relRes = await fetchWithTimeout(`https://api.discogs.com/releases/${releaseId}`, {
         headers: {
           'User-Agent': DISCOGS_UA,
           Authorization: oauthHeader({
@@ -143,7 +151,7 @@ async function handle(req: Request): Promise<Response> {
       }
     }
 
-    const res = await fetch(wantUrl, {
+    const res = await fetchWithTimeout(wantUrl, {
       method: 'PUT',
       headers: { 'User-Agent': DISCOGS_UA, Authorization: authHeader },
     });
@@ -166,7 +174,7 @@ async function handle(req: Request): Promise<Response> {
   }
 
   // action === 'remove'
-  const res = await fetch(wantUrl, {
+  const res = await fetchWithTimeout(wantUrl, {
     method: 'DELETE',
     headers: { 'User-Agent': DISCOGS_UA, Authorization: authHeader },
   });

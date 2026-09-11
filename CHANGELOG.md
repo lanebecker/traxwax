@@ -13,6 +13,36 @@ _Nothing yet._
 
 ---
 
+## [1.31.2] — 2026-09-11
+
+### Security / Fixed
+- **Cold-audit v1.31 Wave B — edge-function & security hardening (9 items).** Deployed to the
+  Supabase Edge Functions via break-glass; the Pages-side changes (`/c`, `/og`, `/api/release`,
+  `_headers`, `_redirects`, `boot.js`) ship with this release.
+  - **Restricted-data cache is now caller-bound (#137, T2.15).** `live-stats`' `release:` cache key
+    gained the caller's id (matching the `value:` key), so one user's Discogs-token fetch is no
+    longer served under another user's request.
+  - **`release_id` / `id` / `page` are validated, not coerced (#136, T2.14).** `wantlist-write`,
+    `live-stats` and `import-collection` accepted `true` / `[7]` past `Number()`; they now take a
+    number or a canonical numeric string and reject everything else.
+  - **Inventory import no longer degrades the shared catalog's artist (#138, T2.16).** The for-sale
+    seed wrote a lower-fidelity pre-joined artist string that could overwrite the collection's; it
+    now leaves `artist` to the collection/wantlist seed (empty-guarded). (For-sale-only releases
+    show no artist until owned — a tracked follow-up.)
+  - **One shared security-header set across `/c`, `/og`, `/api/release` (#150 / #149 / #153,
+    T3.6b/a/e),** applied on every return path (cached replays and early returns included); bare
+    `/c` added to the `_headers` no-cache block.
+  - **`/api/release` ids are length-capped and canonicalized (#151, T3.6c)** — padded and bare ids
+    collapse to one cache key + one upstream call.
+  - **Every server-side fetch has a wall-clock timeout (#152, T3.6d).** All 11 Edge-function
+    upstream calls and the 3 Pages-function fetches abort on a budget instead of pinning an isolate.
+  - **Dependencies pinned for reproducible deploys (#155, T3.7):** `supabase-js@2.116.0` across all
+    nine Edge functions + the client, `functions-js@2.115.0`.
+  - **Docs (#162 T3.10, #154 T3.6f).** `config.toml` notes its CLI-only scope; `DEPLOY.md` asserts
+    the per-deploy `verify_jwt`; the `_redirects` `/c` comment is corrected.
+
+---
+
 ## [1.31.1] — 2026-09-10
 
 ### Fixed

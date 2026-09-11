@@ -46,7 +46,8 @@
 # serve the SPA shell with the URL preserved; boot.js reads /c/<slug> and runs bootPublicCrate()
 # with NO Clerk load. S2's Pages Function will claim /c/* via _routes.json "include", at which
 # point these two rules become inert for those requests (rules don't apply to Functions-routed
-# paths) — leave them as the fallback for a Functions outage.
+# paths) — they are a CONFIG-ROLLBACK fallback only (Pages does NOT re-dispatch a throwing Function
+# to the asset server), covering only bare /c.
 /c         /app/  200
 /c/*       /app/  200
 

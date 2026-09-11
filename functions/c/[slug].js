@@ -1,3 +1,6 @@
+import { SEC_HEADERS } from '../_shared/headers.js';
+import { fetchWithTimeout } from '../_shared/http.js';
+
 /* GET /c/:slug — serves the SPA shell with per-crate og:* meta injected, so unfurl crawlers
    (which run no JS) see the crate card. Humans get the same HTML; boot.js reads the path and
    renders the public crate (Wave 5b T2). NULL from get_public_crate (unknown slug, all-private —
@@ -5,7 +8,8 @@
    boot.js paints the 404 card client-side.
 
    Routing notes (Wave 5b plan T7-pre): this function owns /c/* via _routes.json "include";
-   the /c rules in _redirects are its Functions-outage fallback and are inert while this runs.
+   the /c rules in _redirects are a CONFIG-ROLLBACK fallback (Pages does NOT re-dispatch a throwing
+   Function to the asset server), inert while this Function is routed and covering only bare /c.
    A bare /c (no slug) never reaches this file — it falls through to the static SPA fallback.
 
    env.ASSETS.fetch is the documented Pages-Functions static-asset binding. It has no precedent
@@ -20,24 +24,24 @@ const SUPABASE_KEY = 'sb_publishable_RLxgLYBzZoh5YCkYJ3NJZw_8BLFMIWg';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-/* Audit S2-F2: Pages `_headers` do NOT apply to Functions responses (the same inert-file
-   mechanism `_redirects` documents) — so this function must carry the security set itself,
-   or the most-shared logged-out page ships CSP-less and frameable. MIRROR OF public/_headers'
-   /* block — keep the two in lockstep when either changes. */
-const SEC_HEADERS = {
-  'X-Frame-Options': 'DENY',
-  'X-Content-Type-Options': 'nosniff',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://clerk.traxwax.com https://cloud.umami.is https://cdn.jsdelivr.net https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is https://gateway.umami.is https://challenges.cloudflare.com https://clerk-telemetry.com; frame-src 'self' https://clerk.traxwax.com https://challenges.cloudflare.com; form-action 'self' https://clerk.traxwax.com",
-  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
-};
+/* SEC_HEADERS moved to functions/_shared/headers.js (T3.6b #150) — the ONE copy that /c, /og
+   and /api/release all import, so the security set can't drift between routes. It stays a
+   MIRROR of public/_headers' /* block; keep the two in lockstep when either changes. */
 
 export async function onRequestGet({ params, request, env }) {
   const slug = String(params.slug || '');
   const shellResp = await env.ASSETS.fetch(new URL('/app/', request.url));
   // Audit S2-F7: a broken/redirected asset response must never be dressed up as the page.
-  if (!shellResp.ok) return shellResp;
+  if (!shellResp.ok) {
+    // T3.6e (#153): attach SEC_HEADERS to even the broken-asset early return, while PRESERVING the
+    // asset response's own headers (Content-Type/Location) + status — don't dress a redirected/errored
+    // asset up as the page (audit S2-F7). Body passes through (null on 204/304, so no constructor throw).
+    const h = new Headers(shellResp.headers);
+    for (const [k, v] of Object.entries(SEC_HEADERS)) h.set(k, v);
+    h.set('Cache-Control', 'no-store');
+    return new Response(shellResp.body,
+      { status: shellResp.status, statusText: shellResp.statusText, headers: h });
+  }
   let html = await shellResp.text();
 
   if (!/^[a-z0-9](?:[a-z0-9-]{0,16}[a-z0-9])?$/.test(slug)) {
@@ -47,7 +51,7 @@ export async function onRequestGet({ params, request, env }) {
 
   let d = null;
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate_summary`, {
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate_summary`, {
       method: 'POST',
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
                  'Content-Type': 'application/json' },
