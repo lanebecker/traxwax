@@ -113,19 +113,33 @@ verification runs).
 ## Surface 3 — Database
 
 Postgres with RLS keyed on `auth.jwt()->>'sub'` (Clerk TEXT ids; RLS policies use the
-`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0040` applied; the migration
-map lives in `CLAUDE.md`. Apply via the **break-glass** MCP `apply_migration` (or
+`(select auth.jwt())` initplan form since 0025). Migrations `0001`–`0043` applied; the migration
+map lives in `CLAUDE.md`. ⚠ **This line lags reality whenever the ledger is not updated in the same
+pass as the apply — determine applied state with `list_migrations` against the database, never from
+this sentence.** (2026-09-10: it read `0001`–`0040` while the DB was already at 0041, and that stale
+line produced a confident, wrong report that a shipped security fix was still pending.) Apply via
+the **break-glass** MCP `apply_migration` (or
 `supabase db push`), verify with the checks each migration's plan documents, then commit the
 file. Writer RPCs (`link_discogs_account`, `finalize_discogs_link`,
 `unlink_discogs_account`, `delete_account`, `pending_enrichment`, `seed_releases`, `db_now`)
 are SECURITY DEFINER and `service_role`-only; the friend-read RPCs (`get_friend_crate` 0021,
 `get_friend_wantlist` 0036 (the only friend wantlist read path since D2/#91), `get_crate_owner` 0023,
-`get_friend_forsale` 0028, `list_friends` 0031, `get_social_feed` 0033/0036, `crate_match`, and the
+`get_friend_forsale` 0028/0042, `list_friends` 0031, `get_social_feed` 0033/0036, `crate_match`, and the
 `private.can_view_*` gates) are SECURITY DEFINER granted to `authenticated`.
 
-### Wave 5b — the public tier (v1.29.0–v1.31.0, migrations 0037–0040)
+**Cold audit v1.31 — 0041–0043, applied 2026-09-10 via break-glass.** `0041_finalize_link_authz`
+(#131): `finalize_discogs_link` authorizes *inside* the DELETE predicate (`and user_id = p_sub`), so
+a stranger's finalize can no longer destroy the victim's in-flight pending link; the now-unreachable
+`link_not_yours` status is removed. `0042_inventory_forsale_dedupe` (#135): `get_friend_forsale` and
+`get_public_crate`'s for-sale block emit ONE deterministic listing per release
+(`DISTINCT ON (release_id) ORDER BY release_id, listing_id` — lowest, immutable `listing_id`), and
+`inventory_items` gains `CHECK (status IN ('for_sale'))`. The multi-copy table shape is deliberate
+and unchanged — a hard `(user_id, release_id)` UNIQUE was rejected because it would break the
+per-listing import; surfacing "N copies for sale" is tracked as #197. `0043_public_crate_summary` (#200/#158): the anon `/c`+`/og` hot path now calls a new `get_public_crate_summary` — a projection of `get_public_crate` with identical gating that returns only count + top-3 styles + 6 cover URLs (~1.6 KB vs 1.4 MB), computed in Postgres — killing the CF-1102s; `get_public_crate` is unchanged for the browser render.
 
-- **The anonymous surface is exactly one function**: `public.get_public_crate(text)`, SECURITY
+### Wave 5b — the public tier (v1.29.0–v1.31.1, migrations 0037–0043)
+
+- **The anonymous surface is a projection pair** (0043): `public.get_public_crate(text)` (browser render) + `public.get_public_crate_summary(text)` (the `/c`+`/og` hot path), both SECURITY
   DEFINER, `grant execute … to anon, authenticated`. The security advisor flags it
   (`anon_security_definer_function_executable`, WARN) — **that WARN is by design**; do not "fix"
   it. It returns catalog data only (no username/price/rating; owner reduced to "First L.");
@@ -136,9 +150,15 @@ are SECURITY DEFINER and `service_role`-only; the friend-read RPCs (`get_friend_
   `/c/*` + `/og/*` in `_routes.json` `include`; those `_redirects` rules are now inert for those paths
   (they remain only as a config-rollback fallback — Pages does NOT re-dispatch a throwing Function to them).
 - Applied 2026-09-10 via break-glass: 0037_public_tier, 0038_public_relation_first,
-  0039_friend_redirect_gate, and (v1.31.0) 0040_ledger_master_year — all four amend/replace
-  `get_public_crate`; **0040 is the live body** (0039 + `master_year` in the row projections),
-  and 0040 also re-issues `get_friend_crate` (0024 + `master_year`).
+  0039_friend_redirect_gate, (v1.31.0) 0040_ledger_master_year, — from the v1.31 cold audit —
+  0042_inventory_forsale_dedupe, and (v1.31.1) 0043_public_crate_summary. The first five amend/replace `get_public_crate`; **0042 is its live
+  body** (0040 + `DISTINCT ON (release_id)` in the for-sale block, #135). 0040 also re-issues
+  `get_friend_crate` (0024 + `master_year`). **0043 adds a separate `get_public_crate_summary`** (does not touch `get_public_crate`) — the anon `/c`+`/og` hot path calls it (#200/#158).
+- **The anon hot path WAS a live availability defect (#200) — FIXED in 0043 (v1.31.1).** `get_public_crate` returns the whole
+  crate — 1.4 MB for a 1,876-row collection — and both `/c/` and `/og/` parse it on EVERY request
+  before their cache lookup, to derive a count and a top style. That per-request CPU exceeds the
+  Workers limit on ~10% of requests, returning `503 error code: 1102`. 0043 shipped #158's summary RPC — `/c`+`/og` now call `get_public_crate_summary` (~1.6 KB;
+  verified 1,567 B vs 1,465,392 B, gating parity on every branch). Do not raise the OG TTL — the 300s TTL is the revocation window.
 - **S2 (v1.30.0): the Pages project has a BUILD STEP now** — build command `npm install`, build
   output directory `public` (set in the Pages dashboard, rehearsed on a branch preview before
   main). `package.json` pins `workers-og` for `functions/og/[slug].js`; the compressed function
