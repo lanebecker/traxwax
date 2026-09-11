@@ -5,3 +5,11 @@ pages_build_output_dir = "public"
 # Secrets (set in the Cloudflare dashboard or via `wrangler pages secret put`):
 #   DISCOGS_TOKEN   — required, the Discogs personal access token
 # (E5 #103: the old DISCOGS_USER entry documented a secret no surviving function reads.)
+
+# Build (#148 / #144): the intended Cloudflare Pages build command is
+#   npm ci && node build/write-version.mjs
+# — `npm ci` installs deps reproducibly from the committed package-lock.json (was a floating
+# `npm install`), and write-version.mjs generates public/version.json from VERSION so the deploy
+# marker ships in the same build. For a Pages project the AUTHORITATIVE build command is the
+# DASHBOARD setting (Settings -> Builds & deployments); set it there — this comment is the
+# diffable in-repo record. (Deliberately NOT a live [build] key: Workers-only, a Pages parse may reject it.)

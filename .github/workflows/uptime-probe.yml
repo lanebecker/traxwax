@@ -28,7 +28,7 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 10   # headroom for Probe 3's retry window + Probe 4's cold-render retries (Wave A audit)
     steps:
       - name: "Probe 1 — static surface (traxwax.com/boot.js)"
         run: |
@@ -53,3 +53,69 @@ jobs:
             exit 1
           fi
           grep -q 'invalid_token' "$body_file" || { echo "::error::401 body lacks invalid_token — unexpected gate behavior"; exit 1; }
+
+      - name: "Probe 3 — deploy version marker matches main (build freshness, #144)"
+        run: |
+          # The marker is written at BUILD time (build/write-version.mjs) so /version.json ships in
+          # the SAME Pages build as any push; this confirms the last release actually deployed.
+          # Failure signature: a REACHABLE marker that isn't the current VERSION (a red build leaves
+          # the old marker live, or it's missing/erroring). Hardenings (Wave A audit):
+          #  - EXTRACT the served version and compare EXACTLY to main's VERSION (audit #1: NO
+          #    `sort -V` — it mis-ranks prereleases, e.g. 1.0.0-rc1 > 1.0.0, and would GREEN-pass a
+          #    failed release deploy; and don't match the whole JSON blob).
+          #  - main's VERSION is fetched cache-busted (?t=) AND with a no-cache request header, so a
+          #    stale raw.githubusercontent CDN copy can't invert the comparison.
+          #  - capture the HTTP status: a reachable-but-wrong marker (200 stale, or 4xx/5xx) on ANY
+          #    attempt fails RED (tracked across the whole window, so a late connection blip can't
+          #    mask an earlier real mismatch); ONLY a connection-level 000 on EVERY attempt
+          #    soft-passes — Probe 1 owns "site down".
+          #  - retried across one Pages deploy (~2-3 min) so the normal post-push lag self-clears.
+          probe() {  # echoes "<http_code> <body-stripped>"; code=000 on a connection-level failure
+            local tmp code
+            tmp="$(mktemp)"
+            code="$(curl -sS -H 'Cache-Control: no-cache' -o "$tmp" -w '%{http_code}' --max-time 20 "$@" 2>/dev/null || true)"
+            printf '%s %s\n' "${code:-000}" "$(tr -d '[:space:]' < "$tmp")"
+            rm -f "$tmp"
+          }
+          read -r main_code main_body < <(probe "https://raw.githubusercontent.com/lanebecker/traxwax/main/VERSION?t=$(date +%s)")
+          main_ver="$(printf '%s' "$main_body" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?(\+[0-9A-Za-z.]+)?' | head -n1 || true)"
+          if [ "$main_code" != "200" ] || [ -z "$main_ver" ]; then
+            echo "::warning::could not read main VERSION from raw.githubusercontent (code=$main_code) — skipping the freshness check this run."
+            exit 0
+          fi
+          saw_reachable_mismatch=0
+          for attempt in 1 2 3 4; do
+            read -r code body < <(probe "https://traxwax.com/version.json")
+            served_ver="$(printf '%s' "$body" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?(\+[0-9A-Za-z.]+)?' | head -n1 || true)"
+            echo "attempt $attempt: code=$code served=${served_ver:-<none>} main=$main_ver"
+            if [ "$code" = "200" ] && [ -n "$served_ver" ] && [ "$served_ver" = "$main_ver" ]; then exit 0; fi
+            if [ "$code" != "000" ]; then saw_reachable_mismatch=1; fi
+            if [ "$attempt" -lt 4 ]; then sleep 45; fi
+          done
+          if [ "$saw_reachable_mismatch" = "1" ]; then
+            echo "::error::/version.json never matched the current main VERSION ($main_ver) on any reachable attempt — the last release likely failed to deploy (a red Pages build leaves the OLD marker live, or the build step that writes /version.json is missing/erroring)."
+            exit 1
+          fi
+          echo "::warning::/version.json unreachable (code=000) on every attempt — Probe 1 owns site-down; not treating as a failed deploy."
+          exit 0
+
+      - name: "Probe 4 — /og liveness: healthy PNG, tolerant of #202 cold render (#144)"
+        run: |
+          # LIVENESS only: catch a /og that is DOWN or serving empty/non-image bytes. Must NOT
+          # false-alarm on #202's intermittent cold-render 503s (~10% on the Free plan, PARKED) —
+          # /og ignores the query string for its content-hash cache key, so a retry hits the warm
+          # cache; pass if ANY attempt is a healthy card, fail only if ALL fail.
+          ok=0
+          for i in 1 2 3 4; do
+            out=$(curl -sS -o /dev/null -w '%{http_code} %{content_type} %{size_download}' --max-time 30 "https://traxwax.com/og/lanes-crate?probe=$i" || true)  # || true: a curl TIMEOUT exits 28 and would otherwise abort the step under set -e instead of counting as a failed attempt
+            code=$(echo "$out" | awk '{print $1}')
+            ctype=$(echo "$out" | awk '{print $2}')
+            size=$(echo "$out" | awk '{print $3}')
+            echo "attempt $i: code=$code type=$ctype size=$size"
+            if [ "$code" = "200" ] && printf '%s' "$ctype" | grep -qi 'image/png' && [ "${size:-0}" -gt 5000 ]; then ok=1; break; fi
+            if [ "$i" -lt 4 ]; then sleep 3; fi
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::/og/lanes-crate served no healthy PNG in 4 attempts — /og is DOWN or serving empty/non-image bytes (liveness; distinct from #202's intermittent cold render)."
+            exit 1
+          fi

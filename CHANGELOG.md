@@ -13,6 +13,35 @@ _Nothing yet._
 
 ---
 
+## [1.31.3] — 2026-09-11
+
+### Added / Changed / Security
+- **Cold-audit v1.31 Wave A — CI & release-integrity (#144, #145, #146, #148; #147 re-scoped).**
+  Workflow, build, and dev-tooling only — no Edge/Pages runtime change.
+  - **Deploy freshness is externally verifiable now (#144).** A build-time step
+    (`build/write-version.mjs`, wired into the Pages build command) serves `/version.json` =
+    `{"version":"<VERSION>"}` from the same build as every push; uptime **Probe 3** compares it to
+    `main`'s VERSION, so a release that silently failed to deploy — a red Pages build leaving the
+    old marker live — trips the monitor. A new **Probe 4** checks `/og` liveness, tolerant of
+    #202's intermittent cold render. The marker is generated at build time, never committed.
+  - **The version-badge workflow fails loud on drift and can't lose a release tag (#145, #146).**
+    It asserts the badge substitution actually landed (a drifted shields.io URL fails RED instead
+    of committing a stale badge), serializes concurrent runs, rebases-with-retry before pushing,
+    and creates an annotated `v<VERSION>` tag — decoupled from the badge push and pinned to
+    `origin/main`, so a README conflict can't leave a release untagged and re-runs never recreate
+    a published tag.
+  - **Reproducible Pages build (#148).** Build command moves from a floating `npm install` to
+    `npm ci` (lockfile-exact), set in the Pages dashboard (the authoritative location); the repo
+    carries the diffable record in `wrangler.toml` + `DEPLOY.md`.
+  - **The dev-fixture refresh can no longer re-publish the ownership export (#147, re-scoped).**
+    `refresh_collection.py` + `refresh-collection.yml` fetched the real ~1,876-record Discogs
+    listing and committed it to the public repo — undoing T1's replacement of `collection.json`
+    with a synthetic fixture. The workflow now refreshes only the CC0 `public/releases/*.json`
+    files, asserts `collection.json` is never regenerated, and fails loud on a truncated listing.
+    (The git-history purge of the already-committed export remains #63/#64.)
+
+---
+
 ## [1.31.2] — 2026-09-11
 
 ### Security / Fixed
