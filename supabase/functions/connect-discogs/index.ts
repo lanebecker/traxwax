@@ -10,7 +10,7 @@ import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
 import { fetchWithTimeout } from '../_shared/http.ts';
 import { CORS, json, verifyClerk } from '../_shared/auth.ts';   // E1 (#99): the ONE auth/CORS preamble
-import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest }
+import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, selfTest, probeStoredCredentials }
   from '../_shared/discogs.ts';
 
 const CALLBACK     = 'https://sfipqknrbvamwwahwxnl.supabase.co/functions/v1/connect-discogs-callback';
@@ -118,6 +118,27 @@ async function handle(req: Request): Promise<Response> {
           return json({ error: 'cooldown', retry_after: 10 }, 429);
         }
         console.error('cooldown arm failed (failing open):', armed.error.message);
+      }
+    }
+  }
+
+  // T3.9 (#161): selfTest proves the key is well-formed but NOT that it can read what is already
+  // stored — a rotated key passes selfTest while every existing credential is undecryptable. Before
+  // spending a request_token round-trip, probe an ORDERED, bounded sample of real rows: if the table
+  // holds data the configured key(s) can't read (a rotation without DISCOGS_TOKEN_ENC_KEY_PREV), fail
+  // HERE, loudly, not silently orphaning later. Placed after the cooldown so a throttled retry 429s
+  // first (remediation-audit F2); ORDER BY makes the sample deterministic (F3). A READ error is not
+  // evidence of a key problem → fail OPEN + log; a real decrypt failure → fail CLOSED.
+  {
+    const { data: sample, error: probeErr } = await admin
+      .from('discogs_credentials').select('oauth_token').order('user_id').limit(50);
+    if (probeErr) {
+      console.error('stored-credential probe skipped (read error, failing open):', probeErr.message);
+    } else {
+      try { await probeStoredCredentials((sample ?? []).map((r) => r.oauth_token), encKey); }
+      catch {
+        console.error('stored-credential probe failed — configured key cannot read existing data (rotation without DISCOGS_TOKEN_ENC_KEY_PREV?)');
+        return json({ error: 'not_configured' }, 500);
       }
     }
   }

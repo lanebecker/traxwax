@@ -8,7 +8,7 @@
 import 'jsr:@supabase/functions-js@2.115.0/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2.116.0';
 import { fetchWithTimeout } from '../_shared/http.ts';
-import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, decrypt, selfTest, sha256hex }
+import { DISCOGS_UA, oauthHeader, nonce, timestamp, parseForm, fieldNames, encrypt, decrypt, selfTest, sha256hex, probeStoredCredentials }
   from '../_shared/discogs.ts';
 
 // B1 (#69) → E1 (#99): APP_ORIGIN comes from the shared preamble module, which fail-closes
@@ -67,6 +67,22 @@ async function handle(req: Request): Promise<Response> {
   const state = rows?.[0];
   if (!state) return back('unknown_or_used');
   if (new Date(state.expires_at) < new Date()) return back('expired');
+
+  // T3.9 (#161): a valid, unexpired handshake is now confirmed. Prove the configured key can read a
+  // REAL stored credential — selfTest passes for any well-formed key, so a rotation that orphaned
+  // every token still looked healthy. This is a health probe of the credential STORE (unrelated to
+  // this handshake, which writes pending_links). Ordered, bounded sample (deterministic, F3); read
+  // error → fail open + log; decrypt failure → fail closed (browser-navigated → back('not_configured')).
+  {
+    const { data: sample, error: probeErr } = await admin
+      .from('discogs_credentials').select('oauth_token').order('user_id').limit(50);
+    if (probeErr) {
+      console.error('stored-credential probe skipped (read error, failing open):', probeErr.message);
+    } else {
+      try { await probeStoredCredentials((sample ?? []).map((r) => r.oauth_token), encKey); }
+      catch { console.error('stored-credential probe failed — configured key cannot read existing data'); return back('not_configured'); }
+    }
+  }
 
   // A6 (#67): leg-1 secrets rest encrypted since this deploy. A row written by the PREVIOUS
   // connect-discogs (deploy skew, or a pre-deploy handshake still in flight — rows live
