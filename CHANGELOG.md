@@ -13,6 +13,20 @@ _Nothing yet._
 
 ---
 
+## [1.31.5] — 2026-09-14
+
+### Security
+- **Key rotation no longer silently orphans stored credentials (#161).** The AES-256-GCM blob in
+  `discogs_credentials` now carries a version byte + a short key id (first 4 bytes of SHA-256(key));
+  `decrypt` distinguishes a wrong key from corrupt data and accepts a current **and** an optional
+  previous key (`DISCOGS_TOKEN_ENC_KEY_PREV`), so rotating `DISCOGS_TOKEN_ENC_KEY` is a two-key
+  rollover instead of a mass orphaning. Legacy blobs (no version/keyid) still read. The connect gates
+  now probe a real stored row at startup — a key that can't read existing data fails `not_configured`
+  loudly instead of silently. New `build/reencrypt-credentials.ts` (keyset-paginated) retires the old
+  key after a rollover. No user-visible change; no DB migration.
+
+---
+
 ## [1.31.4] — 2026-09-14
 
 ### Security

@@ -95,10 +95,30 @@ Clerk RS256, Stage B finding C1):
 
 **Secrets** (Supabase → Edge Functions → Secrets): `DISCOGS_CONSUMER_KEY`,
 `DISCOGS_CONSUMER_SECRET` (the `TraxWax` Discogs app), `DISCOGS_TOKEN_ENC_KEY` (32-byte
-base64; AES-256-GCM at rest — rotating it orphans stored tokens, forcing reconnects),
+base64; AES-256-GCM at rest; since v1.31.5/#161 rotation is a two-key rollover, not a mass orphaning — see "Rotating `DISCOGS_TOKEN_ENC_KEY`" below; optional `DISCOGS_TOKEN_ENC_KEY_PREV` holds the previous key during a rollover),
 `APP_ORIGIN` (`https://traxwax.com`), `CLERK_ISSUER` (the **production** Clerk instance).
 `APP_ORIGIN` and `CLERK_ISSUER` are **required**: since v1.14.1 (#52) every jwtVerify function **fails
 closed** (throws at boot) if either is unset — there are no dev/preview fallbacks any more.
+
+### Rotating `DISCOGS_TOKEN_ENC_KEY` (two-key rollover, #161)
+
+Since v1.31.5 each blob is `VERSION(1) || KEYID(4) || IV(12) || ct||tag` (base64); legacy blobs
+(no version/keyid) are still read. `decrypt` tries the current key then `DISCOGS_TOKEN_ENC_KEY_PREV`,
+and the connect gates probe a real stored row at startup — a key that can't read existing data now
+fails `not_configured` loudly instead of orphaning silently.
+
+1. Set `DISCOGS_TOKEN_ENC_KEY` = new 32-byte base64 key; set `DISCOGS_TOKEN_ENC_KEY_PREV` = the OLD key.
+2. Redeploy the six crypto functions (readers before writers — see "Deploying").
+3. Verify: signed in, the crate renders and **EST.** fills (live-stats reads an old-key blob via
+   `_PREV`); a fresh connect still works.
+4. Re-encrypt every stored row onto the new key:
+   `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… DISCOGS_TOKEN_ENC_KEY=<new> DISCOGS_TOKEN_ENC_KEY_PREV=<old> deno run --allow-env --allow-net build/reencrypt-credentials.ts`
+   Confirm it reports `0 failure(s)`.
+5. Wait ≥15 min (transient `discogs_oauth_state` / `discogs_pending_links` rows expire), then remove
+   `DISCOGS_TOKEN_ENC_KEY_PREV` and redeploy. The old key is retired.
+
+Never remove `_PREV` before step 4 succeeds — that re-creates the #161 orphaning for any row still on
+the old key.
 
 **Deploying:** via the **break-glass** Supabase MCP connector — the standing `Supabase — TraxWax` connector
 is read-only; Lane arms `Supabase — TraxWax — Break-Glass` for a deploy, then disarms it (see `CLAUDE.md`).
