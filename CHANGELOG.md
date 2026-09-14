@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.31.4] — 2026-09-14
+
+### Security
+- **coverBg XSS sink hardened at the renderer (defense-in-depth, #117).** The cover-image URL
+  was already neutralized at the `deco()` chokepoint (https-only + a fixed-map encode of
+  `" ' ( ) \ < >`, so a poisoned shared-catalog row can't break out of `url('…')` or the `style`
+  attribute). The four client renderers (cards, overlap rows, timeline, detail modal) now also
+  `esc()` the assembled `coverBg` at each interpolation site, so every sink is safe independent
+  of its source — no single point of failure. End-to-end there was no live exploit; this closes
+  the "interpolated unescaped across all renderers" finding.
+
+---
+
 ## [1.31.3] — 2026-09-11
 
 ### Added / Changed / Security
