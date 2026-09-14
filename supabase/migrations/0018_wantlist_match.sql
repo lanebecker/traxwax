@@ -9,7 +9,8 @@ alter table public.profiles
   drop constraint if exists profiles_wantlist_visibility_chk;
 alter table public.profiles
   add constraint profiles_wantlist_visibility_chk
-  check (wantlist_visibility in ('private','friends'));   -- Wave 5: add 'public' here
+  check (wantlist_visibility in ('private','friends','public'));   -- #156 (T3.8a): 'public' folded in;
+  -- 0037 re-adds the identical 3-value constraint (idempotent). Replay-safe.
 
 -- ── private.can_view_wantlist: the wantlist choke point. Mirrors private.can_view_crate (0013)
 --    but gates on wantlist_visibility. In the `private` schema so PostgREST does NOT expose it.

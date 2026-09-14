@@ -26,6 +26,17 @@ function cleanName(s: string): string {
   return s.replace(/\s*\(\d+\)\s*$/, '').trim();
 }
 
+/** #205: strip Discogs disambiguators from a PRE-JOINED artist string (inventory's listing.release.artist
+    has no structured artists[] — confirmed against the live API), inner ones too, not just the trailing one
+    cleanName handles: "Prince (2) & The Revolution (3)" -> "Prince & The Revolution". A disambiguator is
+    always " (N)" at a name-token boundary, so strip " (N)" wherever it is followed by whitespace, a join
+    separator, or end-of-string. Native Discogs join delimiters (", " / " & " / " / ") are preserved. */
+function cleanArtistString(s: string): string {
+  // The (?<=\S) guard keeps a disambiguator a SUFFIX on a name token, so a rare standalone
+  // leading "(2) Live Crew" is left intact while "Prince (2)" / "!!! (1)" strip correctly.
+  return s.replace(/(?<=\S)\s*\(\d+\)(?=$|[\s,&/;:])/g, '').trim();
+}
+
 type Bi = {
   id?: number; title?: string; year?: number;
   artists?: Array<{ name?: string }>; labels?: Array<{ name?: string }>;
@@ -154,13 +165,11 @@ async function handle(req: Request): Promise<Response> {
           const imgs = (rel.images ?? []) as Array<{ uri?: string }>;
           return {
             release_id: Number(rel.id),
-            // T2.16 (#138): the inventory listing.release carries only a PRE-JOINED artist string
-            // (confirmed against the live API - no structured artists[]), so cleanName's end-anchored
-            // (N)-strip can't match biSeedRow's per-artist fidelity and, worse, would overwrite the
-            // shared catalog's better value (seed_releases merges last-writer-wins on non-empty). Leave
-            // artist to the collection/wantlist seed (biSeedRow); '' is empty-guarded by seed_releases,
-            // so it never stomps an existing value. (For-sale-ONLY releases keep '' - a rare, tracked gap.)
-            artist: '',
+            // #205: seed_releases is now FIRST-writer-wins on artist, so this can never overwrite a better
+            // stored value; and cleanArtistString strips inner (N) disambiguators too, so the pre-joined
+            // inventory artist is no longer lower-fidelity. Result: for-sale-ONLY releases keep a real
+            // (cleaned) artist instead of blank, and a later collection/wantlist seed never has to correct it.
+            artist: cleanArtistString(String(rel.artist ?? '')),
             title: String(rel.title ?? '').trim(),
             year: (rel.year as number) ?? 0,
             label: '',
@@ -349,10 +358,12 @@ async function handle(req: Request): Promise<Response> {
     // SEED FIRST. Migration 0005 added collection_items.release_id -> releases(release_id);
     // inserting an item whose release row does not exist yet now violates the FK, so the
     // catalog seed must land before the items that reference it.
-    // Phase 2 (#3): seeds now MERGE — last-import-wins on the basic fields, so Discogs
-    // community corrections propagate on every import. The seed_releases RPC (0010)
-    // empty-guards each field ('' / 0 / [] never stomp a real value), and seeds carry no
-    // deep fields, so enrichment (tracks etc.) cannot regress.
+    // Phase 2 (#3): seeds MERGE — last-import-wins on the basic fields EXCEPT artist, which is
+    // first-writer-wins since #205 (Wave C): seed_releases fills artist only when the stored value
+    // is empty, so an existing non-empty artist is never overwritten (community renames no longer
+    // propagate to it — accepted tradeoff for a stable, re-import-safe artist). The other basic
+    // fields still last-import-win; seed_releases empty-guards each ('' / 0 / [] never stomp a real
+    // value), and seeds carry no deep fields, so enrichment (tracks etc.) cannot regress.
     const { error: seedErr } = await admin.rpc('seed_releases',
       { p_rows: [...seeds.values()] });
     if (seedErr) {
