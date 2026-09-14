@@ -12,3 +12,8 @@ Source: the @fontsource npm packages (Google Fonts builds), woff → TTF via fon
 Served as static assets (this folder lives under public/); functions/og/[slug].js loads them via
 env.ASSETS.fetch — nothing font-shaped in the function bundle. Names beyond latin-ext render as
 missing glyphs on the card; acceptable, revisit if it ever bites a real user.
+
+## Licensing
+
+These faces are SIL OFL 1.1, not the repo's MIT licence — see `OFL.txt` (this folder) and
+`../../THIRD-PARTY-NOTICES.md`.
