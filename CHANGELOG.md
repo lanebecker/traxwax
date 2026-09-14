@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.31.7] — 2026-09-14
+
+### Legal / licensing (cold-audit v1.31 Wave D)
+- **#164 (T3.12):** added `public/fonts-og/OFL.txt` (SIL OFL 1.1 + per-family copyright, sourced from each
+  font's upstream) for the 8 redistributed OFL fonts, and a "Third-party assets" carve-out to `LICENSE` so they
+  are no longer nominally under the repo's MIT grant.
+- **#165 (T3.13):** added `THIRD-PARTY-NOTICES.md` recording every bundled npm dependency — `workers-og`
+  (MIT, confirmed upstream; its manifest omits the field) and its MPL-2.0 components `satori` /
+  `@resvg/resvg-wasm`.
+- **#163 (T3.11):** `build/seed_catalog.py` now writes `seed_releases.sql` atomically (temp + `os.replace`),
+  renames a stale file to `.stale` on an aborted run, and states plainly in the SQL header + stdout that the
+  seed is INSERT-ONLY (`ON CONFLICT DO NOTHING` — the merging production path is `seed_releases(jsonb)`).
+
+---
+
 ## [1.31.6] — 2026-09-14
 
 ### Database (cold-audit v1.31 Wave C)
