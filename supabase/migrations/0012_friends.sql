@@ -10,7 +10,8 @@ alter table public.profiles
   drop constraint if exists profiles_crate_visibility_chk;
 alter table public.profiles
   add constraint profiles_crate_visibility_chk
-  check (crate_visibility in ('private','friends'));   -- Wave 5: add 'public' here
+  check (crate_visibility in ('private','friends','public'));   -- #156 (T3.8a): 'public' folded in so this
+  -- file is replay-safe once a profile is 'public'. 0037 re-adds the identical 3-value constraint (idempotent).
 
 -- The 0007 profiles_guard trigger forces only OAuth-owned columns; crate_visibility is
 -- user-writable via the existing profiles_update_own policy + table UPDATE grant (0007).

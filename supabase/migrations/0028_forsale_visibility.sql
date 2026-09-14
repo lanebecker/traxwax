@@ -8,7 +8,7 @@ alter table public.profiles
 alter table public.profiles
   drop constraint if exists profiles_forsale_visibility_chk;   -- B7 #75: replay-safe
 alter table public.profiles
-  add constraint profiles_forsale_visibility_chk check (forsale_visibility in ('private','friends'));
+  add constraint profiles_forsale_visibility_chk check (forsale_visibility in ('private','friends','public'));   -- #156 (T3.8a): 'public' folded in; 0037 re-adds identical (idempotent). Replay-safe.
 -- profiles_guard() pins only the OAuth columns, so a user updates their OWN forsale_visibility under the
 -- existing profiles_update_own RLS — no new policy. (Same as crate_visibility/match_mode.)
 

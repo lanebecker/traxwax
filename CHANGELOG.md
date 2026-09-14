@@ -13,6 +13,24 @@ _Nothing yet._
 
 ---
 
+## [1.31.6] — 2026-09-14
+
+### Database (cold-audit v1.31 Wave C)
+- **#156 (T3.8a):** folded `'public'` into the visibility `CHECK`s in `0012/0018/0028` so those historical
+  migrations are replay-safe once a profile is public (prod already carries the 3-value constraints from
+  `0037`; this is a repo/replay fix only).
+- **#157 (T3.8b):** `get_social_feed` no longer caps `friends` at 100 — the undocumented, arbitrary,
+  permanent truncation is gone; the per-set 200-id cap is unchanged (`0044`).
+- **#159 (T3.8d):** `pending_enrichment` materializes each work-class once, cutting the shared-catalog scans
+  per call (~6.5k→2.1k shared buffers in testing); same result set, deterministic pagination (`0044`).
+- **#160 (T3.8e):** dropped three redundant `(user_id)` indexes shadowed by leading-`user_id` composites
+  (`0044`). The `0032` master-year partial index is retained — its backfill is not complete (the remaining
+  rows are wantlist-only, outside the collection-scoped drain).
+- **#205:** `seed_releases` is first-writer-wins on `artist`; the import-collection inventory seed restores a
+  cleaned (inner-`(N)`-stripped) best-effort artist so for-sale-only releases are no longer blank (`0044`).
+
+---
+
 ## [1.31.5] — 2026-09-14
 
 ### Security
