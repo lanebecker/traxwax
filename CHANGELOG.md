@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.31.8] — 2026-09-15
+
+### Security (cold-audit v1.31 #186, Phase 1)
+- **#186 (T4.21):** vendored `@supabase/supabase-js@2.116.0` to
+  `/vendor/supabase-js-2.116.0.js` (self-contained esbuild ESM bundle) and dropped
+  `https://cdn.jsdelivr.net` from the CSP `script-src` (`boot.js` was the sole consumer). The
+  browser no longer resolves its data-layer library — a facade plus ~10 sub-chunks — from a third
+  party at load time; it is now one same-origin module. No behaviour change. Regenerate with
+  `build/vendor-supabase.sh`. `'unsafe-inline'` removal, `sha256-` hashes, and `report-to` remain
+  Phase 2 (each needs a live Report-Only cycle).
+
+---
+
 ## [1.31.7] — 2026-09-14
 
 ### Legal / licensing (cold-audit v1.31 Wave D)

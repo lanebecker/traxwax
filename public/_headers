@@ -1,6 +1,6 @@
 # Baseline security headers (Phase 1 cold audit #35) + Wave 2 hardening (#38): CSP now ENFORCED
 # (2026-09-03) after a report-only cycle. The allowlist was validated against the live report-only
-# console: every code-referenced origin (clerk.traxwax.com, cloud.umami.is, cdn.jsdelivr.net, fonts,
+# console: every code-referenced origin (clerk.traxwax.com, cloud.umami.is, fonts,
 # supabase, img.clerk.com/Discogs CDN via img-src https:) plus these RUNTIME origins the console/Clerk
 # env surfaced — static.cloudflareinsights.com (Cloudflare Pages auto-injects its Web Analytics beacon
 # SCRIPT; its beacon POST is same-origin /cdn-cgi/rum so needs no connect entry); gateway.umami.is
@@ -10,14 +10,19 @@
 # FRAME + posts on sign-up/sign-in; clerk-telemetry.com (Clerk telemetry POST, harmless) is allowed to
 # keep the enforced console clean. 'unsafe-inline' stays for script/style (the app is inline-style heavy
 # + a few inline guard scripts); tighten to hashes/nonces later. SRI intentionally omitted — Clerk @6 /
-# supabase-js @2 / umami script.js are moving version tags where a pinned hash breaks on update; the
-# script-src allowlist is the supply-chain mitigation instead. ROLLBACK: if sign-in ever breaks, rename
-# the header back to Content-Security-Policy-Report-Only (unblocks everything, keeps reporting).
+# umami script.js are moving version tags where a pinned hash breaks on update; the script-src allowlist
+# is the supply-chain mitigation instead. (supabase-js is no longer external — vendored same-origin to
+# /vendor/, so 'self' covers it and no CDN/SRI applies.) ROLLBACK: if sign-in ever breaks, rename the
+# header back to Content-Security-Policy-Report-Only (unblocks everything, keeps reporting).
+#
+# 2026-09-15 (#186 Phase 1): supabase-js vendored to /vendor/supabase-js-2.116.0.js and
+# https://cdn.jsdelivr.net dropped from script-src (it was the sole jsdelivr consumer). The
+# 'unsafe-inline' removal + sha256- hashes + report-to are Phase 2 (each needs a live Report-Only cycle).
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://clerk.traxwax.com https://cloud.umami.is https://cdn.jsdelivr.net https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is https://gateway.umami.is https://challenges.cloudflare.com https://clerk-telemetry.com; frame-src 'self' https://clerk.traxwax.com https://challenges.cloudflare.com; form-action 'self' https://clerk.traxwax.com
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://clerk.traxwax.com https://cloud.umami.is https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is https://gateway.umami.is https://challenges.cloudflare.com https://clerk-telemetry.com; frame-src 'self' https://clerk.traxwax.com https://challenges.cloudflare.com; form-action 'self' https://clerk.traxwax.com
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
 
@@ -72,3 +77,10 @@
 # these) — a week of browser cache is safe and spares the modal's fallback tier a fetch.
 /releases/*
   Cache-Control: public, max-age=604800
+
+# #186 Phase 1: vendored libraries are version-pinned in the filename (e.g.
+# supabase-js-2.116.0.js), so their bytes are write-once — cache hard and forever. A version
+# bump ships a NEW filename plus the matching boot.js import in the SAME deploy; a vendored
+# file's content is never edited in place (an immutable copy could be served stale for a year).
+/vendor/*
+  Cache-Control: public, max-age=31536000, immutable
