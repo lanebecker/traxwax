@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [1.31.12] — 2026-09-15
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave A — visibility & crate-load correctness.**
+  - **#166 (T4.1):** the PROFILE tab hardcoded “Nobody sees any of this yet — your crate is private”, a
+    placeholder from before sharing shipped. Replaced with an honest, drift-free pointer to the SHARING tab.
+  - **#176 (T4.11):** the locked for-sale row hardcoded “🔒 PRIVATE / FRIENDS” and ignored the stored
+    `forsale_visibility`, so a user who set for-sale to public then took the crate private saw “PRIVATE” with
+    no sign that `'public'` was still stored. It now shows the true stored value as an inert, non-focusable
+    segmented control — lock the control, not the value.
+  - **#182 (T4.17):** two detached `_publicClerkPass()` calls had no `.catch`, so a rare throw could strand a
+    visitor on “Loading the crate…”. Both now recover to the 404 page.
+
+---
+
 ## [1.31.11] — 2026-09-15
 
 ### Fixed

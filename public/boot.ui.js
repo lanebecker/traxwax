@@ -395,8 +395,8 @@ function profileSection(o) {
   return '' +
   '<div style="padding:28px 30px 34px; display:flex; flex-direction:column; gap:26px">' +
     sectionHead('PROFILE', 'How your shelf introduces itself',
-      /* ▸ Wave 1: delete this sentence the day crate_visibility ships. */
-      'Nobody sees any of this yet — your crate is private. It\u2019s here so it\u2019s ready when sharing arrives.') +
+      /* #166 (T4.1): honest, drift-free pointer — the SHARING tab is the single source of truth for visibility. */
+      'Choose who sees each shelf in the SHARING tab.') +
     '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent); min-height:0"></div>' +
     '<div style="display:flex; gap:20px; align-items:center; border:1.5px solid var(--hair); padding:16px">' +
@@ -578,13 +578,13 @@ function palSwatch(v, cur) {
     '</button>';
 }
 
-function visSegBtn(group, v, label, cur) {
+function visSegBtn(group, v, label, cur, locked) {
   const on = cur === v;
   // C6 (#83): a deterministic id per group×value so renderAccount's re-entry focus restore
   // can find "the control the user was on" in the fresh DOM (an id-less button made the
   // restore dead code — remediation-audit F2).
-  return '<button id="tw-vis-' + group + '-' + v + '" data-vis="' + v + '" aria-pressed="' + on + '" style="' + MONO + '; font-size:10.5px; ' +
-    'letter-spacing:.06em; padding:8px 12px; border:0; cursor:pointer; ' + visSegSty(v, on) + '">' + label + '</button>';
+  return '<button' + (locked ? '' : ' id="tw-vis-' + group + '-' + v + '"') + ' data-vis="' + v + '" aria-pressed="' + on + '"' + (locked ? ' tabindex="-1" aria-disabled="true"' : '') + ' style="' + MONO + '; font-size:10.5px; ' +
+    'letter-spacing:.06em; padding:8px 12px; border:0; ' + (locked ? 'cursor:default; ' : 'cursor:pointer; ') + visSegSty(v, on) + '">' + label + '</button>';
 }
 
 /* v1.15.0 (the SPLIT): crate + wantlist visibility (1c segmented box) + the matching control, moved out of
@@ -662,11 +662,13 @@ function sharingSection(o) {
             '</div>'
           : '<div role="group" aria-label="For-sale visibility" aria-disabled="true" style="display:flex; ' +
               'flex-direction:column; align-items:flex-end; gap:5px; flex:none; max-width:236px">' +
-              '<div style="display:flex; border:1.5px solid var(--hair); opacity:.55">' +
-                '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.06em; padding:8px 12px; ' +
-                  'color:var(--faint)">🔒 PRIVATE</span>' +
-                '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.06em; padding:8px 12px; ' +
-                  'color:var(--faint)">FRIENDS</span>' +
+              '<div style="display:flex; align-items:center; gap:6px">' +
+                '<span aria-hidden="true" style="' + MONO + '; font-size:10.5px; color:var(--faint)">🔒</span>' +
+                '<div style="display:flex; border:1.5px solid var(--hair); opacity:.55; pointer-events:none">' +
+                  visSegBtn('forsale', 'private', 'PRIVATE', fsVis, true) +
+                  visSegBtn('forsale', 'friends', 'FRIENDS', fsVis, true) +
+                  (fsVis === 'public' ? visSegBtn('forsale', 'public', 'PUBLIC', fsVis, true) : '') +
+                '</div>' +
               '</div>' +
               '<span style="' + MONO + '; font-size:9.5px; color:var(--faint); text-align:right; ' +
                 'line-height:1.4">Open your crate to friends first — that’s where for-sale shows.</span>' +

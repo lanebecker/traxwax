@@ -1561,12 +1561,12 @@ async function bootPublicCrate(slug) {
   // cannot consume (no .sections). Only an 'ok' payload installs; anything else (a redirect or a
   // miss) paints the 404 placeholder and hands off to _publicClerkPass, which re-checks authed and
   // redirects owner→/app, friend→/app/<handle>, or upgrades a signed-in stranger to mode D.
-  if (!payload || payload.status !== 'ok') { renderPublicNotFound(); _publicClerkPass(slug, null); return; }
+  if (!payload || payload.status !== 'ok') { renderPublicNotFound(); _publicClerkPass(slug, null).catch(() => renderPublicNotFound()); return; }
 
   _installPublicCrate(payload);
   await import('/app.js');
   window.TraxWaxBootCrate();
-  _publicClerkPass(slug, payload);
+  _publicClerkPass(slug, payload).catch(() => renderPublicNotFound());
 }
 
 function renderPublicNotFound(variant) {
