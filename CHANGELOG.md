@@ -13,6 +13,18 @@ _Nothing yet._
 
 ---
 
+## [1.31.11] — 2026-09-15
+
+### Fixed
+- **#215 — public crates were invisible to friends in the friends list.** `boot.ui.js` computed a friend's
+  "sharing" state as `crate_visibility === 'friends'`, excluding `'public'`, so a friend who set their crate to
+  public showed "Not sharing right now" with no VIEW CRATE link (and no "Selling N you want" line) — even though
+  the server (`can_view_crate` = `IN ('friends','public')`) would serve the crate. Fixed to `!== 'private'`,
+  matching the server and the own-profile check at `boot.ui.js:597`. Display-only regression from the Wave 5b
+  public tier; no data was exposed. Reported by a live friend pair.
+
+---
+
 ## [1.31.10] — 2026-09-15
 
 ### Security (cold-audit v1.31 #186, Phase 2b — enforced)

@@ -787,7 +787,7 @@ async function renderFriendsList(root, deps) {
       const uname = f.discogs_username || '';
       const dname = f.display_name || uname || 'Friend';
       const name = esc(dname);                                 // plain text, for the REMOVE aria-label
-      const sharing = f.crate_visibility === 'friends';
+      const sharing = f.crate_visibility !== 'private';   // 'friends' OR 'public' — public is a superset (matches can_view_crate + the :597 own-profile check)
       const rule = i === last ? 'transparent' : 'var(--hair)';   // no trailing divider inside the box
       // Username beside the name so a friend is identifiable/findable — "Tommy Perkins (tommyp)".
       // Skip the parens when name and username are the same.
