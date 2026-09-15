@@ -274,8 +274,16 @@ export function trapFocus(container, onEscape) {
     .filter((n) => n.offsetParent !== null || n.tagName === 'SUMMARY');
   const first = nodes()[0];
   if (first) first.focus();
+  const restore = () => {
+    if (prev && prev.isConnected && typeof prev.focus === 'function') prev.focus();
+  };
+  // #185 (T4.20): only a modal (onEscape supplied) traps Tab and listens at the document. A full-page
+  // route passes onEscape=null — wrapping Tab there is a disorienting cycle, and the document-level
+  // listener leaks when notice() repaints over the page without releasing. A page just moves focus in
+  // and hands back a release that restores it.
+  if (!onEscape) return restore;
   const onKey = (e) => {
-    if (e.key === 'Escape' && onEscape) { onEscape(); return; }
+    if (e.key === 'Escape') { onEscape(); return; }
     if (e.key !== 'Tab') return;
     const list = nodes();
     if (!list.length) return;
@@ -286,7 +294,7 @@ export function trapFocus(container, onEscape) {
   document.addEventListener('keydown', onKey);
   return function release() {
     document.removeEventListener('keydown', onKey);
-    if (prev && prev.isConnected && typeof prev.focus === 'function') prev.focus();
+    restore();
   };
 }
 
@@ -405,7 +413,8 @@ function profileSection(o) {
         '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.16em; ' +
           'color:var(--muted)">PROFILE PHOTO</span>' +
         '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
-          '<label style="' + btnStyle('secondary') + '; display:inline-block">UPLOAD A PHOTO' +
+          '<label id="tw-prof-photo-label" tabindex="0" role="button" ' +
+            'style="' + btnStyle('secondary') + '; display:inline-block">UPLOAD A PHOTO' +
             '<input id="tw-prof-photo" type="file" accept="image/jpeg,image/png,image/webp" ' +
             'style="display:none"></label>' +
           '<span style="' + MONO + '; font-size:9.5px; letter-spacing:.06em; color:var(--faint)">' +
@@ -573,7 +582,7 @@ function palSwatch(v, cur) {
   const label = v.charAt(0).toUpperCase() + v.slice(1);
   return '<button id="tw-og-pal-' + v + '" data-pal="' + v + '" aria-pressed="' + on + '" title="' + label + '" ' +
     'aria-label="' + label + ' card" style="display:flex; width:46px; height:26px; padding:0; cursor:pointer; ' +
-    'border:1.5px solid var(--line); ' + (on ? 'outline:2.5px solid var(--accent); outline-offset:2px' : 'outline:none') + '">' +
+    'border:1.5px solid var(--line); ' + (on ? 'box-shadow:0 0 0 2px var(--panel), 0 0 0 4.5px var(--accent)' : '') + '">' +
     STRIPS[v].map(function (c) { return '<span style="flex:1; background:' + c + '"></span>'; }).join('') +
     '</button>';
 }
@@ -925,6 +934,13 @@ export function bindAccountPage(root, deps) {
     } catch (e) { msg('Photo upload failed (' + ((e && e.message) || e) + ').'); }
   });
 
+  // #167 (T4.2): the label is the keyboard-operable control (role=button + tabindex); Enter/Space
+  // opens the wrapped file input's picker. Mouse click still activates the input natively.
+  const photoLabel = $('tw-prof-photo-label');
+  if (photoLabel && photo) photoLabel.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); photo.click(); }
+  });
+
   const save = $('tw-prof-save');
   if (save) save.addEventListener('click', async () => {
     const val = (id) => ($(id)?.value ?? '').trim();
@@ -1111,8 +1127,7 @@ export function bindAccountPage(root, deps) {
         palGroup.querySelectorAll('[data-pal]').forEach((x) => {
           const isOn = x.getAttribute('data-pal') === v;
           x.setAttribute('aria-pressed', isOn);
-          x.style.outline = isOn ? '2.5px solid var(--accent)' : 'none';
-          x.style.outlineOffset = isOn ? '2px' : '';
+          x.style.boxShadow = isOn ? '0 0 0 2px var(--panel), 0 0 0 4.5px var(--accent)' : '';
         });
         smsg('Your link unfurls with the ' + v + ' card now.');
       } catch (err) { smsg('Couldn’t change that: ' + ((err && err.message) || err)); }

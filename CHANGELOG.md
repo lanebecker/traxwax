@@ -13,6 +13,23 @@ _Nothing yet._
 
 ---
 
+## [1.31.13] — 2026-09-15
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave B1 — focus & keyboard access.**
+  - **#167 (T4.2):** UPLOAD A PHOTO was a bare `<label>` wrapping a `display:none` file input — no focusable
+    element, so the only photo-upload path was keyboard-dead in two places (the PROFILE tab and first-run
+    onboarding). The label is now a keyboard-operable control (`role="button"` + `tabindex="0"` + Enter/Space)
+    and shows the standard focus ring; mouse behavior is unchanged.
+  - **#168 (T4.3):** the OG-card palette swatches set `outline` inline, which outranked the global
+    `*:focus-visible` rule so the keyboard focus ring never painted, and the active swatch's permanent outline
+    was visually identical to it. Active state now uses `box-shadow`, freeing `outline` for the focus ring.
+  - **#185 (T4.20):** `trapFocus` wrapped Tab endlessly on the account page (a full-page route, not a modal)
+    and leaked a document-level keydown listener when `notice()` repainted over it. It now traps Tab only when
+    an Escape handler is supplied (a modal); a full-page route just moves focus in and restores it on release.
+
+---
+
 ## [1.31.12] — 2026-09-15
 
 ### Fixed
