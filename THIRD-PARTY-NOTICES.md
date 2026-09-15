@@ -58,3 +58,26 @@ sources at the pinned versions below:
 
 _Dependency versions and licences above are taken from `package-lock.json`; the two MPL-2.0 entries
 are the only non-permissive licences in the tree._
+
+## Vendored front-end library — supabase-js (browser)
+
+`public/vendor/supabase-js-2.116.0.js` is a self-contained ESM bundle of
+`@supabase/supabase-js@2.116.0` and its dependency tree, produced by esbuild (see
+`build/vendor-supabase.sh`) and served same-origin (#186 Phase 1 — replaces the former
+`cdn.jsdelivr.net` runtime import). The bundle ships no inline licence banners; the bundled
+packages and their licences are:
+
+| Package | Version | Licence |
+|---------|---------|---------|
+| @supabase/supabase-js | 2.116.0 | MIT |
+| @supabase/auth-js | 2.116.0 | MIT |
+| @supabase/functions-js | 2.116.0 | MIT |
+| @supabase/postgrest-js | 2.116.0 | MIT |
+| @supabase/realtime-js | 2.116.0 | MIT |
+| @supabase/storage-js | 2.116.0 | MIT |
+| @supabase/phoenix | 0.4.5 | MIT |
+| iceberg-js | 0.8.1 | MIT |
+| tslib | 2.8.1 | 0BSD |
+
+All permissive (MIT / 0BSD); no copyleft. Source: https://github.com/supabase/supabase-js
+(npm tarball `https://registry.npmjs.org/@supabase/supabase-js/-/supabase-js-2.116.0.tgz`).
