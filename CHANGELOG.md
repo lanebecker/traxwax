@@ -13,6 +13,17 @@ _Nothing yet._
 
 ---
 
+## [1.31.10] — 2026-09-15
+
+### Security (cold-audit v1.31 #186, Phase 2b — enforced)
+- **#186 (T4.21):** flipped `script-src` to enforced — dropped `'unsafe-inline'`, now allowlisting the 5 inline
+  scripts by `sha256-` hash (+ `'report-sample'`), on both CSP sources (`public/_headers` +
+  `functions/_shared/headers.js`); `report-uri`/`report-to` kept on the enforced policy; removed the
+  `Content-Security-Policy-Report-Only` header. Followed a clean prod Report-Only window (v1.31.9). This
+  completes the T4.21 CSP hardening. Rollback: rename the header to `-Report-Only`.
+
+---
+
 ## [1.31.9] — 2026-09-15
 
 ### Security (cold-audit v1.31 #186, Phase 2 — Report-Only)
