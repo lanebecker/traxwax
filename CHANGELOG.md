@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.31.19] — 2026-09-15
+
+### Fixed
+- **Cold-audit v1.31 Tier-2, unit T2c — #134 enrich-release swallowed a revoked Discogs grant.** A revoked or
+  expired Discogs OAuth grant (401/403 from api.discogs.com) fell into the generic `!res.ok` branch and was
+  retried forever with no user signal, in BOTH the release loop and the master-year loop. Each loop now breaks
+  on 401/403 (mirroring the 429 break) and sets a `grantRevoked` flag; the function then writes
+  `import_status='error'` and returns `403 {error:'discogs_grant_revoked'}`, so the background drain stops
+  cleanly (a non-retryable 4xx) and the account page surfaces its reconnect prompt instead of wedging. Edge
+  function; deployed via break-glass.
+
+---
+
 ## [1.31.18] — 2026-09-15
 
 ### Fixed

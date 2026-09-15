@@ -123,6 +123,7 @@ async function handle(req: Request): Promise<Response> {
   let enriched = 0;    // NEW-work completions only: drives `remaining` and the gate
   let refreshed = 0;   // refresh completions (tombstone retries + stale re-fetches)
   let rateLimited = false;
+  let grantRevoked = false;   // #134 (T2.12): a revoked/expired Discogs grant (401/403) — non-transient, stop and flag
   for (let i = 0; i < batch.length; i++) {
     const { rid, isNew } = batch[i];
     // Pace EVERY request after the first -- including after failures. Pacing only
@@ -145,6 +146,15 @@ async function handle(req: Request): Promise<Response> {
       console.error('rate limited at release', rid);
       rateLimited = true;
       break;   // report it; the frontend waits 30s before the next invocation
+    }
+    if (res.status === 401 || res.status === 403) {
+      // #134 (T2.12): the Discogs OAuth grant was revoked/expired. NOT transient — every remaining release
+      // would 401 too — so continuing silently just wedges the queue and retries forever with no user signal.
+      // Flag it and stop (mirroring the 429 break); the post-loop handler sets import_status='error' so the
+      // account page surfaces a reconnect prompt.
+      console.error('discogs grant rejected at release', rid, res.status);
+      grantRevoked = true;
+      break;
     }
     if (res.status === 404) {
       // Deleted/inaccessible on Discogs. An honest empty tracklist exits the pending
@@ -203,7 +213,7 @@ async function handle(req: Request): Promise<Response> {
   //    master; the UPDATE fills every sibling pressing at once, so the pending count collapses far faster
   //    than one row per call. Sentinel master_year=0 on a gone/yearless master exits the pending set.
   let masterFilled = 0;   // catalog-wide sibling ROWS filled this run (console figure; NOT used for master_pending)
-  if (!rateLimited && masterRows.length > 0) {
+  if (!rateLimited && !grantRevoked && masterRows.length > 0) {
     const leftover = BUDGET - batch.length;   // budget not spent on new/refresh (0 during a fresh import)
     const seen = new Set<number>();
     const distinct: number[] = [];
@@ -225,6 +235,7 @@ async function handle(req: Request): Promise<Response> {
         },
       });
       if (mres.status === 429) { console.error('rate limited at master', mid); rateLimited = true; break; }
+      if (mres.status === 401 || mres.status === 403) { console.error('discogs grant rejected at master', mid, mres.status); grantRevoked = true; break; }
       let my = 0;   // 0 = resolved, no usable year (sentinel → client falls back to pressing year)
       if (mres.status === 404) {
         my = 0;   // master gone → sentinel, so this master's rows exit the pending set (no wedge)
@@ -247,6 +258,15 @@ async function handle(req: Request): Promise<Response> {
     }
   }
 
+  if (grantRevoked) {
+    // #134 (T2.12): surface the revoked grant so the account page prompts a reconnect instead of the import
+    // wedging and retrying forever. Mirrors credentials_unreadable's posture (import_status='error'); 403 is a
+    // non-retryable 4xx, so backgroundEnrich's _pipeAttempt throws immediately and the drain loop stops.
+    // last_import_at is deliberately NOT written — the import did not complete.
+    const { error: stErr } = await admin.from('profiles').update({ import_status: 'error' }).eq('user_id', userId);
+    if (stErr) console.error('import_status=error (grant revoked) write failed:', stErr.message);
+    return json({ error: 'discogs_grant_revoked' }, 403);
+  }
   const remaining = totalPending - enriched;
   if (remaining === 0) {
     const { error: doneErr } = await admin.from('profiles')
