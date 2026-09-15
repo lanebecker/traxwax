@@ -13,6 +13,24 @@ _Nothing yet._
 
 ---
 
+## [1.31.15] — 2026-09-15
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave B2a — AT semantics.**
+  - **#173 (T4.8):** view tabs and sort buttons conveyed selection only through colour. The active view tab now
+    carries `aria-current="true"`, sort buttons carry `aria-pressed`, and the ↑/↓ direction button gets a real
+    `aria-label="Reverse sort order"` (it announced “downwards arrow button”). No behaviour change.
+  - **#175 (T4.10):** `.tw-acct-status:empty` used `display:none`, which drops the `role="status"` live region
+    from the accessibility tree; PROFILE, FRIENDS, and the SHARING palette confirmation also lacked the class,
+    so their empty status divs left a phantom flex gap. The empty rule now uses `position:absolute` (out of flow,
+    still in the a11y tree) and the class is applied to all three — they collapse cleanly with no gap and no
+    regression to the sections that already collapsed.
+  - **#184 (T4.19):** the account-page nav was a plain `<div>` (no landmark) and carried dead `n.target`
+    branches (unused since v1.20.3). It is now a `<nav aria-label="Account settings">` and the dead branches
+    are removed (behaviour-identical).
+
+---
+
 ## [1.31.14] — 2026-09-15
 
 ### Fixed
