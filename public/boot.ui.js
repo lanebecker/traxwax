@@ -180,7 +180,7 @@ export function stateCard(o) {
   '</div>';
 }
 
-export const signOutLink = '<a href="#" id="tw-signout" style="color:var(--faint)">Sign out</a>';
+export const signOutLink = '<a href="#" id="tw-signout" class="tw-link-faint">Sign out</a>';
 
 /* Wave 5b T6 (plan docs/wave-5b-plan.md): the /c/ 404 and owner-only CLOSED pages — full public
    chrome (strip → red band with wordmark only → state body → attribution footer), frame 1e.
@@ -527,7 +527,7 @@ function friendsSection(o) {
         'color:var(--ink)">The people you swap crates with</h2>' +
       '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
         'Send a link to add someone. Manage who sees your shelves over in ' +
-        '<a href="' + esc(o.hrefFor('sharing')) + '" style="color:var(--accent); text-decoration:underline">Sharing</a>.</span>' +
+        '<a href="' + esc(o.hrefFor('sharing')) + '" style="text-decoration:underline">Sharing</a>.</span>' +
     '</div>' +
 
     // ── INVITE A FRIEND — the link tool, boxed with its caption. (Unchanged.)
@@ -810,8 +810,8 @@ async function renderFriendsList(root, deps) {
       // Sharing: the whole name line links to their crate (a friend who isn't sharing would just
       // hit the "no crate here" page, so keep it plain). The VIEW CRATE → action is kept alongside.
       const nameLine = sharing
-        ? '<a href="/app/' + encodeURIComponent(uname) + '" style="' + COND +
-          '; font-size:19px; font-weight:700; line-height:1; color:var(--ink); text-decoration:none">' +
+        ? '<a href="/app/' + encodeURIComponent(uname) + '" class="tw-link-ink" style="' + COND +
+          '; font-size:19px; font-weight:700; line-height:1; text-decoration:none">' +
           nameHtml + '</a>'
         : '<span style="' + COND + '; font-size:19px; font-weight:700; line-height:1; ' +
           'color:var(--ink)">' + nameHtml + '</span>';
@@ -821,13 +821,13 @@ async function renderFriendsList(root, deps) {
       const sellN = Number(f.selling_you_want || 0);
       const status = (sharing && sellN > 0)
         ? '<a href="/app/' + encodeURIComponent(uname) + '#selling" style="' + MONO + '; font-size:10.5px; ' +
-          'font-weight:700; letter-spacing:.04em; color:var(--accent); text-decoration:none">Selling ' + sellN + ' you want</a>'
+          'font-weight:700; letter-spacing:.04em; text-decoration:none">Selling ' + sellN + ' you want</a>'
         : (sharing
           ? '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--muted)">Sharing their crate</span>'
           : '<span style="' + MONO + '; font-size:10.5px; letter-spacing:.04em; color:var(--faint)">Not sharing right now</span>');
       const viewCrate = sharing
         ? '<a href="/app/' + encodeURIComponent(uname) + '" style="' + MONO + '; font-size:10.5px; ' +
-          'font-weight:700; letter-spacing:.1em; color:var(--accent); text-decoration:none; flex:none">VIEW CRATE →</a>'
+          'font-weight:700; letter-spacing:.1em; text-decoration:none; flex:none">VIEW CRATE →</a>'
         : '';
       return '<div style="display:flex; align-items:center; gap:14px; padding:14px 18px; ' +
         'border-bottom:1px solid ' + rule + '">' +

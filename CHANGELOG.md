@@ -13,6 +13,18 @@ _Nothing yet._
 
 ---
 
+## [1.31.16] — 2026-09-15
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave B2b — #174 account/friends link hover.** Every account/friends text link set
+  its colour inline, which outranked the base `a:hover` rule, so no link had hover feedback. The accent links (the
+  Sharing in-sentence link, “Selling N you want”, “VIEW CRATE →”) now drop the redundant inline colour so the
+  base `a`/`a:hover` rules apply; the faint “Sign out” and ink friend-name links use two new helper classes
+  (`.tw-link-faint` / `.tw-link-ink`) that keep their base colour and add a hover shift. Text-links-only — the
+  `btnLink` button-styled links are unchanged (deferred, noted on #174).
+
+---
+
 ## [1.31.15] — 2026-09-15
 
 ### Fixed
