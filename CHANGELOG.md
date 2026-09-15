@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.31.18] — 2026-09-15
+
+### Fixed
+- **Cold-audit v1.31 Tier-2, unit T2b — #195 modal sign-out race.** `_loadRelease` and `_loadStats` finished
+  an in-flight fetch with an unguarded `renderModal()`; a cross-tab sign-out mid-fetch could resolve after the
+  sign-in card had painted and repaint the modal back over it (re-setting `#app` inert/`aria-hidden`),
+  re-bricking the card. Both repaints now carry the boot-generation + Clerk-uid staleness guard that the other
+  async paths (`_loadWantlist`, `_resync`) already use, so a superseded boot or signed-out state skips the
+  repaint. The pre-repaint data writes (release metadata / the `_stats` sidecar) are harmless post-sign-out
+  and left as-is.
+
+---
+
 ## [1.31.17] — 2026-09-15
 
 ### Fixed

@@ -1707,6 +1707,7 @@ async function openDetail(id){
   if(!rec._rel) await _loadRelease(rec);
 }
 async function _loadRelease(rec){
+  const g=_bootGen, u=_uid();   // #195 (T2.8fu): capture this boot; a cross-tab sign-out mid-fetch must not repaint the modal
   let d = null;
   if (DB_MODE() && window.TraxWaxReleaseData) {
     try { d = await window.TraxWaxReleaseData(rec.id); } catch(e) { d = null; }
@@ -1715,10 +1716,11 @@ async function _loadRelease(rec){
   if(!d) d = await _fetchReleaseLive(rec);      // last resort: the live proxy
   if(d){ rec._rel=d; rec._relErr=false; _relCache[rec.id]={ts:Date.now(), d}; _saveRelCache(); }
   else { rec._relErr=true; }
-  if(state.detailId===rec.id) renderModal();
+  if(g===_bootGen && u===_uid() && state.detailId===rec.id) renderModal();   // #195: skip the repaint if a newer boot / sign-out superseded this load
 }
 async function _loadStats(rec){
   if(!DB_MODE() || rec._stats) return;
+  const g=_bootGen, u=_uid();   // #195 (T2.8fu): capture this boot; guard the async repaint below
   try {
     const s = await window.TraxWaxStats(rec.id);
     if(s && !s.error){
@@ -1729,7 +1731,7 @@ async function _loadStats(rec){
       // partial sums. The degraded surfaces must stay degraded, not half-alive.
       rec._stats = { price: s.price, crating: s.crating, crcount: s.crcount,
                      have: s.have, want: s.want };
-      if(state.detailId===rec.id) renderModal();
+      if(g===_bootGen && u===_uid() && state.detailId===rec.id) renderModal();   // #195: skip the repaint if a newer boot / sign-out superseded this load
     }
   } catch(e) { /* stats are decoration; the modal stands without them */ }
 }
