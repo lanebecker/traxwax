@@ -406,13 +406,13 @@ function tab(id,label){
   // Labels are our own static strings; the inline span is safe.
   const vis = label.replace(/^THE /, '<span class="tw-tab-the">THE&nbsp;</span>');
   if (_viewLocked(id)){   // #43: greyed + lock glyph, still clickable → the locked panel (kit Decision 1, 1b)
-    return `<button data-act="view" data-arg="${id}" aria-label="${esc(label)} (private)" title="Private" style="display:inline-flex; align-items:center; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:var(--lockbg); border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--lock)':'transparent'}; color:var(--lock); cursor:pointer">${LOCK_SVG}${vis}</button>`;
+    return `<button data-act="view" data-arg="${id}"${on?' aria-current="true"':''} aria-label="${esc(label)} (private)" title="Private" style="display:inline-flex; align-items:center; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:var(--lockbg); border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--lock)':'transparent'}; color:var(--lock); cursor:pointer">${LOCK_SVG}${vis}</button>`;
   }
-  return `<button data-act="view" data-arg="${id}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:transparent; border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--accent)':'transparent'}; color:${on?'var(--ink)':'var(--muted)'}">${vis}</button>`;
+  return `<button data-act="view" data-arg="${id}"${on?' aria-current="true"':''} style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; padding:11px 18px; background:transparent; border:0; border-right:1px solid var(--hair); border-bottom:3px solid ${on?'var(--accent)':'transparent'}; color:${on?'var(--ink)':'var(--muted)'}">${vis}</button>`;
 }
 function sortBtn(id,label){
   const on=state.sort===id;
-  return `<button data-act="sort" data-arg="${id}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:5px 9px; border:0; border-right:1px solid var(--hair); background:${on?'var(--ink)':'var(--panel)'}; color:${on?'var(--panel)':'var(--muted)'}">${label}</button>`;
+  return `<button data-act="sort" data-arg="${id}" aria-pressed="${on}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; padding:5px 9px; border:0; border-right:1px solid var(--hair); background:${on?'var(--ink)':'var(--panel)'}; color:${on?'var(--panel)':'var(--muted)'}">${label}</button>`;
 }
 
 /* Wave 2 B2: the ADD/REMOVE want control. Rendered on: every WANTLIST-tab card/modal (remove); and, on
@@ -1412,7 +1412,7 @@ function render(){
         <span role="status" aria-live="polite" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--muted)">${v.filtered.length} of ${v.all.length} shown</span>
         <div style="display:flex; align-items:center; border:1.5px solid var(--line)">
           ${sortBtn('added','ADDED')}${sortBtn('artist','ARTIST')}${sortBtn('year','YEAR')}${DB_MODE()?'':sortBtn('price','PRICE')}
-          <button data-act="dir" title="Reverse order" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 9px; border:0; background:var(--panel); color:var(--ink)">${s.dir===-1?'↓':'↑'}</button>
+          <button data-act="dir" aria-label="Reverse sort order" title="Reverse order" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 9px; border:0; background:var(--panel); color:var(--ink)">${s.dir===-1?'↓':'↑'}</button>
         </div>
       </div>
     </div>

@@ -330,7 +330,7 @@ const NAV = [
 
 function accountNav(active, o) {
   const items = NAV.map((n) => {
-    const isActive = n.id === active || (n.target && n.target === active);
+    const isActive = n.id === active;
     // DANGER ZONE keeps its accent-red LETTERS in every state (idle and selected) — the warning shouldn't
     // fade; only the selected box/border goes grey (below). Other tabs: muted when idle, ink when active.
     const color = n.danger ? 'var(--accent)' : (isActive ? 'var(--ink)' : 'var(--muted)');
@@ -345,14 +345,14 @@ function accountNav(active, o) {
         inner + '</div>';
     }
     return sep +
-      '<a href="' + esc(o.hrefFor(n.target || n.id)) + '" style="display:flex; align-items:center; ' +
+      '<a href="' + esc(o.hrefFor(n.id)) + '" style="display:flex; align-items:center; ' +
       'gap:8px; padding:11px 18px 11px 22px; text-decoration:none">' + inner + '</a>';
   }).join('');
 
   const name = [o.clerkUser?.firstName, o.clerkUser?.lastName].filter(Boolean).join(' ')
     || o.profile.display_name || 'Your account';
   return '' +
-  '<div class="tw-acct-nav" style="border-right:1.5px solid var(--line); ' +
+  '<nav class="tw-acct-nav" aria-label="Account settings" style="border-right:1.5px solid var(--line); ' +
     'background:var(--panel); padding:18px 0">' +
     '<div style="display:flex; align-items:center; gap:12px; padding:0 18px 18px; ' +
       'border-bottom:1px solid var(--hair); margin-bottom:12px">' +
@@ -372,7 +372,7 @@ function accountNav(active, o) {
       'letter-spacing:.12em; color:var(--muted); background:transparent; border:0; cursor:pointer; ' +
       'display:flex; align-items:center; gap:8px; padding:11px 18px 11px 22px; width:100%; ' +
       'text-align:left">SIGN OUT</button>' +
-  '</div>';
+  '</nav>';
 }
 
 function sectionHead(kicker, headline, body) {
@@ -405,7 +405,7 @@ function profileSection(o) {
     sectionHead('PROFILE', 'How your shelf introduces itself',
       /* #166 (T4.1): honest, drift-free pointer — the SHARING tab is the single source of truth for visibility. */
       'Choose who sees each shelf in the SHARING tab.') +
-    '<div id="tw-acct-msg" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
+    '<div id="tw-acct-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
       'line-height:1.6; color:var(--accent); min-height:0"></div>' +
     '<div style="display:flex; gap:20px; align-items:center; border:1.5px solid var(--hair); padding:16px">' +
       '<span id="tw-prof-avatar-slot">' + avatar(p.avatar_url, 72) + '</span>' +
@@ -537,7 +537,7 @@ function friendsSection(o) {
       '<span style="' + BODY + '; font-size:12.5px; line-height:1.6; color:var(--muted)">' +
         'Create a one-time link and send it to someone. When they open it, they’re added to your ' +
         'friends list below.</span>' +
-      '<div id="tw-friends-msg" role="status" aria-live="polite" style="' + MONO + '; ' +
+      '<div id="tw-friends-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; ' +
         'font-size:11.5px; line-height:1.6; color:var(--accent); min-height:0"></div>' +
       '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
         '<button id="tw-invite-btn" style="' + btnStyle('primary') + '">CREATE AN INVITE LINK</button>' +
@@ -716,7 +716,7 @@ function sharingSection(o) {
             'border-top:1px solid var(--hair)">' +
             '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('The card') +
               rowSub('What your link shows when it unfurls') +
-              '<span id="tw-og-pal-msg" role="status" aria-live="polite" style="' + MONO +
+              '<span id="tw-og-pal-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO +
                 '; font-size:9.5px; color:var(--accent); min-height:0"></span>' + '</div>' +
             '<div id="tw-og-pal" role="group" aria-label="Unfurl card palette" style="display:flex; gap:10px; flex:none">' +
               palSwatch('white', (o.profile && o.profile.og_palette) || 'red') +
