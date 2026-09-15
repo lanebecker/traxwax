@@ -1212,7 +1212,8 @@ async function render() {
           '<div style="display:flex; flex-direction:column; gap:7px">' +
             '<span style="' + UI.MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.16em; ' +
               'color:var(--muted)">PHOTO · OPTIONAL</span>' +
-            '<label style="' + UI.btnStyle('secondary') + '; display:inline-block">UPLOAD A PHOTO' +
+            '<label id="tw-ob-photo-label" tabindex="0" role="button" ' +
+              'style="' + UI.btnStyle('secondary') + '; display:inline-block">UPLOAD A PHOTO' +
               '<input id="tw-ob-photo" type="file" accept="image/jpeg,image/png,image/webp" ' +
               'style="display:none"></label>' +
           '</div>' +
@@ -1231,6 +1232,11 @@ async function render() {
       if (!f) return;
       const slot = document.getElementById('tw-ob-avatar');
       if (slot) { try { slot.innerHTML = UI.avatar(URL.createObjectURL(f), 56); } catch (e) {} }
+    });
+    // #167 (T4.2): keyboard-operable label (role=button + tabindex) for the hidden file input.
+    const obPhotoLabel = document.getElementById('tw-ob-photo-label');
+    if (obPhotoLabel && obPhoto) obPhotoLabel.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); obPhoto.click(); }
     });
     document.getElementById('tw-ob-skip').addEventListener('click', () => {
       try { localStorage.setItem('tw_profile_skip:' + window.Clerk.user.id, '1'); } catch (e) {}   // C3 (#80): per-user
