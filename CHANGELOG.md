@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.31.9] — 2026-09-15
+
+### Security (cold-audit v1.31 #186, Phase 2 — Report-Only)
+- **#186 (T4.21):** shipped the tightened `script-src` (no `'unsafe-inline'`, `sha256-` hashes for the 5 static
+  inline scripts, `'report-sample'`) as `Content-Security-Policy-Report-Only` alongside the unchanged enforced
+  policy on **both** CSP sources (`public/_headers` + `functions/_shared/headers.js`), plus a log-only report
+  sink at `functions/api/csp-report.js` (`report-to`/`report-uri`). Externalized the 3 landing `onerror=` image
+  fallbacks to `public/landing.js`, and completed Phase 1 by dropping the now-dead `cdn.jsdelivr.net` from
+  `SEC_HEADERS`. Nothing is blocked yet — the enforce flip (Phase 2b) follows a clean Report-Only window.
+  Regenerate hashes with `build/csp-hashes.sh`.
+
+---
+
 ## [1.31.8] — 2026-09-15
 
 ### Security (cold-audit v1.31 #186, Phase 1)

@@ -96,8 +96,7 @@
         <!-- The finished cover mosaic exported from the design comp. Decorative → aria-hidden;
              onerror degrades to a --skel block if it 404s. -->
         <div class="tw-land-mosaic" aria-hidden="true">
-          <img src="/screenshots/hero-mosaic.jpg" alt=""
-               onerror="this.onerror=null;this.removeAttribute('src');this.style.cssText='display:block;width:100%;aspect-ratio:.746;background:var(--skel)'">
+          <img src="/screenshots/hero-mosaic.jpg" alt="">
         </div>
       </div>
     </div>
@@ -139,7 +138,6 @@
              landscape band and encoded JPEG q88 (~800KB vs ~4MB PNG; it doubles as the OG
              card). The onerror still degrades to a framed skeleton if the file ever 404s. -->
         <img src="/screenshots/crate-hero.jpg" width="2560" height="1840" loading="lazy"
-             onerror="this.onerror=null;this.removeAttribute('src');this.style.cssText='display:block;width:100%;height:auto;min-height:340px;background:var(--skel);border:1.5px solid var(--line);box-shadow:8px 8px 0 rgba(0,0,0,.16)'"
              alt="The TraxWax crate: a grid of album covers with style filters above them">
       </div>
     </div>
@@ -160,8 +158,7 @@
       <div class="tw-slab-unfurl" aria-hidden="true">
         <div class="tw-slab-bubble">you have got to check out this amazing record shelf &#128071;</div>
         <img class="tw-slab-card" src="/screenshots/og-card-red-1200x630.png" width="1200" height="630"
-             loading="lazy" alt=""
-             onerror="this.onerror=null;this.style.display='none'">
+             loading="lazy" alt="">
       </div>
     </div>
 
@@ -181,5 +178,6 @@
 
   </div>
 </div>
+<script src="/landing.js" defer></script>
 </body>
 </html>
