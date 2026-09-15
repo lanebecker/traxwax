@@ -13,6 +13,17 @@ _Nothing yet._
 
 ---
 
+## [1.31.14] — 2026-09-15
+
+### Fixed
+- **#219 — `live-stats` value lookup no longer 502s on an upstream Discogs failure.** The `kind:'value'`
+  branch returned a 502 on any non-200 (or non-JSON) from Discogs's `/collection/value`, so a transient
+  Discogs blip, a rate-limit, or a private-collection 404 surfaced as a TraxWax server fault. It now degrades
+  to `200 {value:null}` (uncached, so it self-heals on the next load), mirroring the `kind:'release'` 404 path;
+  the header EST. pill already renders a clean `—` on a null value. Edge-fn redeploy; no migration.
+
+---
+
 ## [1.31.13] — 2026-09-15
 
 ### Fixed

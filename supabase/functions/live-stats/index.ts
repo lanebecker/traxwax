@@ -153,12 +153,16 @@ async function handle(req: Request): Promise<Response> {
       `https://api.discogs.com/users/${encodeURIComponent(valueUsername)}/collection/value`,
       { headers: { 'User-Agent': DISCOGS_UA, Authorization: auth() } });
     if (!res.ok) {
+      // #219: an upstream non-200 (transient 5xx / rate-limit, or a 404 when the caller's Discogs
+      // collection is private or Discogs is mid-incident) must NOT surface as a 502 — the client
+      // renders a clean "—" on a null value, and a 502 misreads as a TraxWax fault. Degrade to a
+      // null value and do NOT cache it, so it self-heals on the next load. Mirrors the release 404 path.
       console.error('collection value failed, status', res.status);
-      return json({ error: 'discogs_failed', status: res.status }, 502);
+      return json({ value: null });
     }
     let v: { minimum?: string; median?: string; maximum?: string };
     try { v = JSON.parse(await res.text()); }
-    catch { console.error('collection value non-JSON'); return json({ error: 'discogs_failed' }, 502); }
+    catch { console.error('collection value non-JSON'); return json({ value: null }); }
     // Discogs returns currency STRINGS ("$1,234.56"). Pass through; app.js renders as-is
     // (its existing api.value() consumed the proxy's median||minimum the same way).
     const out = { value: v.median || v.minimum || null };
