@@ -39,24 +39,38 @@ const txt = (s) => String(s ?? '').replace(/</g, '\u2039').replace(/>/g, '\u203a
    added desc, then insert id desc). Fetch each (3s timeout) → data URI; a failed or non-https
    entry drops out (spec's few-covers degradation), and the array collapses left. */
 async function coverUris(urls) {
+  const MAX = 400000;   // a thumb is tens of KB; skip monsters (#133/T2.11 cap — enforced pre- AND mid-read)
   const one = async (url) => {
     if (!url || !/^https:\/\//.test(url)) return null;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);   // #133 (T2.11): now spans headers AND body (cleared in finally)
     try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 3000);
-      const r = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(t);
-      if (!r.ok) return null;
-      const buf = await r.arrayBuffer();
-      if (buf.byteLength > 400000) return null;   // a thumb should be tens of KB; skip monsters
+      const r = await fetch(url, { signal: ctrl.signal, redirect: 'manual' });   // #133: never follow a cover redirect (SSRF surface)
+      if (!r.ok) return null;   // non-2xx incl. a 3xx/opaqueredirect from redirect:'manual' -> drop the cover
+      const declared = Number(r.headers.get('content-length'));
+      if (Number.isFinite(declared) && declared > MAX) return null;   // #133: reject before allocating the body
+      const reader = r.body && r.body.getReader();
+      if (!reader) return null;
+      const chunks = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX) { ctrl.abort(); return null; }   // #133: streaming cap — covers a missing/lying Content-Length
+        chunks.push(value);
+      }
+      const bytes = new Uint8Array(total);
+      let off = 0;
+      for (const c of chunks) { bytes.set(c, off); off += c.byteLength; }
       let bin = '';
-      const bytes = new Uint8Array(buf);
       for (let i = 0; i < bytes.length; i += 8192) {
         bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
       }
       const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
       return `data:${mime};base64,${btoa(bin)}`;
     } catch (e) { return null; }
+    finally { clearTimeout(t); }
   };
   return (await Promise.all((urls || []).map(one))).filter(Boolean);
 }
@@ -189,7 +203,7 @@ export async function onRequestGet(context) {
   const nfCached = await caches.default.match(nfKey);
   if (nfCached && nfCached.status === 404) return nfCached;   // status-gated: v1.30.0-era 200s under this key must not short-circuit
 
-  let d = null;
+  let d = null, answered = false;
   try {
     const r = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/get_public_crate_summary`, {
       method: 'POST',
@@ -197,11 +211,18 @@ export async function onRequestGet(context) {
                  'Content-Type': 'application/json' },
       body: JSON.stringify({ p_slug: slug }),
     });
-    if (r.ok) d = await r.json();
-  } catch (e) { /* fall through to 404 (not cached long; a blip self-heals) */ }
+    if (r.ok) { d = await r.json(); answered = true; }   // #132 (T2.10): only a 2xx with a parsed body is a definitive answer
+  } catch (e) { /* transient — answered stays false; handled below */ }
+  if (!answered) {
+    // #132 (T2.10): the RPC did NOT answer (threw, timed out, non-2xx, or a malformed 2xx body). That is a
+    // transient blip, not a verdict that the crate is private/gone — return an UNCACHED 503 so a ~2s Supabase
+    // hiccup can't blank the unfurl for the 300s revocation window. no-store keeps downstream caches out too.
+    return new Response(null, { status: 503, headers: { ...SEC_HEADERS, 'Cache-Control': 'no-store' } });
+  }
   if (!d || d.status !== 'ok') {
-    // Audit S2-F6: negative-cache the miss ([id].js B2 precedent) — a scrape/poll of an unknown
-    // or revoked slug must not buy an RPC per request. 300s keeps revocation semantics.
+    // Audit S2-F6: negative-cache the DEFINITIVE miss ([id].js B2 precedent) — a scrape/poll of an unknown or
+    // revoked slug must not buy an RPC per request. 300s keeps revocation semantics. Reached only when the RPC
+    // answered (answered===true), so a transient blip is never cached as a 404 (#132/T2.10).
     const nf = notFound();
     context.waitUntil(caches.default.put(nfKey, nf.clone()).catch(() => {}));   // degrade uncached, keep the log clean
     return nf;

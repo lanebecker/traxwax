@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.31.17] — 2026-09-15
+
+### Fixed
+- **Cold-audit v1.31 Tier-2, unit T2a — #132 / #133 `/og` robustness.** The `/og` unfurl endpoint negative-
+  cached a *transient* Supabase RPC failure (a throw, timeout, or non-2xx) as a 404 for the full 300s window
+  (#132/T2.10); it now returns an uncached `503` with `no-store` on a non-answer and only negative-caches a
+  *definitive* miss (the RPC answered that the crate is unknown/private), preserving revocation-window
+  semantics. The cover fetch (#133/T2.11) now spans the 3s abort over the body read (not just the headers),
+  pre-checks `Content-Length` and streams with a running size cap instead of allocating the whole body before
+  the guard, and sets `redirect: 'manual'` so a cover URL can't silently redirect elsewhere.
+
+---
+
 ## [1.31.16] — 2026-09-15
 
 ### Fixed
