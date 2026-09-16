@@ -1,7 +1,7 @@
 # Baseline security headers (Phase 1 cold audit #35) + Wave 2 hardening (#38): CSP now ENFORCED
 # (2026-09-03) after a report-only cycle. The allowlist was validated against the live report-only
 # console: every code-referenced origin (clerk.traxwax.com, cloud.umami.is, fonts,
-# supabase, img.clerk.com/Discogs CDN via img-src https:) plus these RUNTIME origins the console/Clerk
+# supabase, img.clerk.com/Discogs CDN via img-src — tightened to those two hosts in #214) plus these RUNTIME origins the console/Clerk
 # env surfaced — static.cloudflareinsights.com (Cloudflare Pages auto-injects its Web Analytics beacon
 # SCRIPT; its beacon POST is same-origin /cdn-cgi/rum so needs no connect entry); gateway.umami.is
 # (umami LOADS from cloud.umami.is but SENDS events to gateway.umami.is — connect-src); and Cloudflare
@@ -19,12 +19,18 @@
 # https://cdn.jsdelivr.net dropped from script-src (it was the sole jsdelivr consumer). (#186
 # Phase 2, v1.31.10) script-src 'unsafe-inline' is now DROPPED — 5 sha256- hashes + 'report-sample' +
 # report-uri/report-to on the ENFORCED policy, flipped after a clean prod Report-Only window (v1.31.9).
+#
+# 2026-09-16 (#214 / T4.21 enforce flip, v1.31.27): img-src tightened from bare 'https:' to
+# 'self' data: blob: https://i.discogs.com https://img.clerk.com (covers=Discogs CDN, avatars=Clerk)
+# after a clean Report-Only window validated by a live browser pass (public crate + Clerk sign-in/up:
+# every real image load is i.discogs.com/img.clerk.com; the Google provider logo is inline, no fetch).
+# The separate Content-Security-Policy-Report-Only header is DROPPED; enforced report-uri/report-to is
+# retained so a surprise host still BLOCKS and REPORTS. ROLLBACK unchanged (rename enforced->RO).
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'report-sample' 'sha256-8yra1+kbhTOMSaNpjrlflT/SNWie1M3Sw9x7uG2UzRs=' 'sha256-xNp+s0hernL9RiOFjppcfwwu9lmhdiyDd2XkmpgEtNk=' 'sha256-kVm7fpjHHqV0ftWKYtcDW9Tfpla4jEjac+EnjKvw27w=' 'sha256-1fpWO5MNDf2mjCBw30D6NH7a81GxC+nAV17bIaaiDBk=' 'sha256-vSnWJ9XSMTKTr2kVfzKQyJmEz8SJ+09Jzm3/sDSm+Ms=' https://clerk.traxwax.com https://cloud.umami.is https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is https://gateway.umami.is https://challenges.cloudflare.com https://clerk-telemetry.com; frame-src 'self' https://clerk.traxwax.com https://challenges.cloudflare.com; form-action 'self' https://clerk.traxwax.com; report-uri /api/csp-report; report-to csp-endpoint
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'report-sample' 'sha256-8yra1+kbhTOMSaNpjrlflT/SNWie1M3Sw9x7uG2UzRs=' 'sha256-xNp+s0hernL9RiOFjppcfwwu9lmhdiyDd2XkmpgEtNk=' 'sha256-kVm7fpjHHqV0ftWKYtcDW9Tfpla4jEjac+EnjKvw27w=' 'sha256-1fpWO5MNDf2mjCBw30D6NH7a81GxC+nAV17bIaaiDBk=' 'sha256-vSnWJ9XSMTKTr2kVfzKQyJmEz8SJ+09Jzm3/sDSm+Ms=' https://clerk.traxwax.com https://cloud.umami.is https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://i.discogs.com https://img.clerk.com; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is https://gateway.umami.is https://challenges.cloudflare.com https://clerk-telemetry.com; frame-src 'self' https://clerk.traxwax.com https://challenges.cloudflare.com; form-action 'self' https://clerk.traxwax.com; report-uri /api/csp-report; report-to csp-endpoint
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'report-sample' 'sha256-8yra1+kbhTOMSaNpjrlflT/SNWie1M3Sw9x7uG2UzRs=' 'sha256-xNp+s0hernL9RiOFjppcfwwu9lmhdiyDd2XkmpgEtNk=' 'sha256-kVm7fpjHHqV0ftWKYtcDW9Tfpla4jEjac+EnjKvw27w=' 'sha256-1fpWO5MNDf2mjCBw30D6NH7a81GxC+nAV17bIaaiDBk=' 'sha256-vSnWJ9XSMTKTr2kVfzKQyJmEz8SJ+09Jzm3/sDSm+Ms=' https://clerk.traxwax.com https://cloud.umami.is https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://i.discogs.com https://img.clerk.com; connect-src 'self' https://sfipqknrbvamwwahwxnl.supabase.co https://clerk.traxwax.com https://cloud.umami.is https://gateway.umami.is https://challenges.cloudflare.com https://clerk-telemetry.com; frame-src 'self' https://clerk.traxwax.com https://challenges.cloudflare.com; form-action 'self' https://clerk.traxwax.com; report-uri /api/csp-report; report-to csp-endpoint
   Reporting-Endpoints: csp-endpoint="https://traxwax.com/api/csp-report"
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
