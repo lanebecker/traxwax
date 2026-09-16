@@ -13,6 +13,13 @@ _Nothing yet._
 
 ---
 
+## [1.31.25] — 2026-09-16
+
+### Security
+- **Cold-audit v1.31 #214 (T4.21 follow-up) — CSP `img-src` tightening, Report-Only phase.** `img-src` carried a bare `https:` (any-host image loads — a data-exfiltration channel). Added a `Content-Security-Policy-Report-Only` header to BOTH CSP sources (in lockstep) = the enforced policy with ONLY `img-src` tightened to `'self' data: blob: https://i.discogs.com https://img.clerk.com` (covers=i.discogs.com, avatars=img.clerk.com, landing/OG/favicon=self). The enforced policy is UNCHANGED, so nothing breaks — the RO policy only logs would-be-blocked hosts to `/api/csp-report`. Enforce flip follows after a clean watch window (mirrors #186 Phase 2a→2b). The RO policy duplicates the enforced `script-src` sha256 hashes — keep in sync if those rotate. Refs #214.
+
+---
+
 ## [1.31.24] — 2026-09-16
 
 ### Removed
