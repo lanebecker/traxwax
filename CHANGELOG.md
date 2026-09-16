@@ -13,6 +13,13 @@ _Nothing yet._
 
 ---
 
+## [1.31.23] — 2026-09-16
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave F — #180 / #181 render-path performance.** `identityHtml()` no longer re-runs the whole `computeVals()` pipeline (filter+sort+style-count over every record, ~3-4ms desktop / 15-30ms mid-phone) just to read `allStyles` on a public crate — `render()` now passes the value it already computed (#180). And `_syncGridRoving()` — which writes `tabIndex` on every grid cell (~7,400 writes at 1,861 records) — now runs only when the grid DOM was rebuilt or the roving target moved, via a `_gridGen` generation counter; the modal stats-load / tracklist-load / retry / close re-renders (which touch neither) skip the walk instead of repeating it 3-4× per card click (#181). Keyboard roving / Tab-into-cell behaviour is unchanged. External module — deploy on merge; no migration, no CSP change.
+
+---
+
 ## [1.31.22] — 2026-09-16
 
 ### Fixed

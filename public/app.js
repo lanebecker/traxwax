@@ -306,6 +306,9 @@ const FOCUSABLE_SEL = 'a[href], button:not([disabled]), input:not([disabled]), s
 const GRID_KEYS = new Set(['ArrowRight','ArrowLeft','ArrowUp','ArrowDown','Home','End']);
 let _modalInvokerId = null;   // the record id whose card opened the modal; focus returns here on close
 let _gridFocusId = null;      // the record id of the roving grid cell that holds tabindex=0
+let _gridGen = 0;             // #181 (T4.16): bumped once per render() (grid DOM rebuild)
+let _lastRovingGen = -1;      // the (_gridGen, _gridFocusId) the last _syncGridRoving walk covered
+let _lastRovingFocusId = null;
 let _modalFocusKey = null;    // identity of the in-modal control focused just before a re-render (see render())
 
 /* ── Theme (persisted; respects prefers-color-scheme on first visit) ────────── */
@@ -1176,7 +1179,7 @@ function stripHtml(){
 }
 
 /* Header spec §3.1 — one identity slot, four fills: avatar · "{Name}'s Crate" · mono meta line. */
-function identityHtml(){
+function identityHtml(v){
   const mode=VIEWER_MODE(), o=window.TraxWaxOwner||{}, av=o.avatarUrl||'';
   const ownName=(SETTINGS && SETTINGS.ownerLine) ? SETTINGS.ownerLine.replace(/’s shelf$/i,'').replace(/'s shelf$/i,'') : '';
   const rawName = o.displayName || o.ownerUsername || (mode==='own' ? ownName : 'A friend');
@@ -1197,7 +1200,7 @@ function identityHtml(){
   } else {   // public (dormant): top-3 styles by count, shrink to fit ~44 chars, never ellipsize
     // Spec §5: mobile shows top-2 (computed at render time; a rotation showing 3 until the next
     // repaint is accepted). Desktop top-3; both then shrink to fit ~44 chars.
-    const vv=computeVals(); let top=(vv.allStyles||[]).slice(0, (window.matchMedia && window.matchMedia('(max-width:640px)').matches) ? 2 : 3);
+    const vv = v || computeVals(); let top=(vv.allStyles||[]).slice(0, (window.matchMedia && window.matchMedia('(max-width:640px)').matches) ? 2 : 3);   // #180 (T4.15): reuse render()'s computeVals; recompute only if called arg-less
     while(top.length>1 && top.join(', ').length>44) top.pop();
     meta = `${esc(top.join(', ').toUpperCase())}${o.collectingSince?' · SINCE '+esc(String(o.collectingSince)):''}`;
   }
@@ -1209,6 +1212,7 @@ function identityHtml(){
 }
 
 function render(){
+  _gridGen++;   // #181 (T4.16): a fresh grid DOM this render — _syncGridRoving must re-walk exactly once
   const v=computeVals(); const s=state;
   const hasFilters=v.active.length>0;
   // Wave 5c: FOR SALE is a tab now — always on your own DB-mode crate (empty state when nothing's listed); on a
@@ -1382,7 +1386,7 @@ function render(){
     <header class="tw-header" style="position:relative; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:16px 24px; background:var(--accent); border-bottom:3px solid var(--line)">
       <div class="tw-headL" style="display:flex; align-items:center; gap:14px">
         <a href="${IS_SIGNED_IN()?'/app':'https://traxwax.com/'}" title="${IS_SIGNED_IN()?'Your crate':'TraxWax'}" style="text-decoration:none; display:inline-block; background:#16171a; color:#fff; font-family:'Anton',sans-serif; font-size:44px; line-height:1; text-transform:uppercase; letter-spacing:.01em; padding:12px 14px 10px; transform:rotate(-1.2deg)">TraxWax</a>
-        ${identityHtml()}
+        ${identityHtml(v)}
       </div>
       <div class="tw-headR" style="display:flex; align-items:center; gap:10px">
         <div style="display:flex; font-family:'IBM Plex Mono',monospace; font-size:11px; border:1.5px solid #16171a; background:#fff; color:#16171a">
@@ -1567,6 +1571,10 @@ function modalHtml(){
    search render. Focus only moves on an explicit arrow key, in onKeydown. */
 function _syncGridRoving(){
   if (state.view!=='crate' && state.view!=='wantlist' && state.view!=='forsale') return;   // Wave 2 B1: the wantlist grid too; C1 (#78): THE GOODS was left out when the 5th tab landed — its whole grid was keyboard-unreachable
+  // #181 (T4.16): the ~7,400-write cell walk is needed only when the grid DOM was rebuilt (render() bumps
+  // _gridGen) or the roving target moved (_gridFocusId). Modal stats/tracklist/retry/close re-renders touch
+  // neither — skip the walk on those. render()->renderModal and openDetail/arrow-nav still fall through.
+  if (_gridGen === _lastRovingGen && _gridFocusId === _lastRovingFocusId) return;
   const cells = Array.from(document.querySelectorAll('.tw-grid .tw-cell'));
   if (!cells.length) return;
   let idx = cells.findIndex(c=>Number(c.dataset.arg)===_gridFocusId);
@@ -1583,6 +1591,7 @@ function _syncGridRoving(){
       .forEach(b=>{ b.tabIndex = active?0:-1; });
   });
   _gridFocusId = Number(cells[idx].dataset.arg);
+  _lastRovingGen = _gridGen; _lastRovingFocusId = _gridFocusId;   // #181: remember the gen+target this walk covered
 }
 
 /* Modal focus: on open, pull focus into the dialog (once — only when it isn't already
