@@ -13,6 +13,19 @@ _Nothing yet._
 
 ---
 
+## [1.31.20] — 2026-09-16
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave C — #169 / #170 / #171 / #177 responsive/small-screen.** Four account-UI
+  layout bugs at phone widths. Nav separators no longer render as solid grey blocks in the ≤820px strip (#169 —
+  a `tw-nav-sep` class is `display:none` there). The SHARING consent rows no longer side-scroll at 360px (#170 —
+  all five visibility/card/matching rows carry a `tw-share-row` class that stacks label above control at ≤640px).
+  The invite-link input no longer overflows below ~398px (#171 — `min-width:280px`→`0`). Arming DISCONNECT no
+  longer jumps to full-width (#177 — `align-self:flex-start` re-appended when the button re-styles). CSS + markup
+  class hooks only; no behaviour change above the breakpoints.
+
+---
+
 ## [1.31.19] — 2026-09-15
 
 ### Fixed

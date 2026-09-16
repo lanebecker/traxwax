@@ -444,10 +444,12 @@ input::placeholder { color:var(--faint); }
   }
   .tw-acct-nav > a, .tw-acct-nav > div { padding:8px 12px !important; }
   .tw-acct-nav > div[aria-current] { border-left:0 !important; border-bottom:3px solid var(--accent); }
+  .tw-acct-nav > .tw-nav-sep { display:none !important; }
 }
 @media (max-width:640px) {
   .tw-acct-wrap { padding:8px 8px 36px; }
   .tw-acct-grid { grid-template-columns:1fr !important; }
+  .tw-share-row { flex-direction:column !important; align-items:flex-start !important; gap:12px !important; min-width:0; }
 }
 
 /* ═══ EMPTY CRATE (S17) ═══════════════════════════════════════════════════════ */
