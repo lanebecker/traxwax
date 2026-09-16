@@ -140,17 +140,6 @@ input::placeholder { color:var(--faint); }
    match the existing app.js idiom (and so a re-render can't lose them).
    ═══════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Shared: the wordmark block ────────────────────────────────────────────────
-   Black in BOTH themes per Design Kit v1 §1. The dark-theme border keeps it from
-   dissolving into the panel; in light theme --line IS #16171a so it's invisible. */
-.tw-wordmark {
-  background:#16171a; color:#fff; font-family:Anton,sans-serif; letter-spacing:.01em;
-  font-size:38px; padding:11px 13px 8px; transform:rotate(-1.2deg);
-  border:1.5px solid var(--line); display:inline-block;
-}
-.tw-wordmark-sm { font-size:19px; padding:6px 8px 4px; }
-.tw-wordmark-md { font-size:30px; padding:9px 11px 7px; }
-
 /* ── Shared: tape ─────────────────────────────────────────────────────────────
    The only decorative element in the design. Four strips maximum. Do not add more. */
 /* Four strips at the POSTER's corners, fixing the whole panel to the background — the app's
