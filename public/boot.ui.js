@@ -338,7 +338,7 @@ function accountNav(active, o) {
       'letter-spacing:.12em; color:' + color + '">' + n.label + '</span>';
     // The DANGER hairline separator renders in BOTH states (idle link AND selected) so the nav layout
     // doesn't shift when DANGER ZONE becomes the active tab.
-    const sep = n.danger ? '<div style="height:1px; background:var(--hair); margin:12px 0"></div>' : '';
+    const sep = n.danger ? '<div class="tw-nav-sep" style="height:1px; background:var(--hair); margin:12px 0"></div>' : '';
     if (isActive && n.id === active) {
       return sep + '<div aria-current="page" style="display:flex; align-items:center; gap:10px; ' +
         'padding:11px 18px; background:var(--bg); border-left:4px solid ' + (n.danger ? 'var(--muted)' : 'var(--accent)') + '">' +
@@ -367,7 +367,7 @@ function accountNav(active, o) {
       '</div>' +
     '</div>' + items +
     // v1.4.2: sign out lives at the bottom of the account nav.
-    '<div style="height:1px; background:var(--hair); margin:12px 0"></div>' +
+    '<div class="tw-nav-sep" style="height:1px; background:var(--hair); margin:12px 0"></div>' +
     '<button id="tw-acct-signout" style="' + MONO + '; font-size:11px; font-weight:700; ' +
       'letter-spacing:.12em; color:var(--muted); background:transparent; border:0; cursor:pointer; ' +
       'display:flex; align-items:center; gap:8px; padding:11px 18px 11px 22px; width:100%; ' +
@@ -542,7 +542,7 @@ function friendsSection(o) {
       '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
         '<button id="tw-invite-btn" style="' + btnStyle('primary') + '">CREATE AN INVITE LINK</button>' +
         '<input id="tw-invite-link" readonly style="' + MONO + '; font-size:12px; padding:9px 11px; ' +
-          'flex:1; min-width:280px; border:1.5px solid var(--hair); background:var(--bar); ' +
+          'flex:1; min-width:0; border:1.5px solid var(--hair); background:var(--bar); ' +
           'color:var(--ink); text-overflow:ellipsis; display:none">' +
         '<button id="tw-invite-copy" style="' + btnStyle('secondary') + '; display:none">COPY</button>' +
       '</div>' +
@@ -632,7 +632,7 @@ function sharingSection(o) {
           'color:var(--muted)">WHO CAN SEE YOUR SHELVES</span>' +
       '</div>' +
       // crate row
-      '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px">' +
+      '<div class="tw-share-row" style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px">' +
         '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My crate') + rowSub('The records you own') + '</div>' +
         '<div id="tw-vis-crate-seg" role="group" aria-label="Crate visibility" style="display:flex; ' +
           'border:1.5px solid var(--line); flex:none">' +
@@ -640,7 +640,7 @@ function sharingSection(o) {
         '</div>' +
       '</div>' +
       // wantlist row (hairline between)
-      '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
+      '<div class="tw-share-row" style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
         'border-top:1px solid var(--hair)">' +
         '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My wantlist') + rowSub('The records you’re hunting') + '</div>' +
         '<div id="tw-vis-wl-seg" role="group" aria-label="Wantlist visibility" style="display:flex; ' +
@@ -651,7 +651,7 @@ function sharingSection(o) {
       // Wave 4 Stage 2 (E): for-sale row, gated UNDER crate visibility. Live segmented control when the crate is
       // friends-visible; LOCKED (aria-disabled, greyed, inline reason) otherwise — a for-sale badge has nowhere
       // to render on a crate a friend can't see. wireVisSeg only fires when #tw-vis-forsale-seg exists (unlocked).
-      '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
+      '<div class="tw-share-row" style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
         'border-top:1px solid var(--hair)">' +
         '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('My records for sale') +
           rowSub('The records you’ve listed on Discogs') +
@@ -712,7 +712,7 @@ function sharingSection(o) {
           '<div style="padding:0 18px 14px; ' + MONO + '; font-size:9.5px; color:var(--faint)">' +
             'Lowercase letters, numbers, hyphens. 18 characters max. Changing it breaks the old link.</div>' +
           // PALETTE-ROW-SLOT filled (CHECK-IN 1 approved): THE CARD — which OG palette the link unfurls with.
-          '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
+          '<div class="tw-share-row" style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; ' +
             'border-top:1px solid var(--hair)">' +
             '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('The card') +
               rowSub('What your link shows when it unfurls') +
@@ -729,7 +729,7 @@ function sharingSection(o) {
 
     // ── MATCHING — moved verbatim from friends (#28). Same segmented idiom → the tab reads as one language.
     sectionLabel('MATCHING') +
-    '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
+    '<div class="tw-share-row" style="display:flex; align-items:center; justify-content:space-between; gap:16px; ' +
       'border:1.5px solid var(--line); padding:16px 18px">' +
       '<div style="display:flex; flex-direction:column; gap:3px">' +
         '<span style="' + COND + '; font-size:21px; font-weight:700; line-height:1; ' +
@@ -984,7 +984,7 @@ export function bindAccountPage(root, deps) {
     if (!armed) {
       armed = true;
       disc.textContent = 'Really disconnect — removes imported collection';
-      disc.setAttribute('style', btnStyle('dangerArmed'));
+      disc.setAttribute('style', btnStyle('dangerArmed') + '; align-self:flex-start');
       return;
     }
     disc.disabled = true; disc.textContent = 'DISCONNECTING…';
@@ -992,7 +992,7 @@ export function bindAccountPage(root, deps) {
     catch (e) {
       disc.disabled = false; armed = false;
       disc.textContent = 'DISCONNECT DISCOGS';
-      disc.setAttribute('style', btnStyle('danger'));
+      disc.setAttribute('style', btnStyle('danger') + '; align-self:flex-start');
       msg('Disconnect failed (' + ((e && e.message) || e) + '). Try again.');
     }
   });
