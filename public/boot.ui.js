@@ -68,7 +68,7 @@ export function field(o) {
     '<div style="display:flex; flex-direction:column; gap:6px' +
       (o.span ? '; grid-column:1 / -1' : '') + (o.wrapStyle ? '; ' + o.wrapStyle : '') + '">' +
       '<label for="' + esc(o.id) + '" style="' + MONO + '; font-size:9.5px; font-weight:700; ' +
-        'letter-spacing:.16em; color:' + (state === 'error' ? 'var(--accent)' : 'var(--muted)') + '">' +
+        'letter-spacing:.16em; color:' + (state === 'error' ? 'var(--accent-text)' : 'var(--muted)') + '">' +
         esc(o.label) + (o.hintLabel ? ' <span style="color:var(--faint)">· ' + esc(o.hintLabel) + '</span>' : '') +
       '</label>' +
       '<input id="' + esc(o.id) + '" type="' + (o.type || 'text') + '"' +
@@ -81,7 +81,7 @@ export function field(o) {
         'background:var(--panel); color:var(--ink); border:1.5px solid ' + border + '; ' +
         'border-radius:0; box-sizing:border-box' + (o.style ? '; ' + o.style : '') + '">' +
       (o.hint ? '<span id="' + esc(o.id) + '-hint" style="' + MONO + '; font-size:10px; ' +
-        'letter-spacing:.04em; color:' + (state === 'error' ? 'var(--accent)' : 'var(--faint)') +
+        'letter-spacing:.04em; color:' + (state === 'error' ? 'var(--accent-text)' : 'var(--faint)') +
         '">' + esc(o.hint) + '</span>' : '') +
     '</div>';
 }
@@ -378,7 +378,7 @@ function accountNav(active, o) {
 function sectionHead(kicker, headline, body) {
   return '<div style="display:flex; flex-direction:column; gap:5px">' +
     '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
-      'color:var(--accent)">' + esc(kicker) + '</span>' +
+      'color:var(--accent-text)">' + esc(kicker) + '</span>' +
     '<h2 style="' + COND + '; font-size:32px; font-weight:700; line-height:1; margin:0; ' +
       'color:var(--ink)">' + esc(headline) + '</h2>' +
     (body ? '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
@@ -406,7 +406,7 @@ function profileSection(o) {
       /* #166 (T4.1): honest, drift-free pointer — the SHARING tab is the single source of truth for visibility. */
       'Choose who sees each shelf in the SHARING tab.') +
     '<div id="tw-acct-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
-      'line-height:1.6; color:var(--accent); min-height:0"></div>' +
+      'line-height:1.6; color:var(--accent-text); min-height:0"></div>' +
     '<div style="display:flex; gap:20px; align-items:center; border:1.5px solid var(--hair); padding:16px">' +
       '<span id="tw-prof-avatar-slot">' + avatar(p.avatar_url, 72) + '</span>' +
       '<div style="display:flex; flex-direction:column; gap:8px">' +
@@ -450,7 +450,7 @@ function discogsSection(o) {
     sectionHead('DISCOGS', 'The connection',
       'Where TraxWax reads from your Discogs collection. Keep it synced, or cut the cord anytime.') +
     '<div id="tw-acct-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
-      'line-height:1.6; color:var(--accent)"></div>' +
+      'line-height:1.6; color:var(--accent-text)"></div>' +
     sectionLabel('SYNC') +
     '<div style="border:1.5px solid var(--line); display:flex; flex-wrap:wrap; align-items:center; ' +
       'justify-content:space-between; gap:16px; padding:16px 18px">' +
@@ -487,7 +487,7 @@ function dangerSection(o) {
     sectionHead('DANGER ZONE', 'Delete everything',
       'The point of no return. Deleting wipes your TraxWax data for good; your Discogs account is safe.') +
     '<div id="tw-acct-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
-      'line-height:1.6; color:var(--accent)"></div>' +
+      'line-height:1.6; color:var(--accent-text)"></div>' +
     sectionLabel('DANGER, WILL ROBINSON') +
     '<div style="border:1.5px solid var(--accent); padding:16px 18px; display:flex; ' +
       'flex-direction:column; gap:14px">' +
@@ -522,7 +522,7 @@ function friendsSection(o) {
     // Intro: eyebrow + title + one description line. Settings moved to SHARING (v1.15.0).
     '<div style="display:flex; flex-direction:column; gap:5px">' +
       '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
-        'color:var(--accent)">FRIENDS</span>' +
+        'color:var(--accent-text)">FRIENDS</span>' +
       '<h2 style="' + COND + '; font-size:32px; font-weight:700; line-height:1; margin:0; ' +
         'color:var(--ink)">The people you swap crates with</h2>' +
       '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
@@ -538,7 +538,7 @@ function friendsSection(o) {
         'Create a one-time link and send it to someone. When they open it, they’re added to your ' +
         'friends list below.</span>' +
       '<div id="tw-friends-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; ' +
-        'font-size:11.5px; line-height:1.6; color:var(--accent); min-height:0"></div>' +
+        'font-size:11.5px; line-height:1.6; color:var(--accent-text); min-height:0"></div>' +
       '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">' +
         '<button id="tw-invite-btn" style="' + btnStyle('primary') + '">CREATE AN INVITE LINK</button>' +
         '<input id="tw-invite-link" readonly style="' + MONO + '; font-size:12px; padding:9px 11px; ' +
@@ -612,7 +612,7 @@ function sharingSection(o) {
     // Intro.
     '<div style="display:flex; flex-direction:column; gap:5px">' +
       '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
-        'color:var(--accent)">SHARING</span>' +
+        'color:var(--accent-text)">SHARING</span>' +
       '<h2 style="' + COND + '; font-size:32px; font-weight:700; line-height:1; margin:0; ' +
         'color:var(--ink)">Who sees what, and how matches read</h2>' +
       '<span style="' + BODY + '; font-size:13px; line-height:1.65; color:var(--muted)">' +
@@ -622,7 +622,7 @@ function sharingSection(o) {
     '</div>' +
     // Shared status line (visibility changes announce here — moved from FRIENDS).
     '<div id="tw-share-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO + '; font-size:11.5px; ' +
-      'line-height:1.6; color:var(--accent); min-height:0"></div>' +
+      'line-height:1.6; color:var(--accent-text); min-height:0"></div>' +
 
     // ── VISIBILITY — the 1c box: one container, caption row, two hairline-separated shelf rows.
     sectionLabel('VISIBILITY') +
@@ -717,7 +717,7 @@ function sharingSection(o) {
             '<div style="display:flex; flex-direction:column; gap:3px">' + rowTitle('The card') +
               rowSub('What your link shows when it unfurls') +
               '<span id="tw-og-pal-msg" class="tw-acct-status" role="status" aria-live="polite" style="' + MONO +
-                '; font-size:9.5px; color:var(--accent); min-height:0"></span>' + '</div>' +
+                '; font-size:9.5px; color:var(--accent-text); min-height:0"></span>' + '</div>' +
             '<div id="tw-og-pal" role="group" aria-label="Unfurl card palette" style="display:flex; gap:10px; flex:none">' +
               palSwatch('white', (o.profile && o.profile.og_palette) || 'red') +
               palSwatch('red',   (o.profile && o.profile.og_palette) || 'red') +
@@ -775,7 +775,7 @@ async function renderFriendsList(root, deps) {
     // as "my friends were deleted". Honest error line + retry; the count shows an em-dash.
     const c = root.querySelector('#tw-friends-count'); if (c) c.textContent = '—';
     host.innerHTML = '<div style="border:1px solid var(--hair); padding:22px; text-align:center; ' +
-      MONO + '; font-size:11px; letter-spacing:.05em; color:var(--accent)">' +
+      MONO + '; font-size:11px; letter-spacing:.05em; color:var(--accent-text)">' +
       'Couldn’t load your friends — the network hiccuped. ' +
       '<button id="tw-friends-retry" style="' + MONO + '; font-size:10.5px; font-weight:700; ' +
       'letter-spacing:.1em; padding:6px 12px; margin-left:8px; background:var(--panel); ' +
@@ -889,7 +889,7 @@ export function accountPageHtml(o) {
             'letter-spacing:.01em; padding:9px 11px 7px; transform:rotate(-1.2deg)">TRAXWAX</div></a>' +
         '<div style="display:flex; flex-direction:column; gap:3px; padding-bottom:3px">' +
           '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
-            'color:rgba(255,255,255,.78)">SETTINGS</span>' +
+            'color:var(--on-accent)">SETTINGS</span>' +
           '<span style="' + COND + '; font-size:28px; font-weight:700; line-height:1; ' +
             'color:#fff">Your account</span>' +
         '</div>' +

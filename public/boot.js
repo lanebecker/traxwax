@@ -1108,12 +1108,14 @@ function mountAuth() {
 
   if (wantSignUp) {
     window.Clerk.mountSignUp(node, {
+      appearance: clerkAppearance(document.body.dataset.theme === 'dark'),   // #188 (T4.23): resolve theme at mount, not load
       fallbackRedirectUrl: '/app',
       signInUrl: '/app',
       signInFallbackRedirectUrl: '/app',
     });
   } else {
     window.Clerk.mountSignIn(node, {
+      appearance: clerkAppearance(document.body.dataset.theme === 'dark'),   // #188 (T4.23): resolve theme at mount, not load
       fallbackRedirectUrl: '/app',
       signUpUrl: '/app?mode=signup',
       signUpFallbackRedirectUrl: '/app',

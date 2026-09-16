@@ -29,7 +29,7 @@ const ELEMENTS = {
     letterSpacing: '.14em', color: '#666a72', textTransform: 'uppercase',
   },
   formFieldErrorText: {
-    fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: '#e8194b',
+    fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: '#ad183d',
   },
 };
 
@@ -67,6 +67,8 @@ export function clerkAppearance(isDark) {
     elements: {
       ...ELEMENTS,
       formFieldLabel: { ...ELEMENTS.formFieldLabel, color: '#b4b7bd' },
+      dividerText: { ...ELEMENTS.dividerText, color: '#9ea2a9' },   // #189 (T4.24): dark --faint, 6.93:1
+      formFieldErrorText: { ...ELEMENTS.formFieldErrorText, color: '#e44e75' },   // #190 (T4.25): dark --accent-text, 4.77:1
     },
   };
 }
