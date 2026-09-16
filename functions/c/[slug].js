@@ -1,5 +1,6 @@
 import { SEC_HEADERS } from '../_shared/headers.js';
 import { fetchWithTimeout } from '../_shared/http.js';
+import { cleanCrateName } from '../_shared/text.js';
 
 /* GET /c/:slug — serves the SPA shell with per-crate og:* meta injected, so unfurl crawlers
    (which run no JS) see the crate card. Humans get the same HTML; boot.js reads the path and
@@ -67,7 +68,7 @@ export async function onRequestGet({ params, request, env }) {
       headers: { ...SEC_HEADERS, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
   }
 
-  const name = d.owner.display_name || 'A Collector';
+  const name = cleanCrateName(d.owner.display_name) || 'A Collector';
   const crateIsPublic = d.sections.crate === true;
   const n = Number(d.count) || 0;                         // leading-section count, from Postgres
   const noun = crateIsPublic ? 'Crate' : 'Wantlist';

@@ -13,6 +13,13 @@ _Nothing yet._
 
 ---
 
+## [1.31.22] — 2026-09-16
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave E — #178 / #179 OG-card hardening.** The unfurl card's headline no longer overflows the 1200×630 frame on a pathological single-token `display_name` (#178 — `get_public_crate_summary` only reduces names that contain a space, so an 80-char token passed through whole; a shared `functions/_shared/text.js` `cleanCrateName` strips Unicode format chars and caps the name at 20, applied by both `/og` and `/c`). `/og` cover fetching now pins the host to Discogs (`*.discogs.com`, via `new URL()` so userinfo tricks can't spoof it) and allowlists the image MIME (`image/jpeg|png|gif|webp`) before it reaches the `data:` URI — the upstream `Content-Type` was previously interpolated raw (#179, security; pairs with the already-shipped T2a `redirect:'manual'`). Pages Functions — deploy on merge; no migration, no CSP change.
+
+---
+
 ## [1.31.21] — 2026-09-16
 
 ### Fixed
