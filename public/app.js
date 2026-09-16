@@ -1534,6 +1534,7 @@ function modalHtml(){
               <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700">${IS_OWN()?priceLabel:`<a href="https://www.discogs.com/release/${encodeURIComponent(rec.id)}" target="_blank" rel="noopener" style="color:var(--on-accent); text-decoration:underline">SEE ON DISCOGS →</a>`}</span>
             </span>
           </div>
+          ${VIEWER_MODE()==='public-out'?`<span style="font-family:'IBM Plex Mono',monospace; font-size:10px; line-height:1.5; color:var(--faint)">Sign in to a TraxWax account to see community ratings and have/want counts.</span>`:''}
         </div>
         <button data-act="closeDetail" title="Close" style="position:absolute; top:12px; right:12px; width:28px; height:28px; border:1.5px solid var(--line); background:var(--panel); font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1">✕</button>
       </div>

@@ -13,6 +13,13 @@ _Nothing yet._
 
 ---
 
+## [1.31.26] — 2026-09-16
+
+### Added
+- **#234 — public-crate sign-in hint.** On a public crate viewed logged-out, the detail modal's `RATING` and `HAVE / WANT` cells show `—` because community stats flow only through the authenticated `live-stats` edge function (per the #24 Restricted-Data audit) — nothing explained the blanks. Added a faint caption under the stats bar, shown ONLY to logged-out public viewers (`VIEWER_MODE() === 'public-out'`): "Sign in to a TraxWax account to see community ratings and have/want counts." Scoped to ratings + have/want — `LOWEST SALE` is not auth-gated (it already links everyone to Discogs) and its price is owner-only, so a sign-in never reveals a price to a public viewer. Purely additive render; owner/friend/signed-in-public views are byte-identical. Front-end only — no CSP regen, edge-fn, or migration. Refs #234.
+
+---
+
 ## [1.31.25] — 2026-09-16
 
 ### Security
