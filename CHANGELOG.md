@@ -13,6 +13,13 @@ _Nothing yet._
 
 ---
 
+## [1.31.27] — 2026-09-16
+
+### Security
+- **Cold-audit v1.31 #214 (T4.21) — CSP `img-src` enforce flip (closes #214).** Promoted the tightened `img-src` from Report-Only to **enforced** in both CSP sources (in lockstep): `img-src 'self' data: blob: https:` → `img-src 'self' data: blob: https://i.discogs.com https://img.clerk.com`, closing the bare-`https:` any-host image-exfil channel deferred from #186. The separate `Content-Security-Policy-Report-Only` header (shipped v1.31.25) is removed; the enforced policy retains `report-uri`/`report-to`, so a surprise host now both **blocks and reports**. The allowlist was validated by a live browser pass over the public crate + Clerk sign-in/sign-up: every real image load is `i.discogs.com` (covers) or `img.clerk.com` (avatars), and the Clerk "Continue with Google" logo is inline (no fetch). No `script-src` hash regen, edge function, or migration. Rollback unchanged (rename enforced → Report-Only). Closes #214.
+
+---
+
 ## [1.31.26] — 2026-09-16
 
 ### Added
