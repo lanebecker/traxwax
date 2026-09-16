@@ -13,6 +13,7 @@
 import { ImageResponse } from 'workers-og';
 import { SEC_HEADERS } from '../_shared/headers.js';
 import { fetchWithTimeout } from '../_shared/http.js';
+import { cleanCrateName } from '../_shared/text.js';
 
 const SUPABASE_URL = 'https://sfipqknrbvamwwahwxnl.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_RLxgLYBzZoh5YCkYJ3NJZw_8BLFMIWg';
@@ -38,15 +39,26 @@ const txt = (s) => String(s ?? '').replace(/</g, '\u2039').replace(/>/g, '\u203a
 /* The six cover URLs come pre-selected and pre-ordered from get_public_crate_summary (recency:
    added desc, then insert id desc). Fetch each (3s timeout) → data URI; a failed or non-https
    entry drops out (spec's few-covers degradation), and the array collapses left. */
+/* #179 (T4.14): only an allowlisted image MIME may reach the data: URI, and covers are fetched
+   ONLY from Discogs' image host - releases is a shared catalog, so an unpinned host is an exfil surface. */
+const OK_COVER_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
 async function coverUris(urls) {
   const MAX = 400000;   // a thumb is tens of KB; skip monsters (#133/T2.11 cap — enforced pre- AND mid-read)
   const one = async (url) => {
-    if (!url || !/^https:\/\//.test(url)) return null;
+    if (!url) return null;
+    let u;
+    try { u = new URL(url); } catch { return null; }
+    // #179 (T4.14): https + Discogs host only. new URL() parses the real host, defeating
+    // userinfo tricks (https://i.discogs.com@evil.example) that a string regex would miss.
+    if (u.protocol !== 'https:' || !u.hostname.endsWith('.discogs.com')) return null;
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 3000);   // #133 (T2.11): now spans headers AND body (cleared in finally)
     try {
       const r = await fetch(url, { signal: ctrl.signal, redirect: 'manual' });   // #133: never follow a cover redirect (SSRF surface)
       if (!r.ok) return null;   // non-2xx incl. a 3xx/opaqueredirect from redirect:'manual' -> drop the cover
+      const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0].trim().toLowerCase();
+      if (!OK_COVER_MIME.has(mime)) return null;   // #179 (T4.14): drop anything but an allowlisted image type
       const declared = Number(r.headers.get('content-length'));
       if (Number.isFinite(declared) && declared > MAX) return null;   // #133: reject before allocating the body
       const reader = r.body && r.body.getReader();
@@ -67,8 +79,7 @@ async function coverUris(urls) {
       for (let i = 0; i < bytes.length; i += 8192) {
         bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
       }
-      const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
-      return `data:${mime};base64,${btoa(bin)}`;
+      return `data:${mime};base64,${btoa(bin)}`;   // #179: mime is the allowlisted literal validated above
     } catch (e) { return null; }
     finally { clearTimeout(t); }
   };
@@ -89,7 +100,7 @@ function headlineFits(nameWithS, noun) {
 export function buildCardHtml(d, slug) {
   const P = PALETTES[d.owner.og_palette] || PALETTES.red;
   const crateIsPublic = d.sections.crate === true;
-  const name = (d.owner.display_name || 'A Collector').toUpperCase();
+  const name = (cleanCrateName(d.owner.display_name) || 'A Collector').toUpperCase();
   const noun = crateIsPublic ? 'CRATE' : 'WANTLIST';
   const kicker = crateIsPublic ? 'A CRATE ON TRAXWAX' : 'A WANTLIST ON TRAXWAX';
   const countLabel = crateIsPublic ? 'RECORDS' : 'WANTED';
