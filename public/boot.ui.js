@@ -86,20 +86,6 @@ export function field(o) {
     '</div>';
 }
 
-/* Toggle. Square knob, no radius — the kit has no rounded anything. Wave 1 uses three. */
-export function toggle(o) {
-  const on = !!o.on;
-  return '' +
-    '<button id="' + esc(o.id) + '" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" ' +
-      'aria-label="' + esc(o.label) + '" style="width:46px; height:24px; padding:2px; flex:none; ' +
-      'border:1.5px solid var(--line); border-radius:0; cursor:pointer; display:inline-flex; ' +
-      'align-items:center; background:' + (on ? 'var(--accent)' : 'var(--bar)') + '; ' +
-      'justify-content:' + (on ? 'flex-end' : 'flex-start') + '">' +
-      '<span style="width:17px; height:17px; display:block; background:' +
-        (on ? 'var(--on-accent)' : 'var(--ink)') + '"></span>' +
-    '</button>';
-}
-
 /* Progress. Hard-edged, accent fill, no animation. Grey fill = stopped (S8). */
 export function progressBar(pct, stopped) {
   const w = Math.max(0, Math.min(100, Number(pct) || 0));
@@ -234,33 +220,6 @@ export function publicNotFoundHtml(variant) {
     '</footer>';
   return '<div style="min-height:100vh; display:flex; flex-direction:column; background:var(--bg)">' +
     strip + band + body + footer + '</div>';
-}
-
-/* ── The empty-state block (S17) ───────────────────────────────────────────────
-   NOT a one-off. Wave 1's "no friends yet", Wave 2's "no matches", Wave 3's empty overlap
-   all reuse this verbatim. Build against this signature, do not re-author the markup. */
-export function emptyState(o) {
-  return '' +
-  '<div style="padding:70px 40px 76px; display:flex; flex-direction:column; ' +
-    'align-items:center; gap:18px; text-align:center">' +
-    (o.icon === false ? '' :
-      '<div aria-hidden="true" style="width:112px; height:112px; border:1.5px solid var(--hair); ' +
-        'background:var(--bg); display:flex; align-items:center; justify-content:center">' +
-        '<div style="width:74px; height:74px; border-radius:50%; background:var(--bar); ' +
-          'display:flex; align-items:center; justify-content:center">' +
-          '<div style="width:22px; height:22px; border-radius:50%; background:var(--accent)"></div>' +
-        '</div></div>') +
-    '<div style="display:flex; flex-direction:column; gap:8px; align-items:center">' +
-      '<span style="' + MONO + '; font-size:9.5px; font-weight:700; letter-spacing:.18em; ' +
-        'color:var(--accent)">' + esc(o.kicker) + '</span>' +
-      '<span style="' + COND + '; font-size:38px; font-weight:700; line-height:1; ' +
-        'color:var(--ink)">' + esc(o.headline) + '</span>' +
-      '<span style="' + BODY + '; font-size:13.5px; line-height:1.7; color:var(--muted); ' +
-        'max-width:48ch">' + o.body + '</span>' +
-    '</div>' +
-    (o.actions ? '<div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center">' +
-      o.actions + '</div>' : '') +
-  '</div>';
 }
 
 /* ── Focus management ──────────────────────────────────────────────────────────
@@ -756,7 +715,7 @@ function segBtn(v, label, cur) {
 }
 
 /* Populate #tw-friends-list from deps.onListFriends(). Reused on first render and after a
-   removal. emptyState() for the no-friends case. */
+   removal. */
 // REMOVE button styling — smaller 2px offset shadow, per FRIENDS-SPEC §3.4. Armed state earns
 // the accent fill, matching the two-step DISCONNECT idiom.
 const RM_BASE = MONO + '; font-size:10.5px; font-weight:700; letter-spacing:.1em; ' +

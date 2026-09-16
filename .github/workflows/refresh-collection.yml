@@ -32,6 +32,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: "Guard: only run when dispatched from main (#187 / T4.22)"
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::refresh-collection must be run from the main branch (got ${{ github.ref }}). Re-dispatch with 'main' selected."
+          exit 1
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0   # E5 (#103), v1.28.0 remediation-audit: the rebase-before-push below needs a real history,

@@ -13,6 +13,16 @@ _Nothing yet._
 
 ---
 
+## [1.31.24] — 2026-09-16
+
+### Removed
+- **Cold-audit v1.31 Tier-4, Wave G — #183 dead code.** Deleted three unused, misleadingly-commented items: the `emptyState()` and `toggle()` exports in `boot.ui.js` (zero callers — their comments claimed otherwise) and the `.tw-wordmark*` CSS rules in `styles.css` (zero emitters; the live wordmark uses `.tw-land-wordmark`). Also fixed a stale `emptyState()` reference in a friends-list comment. No runtime surface changes.
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave G — #187 refresh-collection workflow.** A `workflow_dispatch` from any branch other than `main` could check out that branch, `git pull --rebase origin main`, and `git push HEAD:main` — pushing the feature branch onto main. Added a fail-fast first-step guard (`if: github.ref != 'refs/heads/main'` → error + exit 1). A normal dispatch from main is unchanged (the guard skips).
+
+---
+
 ## [1.31.23] — 2026-09-16
 
 ### Fixed
