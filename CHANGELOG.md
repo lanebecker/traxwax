@@ -13,6 +13,13 @@ _Nothing yet._
 
 ---
 
+## [1.31.21] — 2026-09-16
+
+### Fixed
+- **Cold-audit v1.31 Tier-4, Wave D — #172 / #188 / #189 / #190 contrast & dark-theme accessibility.** `--accent` used as small text failed WCAG AA-small in dark (3.66:1); a new `--accent-text` token (accent shifted ~72% toward `--ink` — light `#ad183d` 7.06:1, dark `#e44e75` 4.77:1) now colours every account status/error line, section-kicker eyebrow, and error-state field label/hint (#172). The SETTINGS kicker drops `rgba(255,255,255,.78)` (3.14:1) for solid `--on-accent` — ≈4.5:1, the house `--on-accent`/`--accent` pairing used on every primary button (#172). Clerk's sign-in/sign-up appearance is now resolved at mount, not at load, fixing the invisible dark auth card (1.01:1) after a theme toggle (#188). Dark-theme Clerk divider text (#189 — `--faint`, was the light grey at 3.27:1) and form-field error text (#190 — theme-correct accent-text, was the light accent hardcoded and sub-AA in both themes) now clear AA. External assets only; no CSP or behaviour change.
+
+---
+
 ## [1.31.20] — 2026-09-16
 
 ### Fixed
